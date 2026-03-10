@@ -1,0 +1,2 @@
+[console_scripts]
+seeed-jetson-flash = seeed_jetson_flash.cli:main

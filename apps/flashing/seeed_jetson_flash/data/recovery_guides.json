@@ -1,0 +1,215 @@
+{
+  "mini": {
+    "name": "reComputer Mini 系列",
+    "products": ["j4012mini", "j4011mini", "j3011mini", "j3010mini"],
+    "requirements": [
+      "Ubuntu 主机电脑",
+      "reComputer Mini J4012 / J4011 / J3010 或 J3011",
+      "USB Micro-B 数据线"
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "description": "使用 USB Micro-B 线将 USB2.0 DEVICE 口与 Ubuntu 主机相连"
+      },
+      {
+        "step": 2,
+        "description": "用细针按住 RECOVERY 孔内的恢复按钮并保持"
+      },
+      {
+        "step": 3,
+        "description": "接通电源"
+      },
+      {
+        "step": 4,
+        "description": "松开 RECOVERY 按钮"
+      }
+    ],
+    "verification": {
+      "command": "lsusb",
+      "ids": {
+        "Orin NX 16GB": "0955:7323",
+        "Orin NX 8GB": "0955:7423",
+        "Orin Nano 8GB": "0955:7523",
+        "Orin Nano 4GB": "0955:7623"
+      }
+    },
+    "images": [
+      {
+        "url": "https://files.seeedstudio.com/wiki/reComputer-Jetson/mini/reComputer_mini_rec.png",
+        "description": "reComputer Mini Recovery 模式示意图"
+      },
+      {
+        "url": "https://files.seeedstudio.com/wiki/reComputer-J4012/3.png",
+        "description": "lsusb 命令输出示例"
+      }
+    ],
+    "video": "https://www.youtube.com/embed/HEIXFkizP5Y"
+  },
+  "robotics": {
+    "name": "reComputer Robotics 系列",
+    "products": ["j4012robotics", "j4011robotics", "j3011robotics", "j3010robotics"],
+    "requirements": [
+      "Ubuntu 主机电脑",
+      "reComputer Robotics J4012 / J4011 / J3010 或 J3011",
+      "USB Type-C 数据线"
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "description": "将拨码开关切至 RESET 档位"
+      },
+      {
+        "step": 2,
+        "description": "连接电源线，为载板上电"
+      },
+      {
+        "step": 3,
+        "description": "用 USB Type-C 数据线将载板与 Ubuntu 主机连接"
+      },
+      {
+        "step": 4,
+        "description": "在 Linux 主机上打开终端，执行 lsusb"
+      }
+    ],
+    "verification": {
+      "command": "lsusb",
+      "ids": {
+        "Orin NX 16GB": "0955:7323",
+        "Orin NX 8GB": "0955:7423",
+        "Orin Nano 8GB": "0955:7523",
+        "Orin Nano 4GB": "0955:7623"
+      }
+    },
+    "images": [
+      {
+        "url": "https://files.seeedstudio.com/wiki/reComputer-Jetson/robotics_j401/flash1.jpg",
+        "description": "切换至 RESET 模式"
+      },
+      {
+        "url": "https://files.seeedstudio.com/wiki/reComputer-Jetson/robotics_j401/lsusb_f.png",
+        "description": "lsusb 命令输出示例"
+      }
+    ]
+  },
+  "super": {
+    "name": "reComputer Super 系列",
+    "products": ["j4012s", "j4011s", "j3011s", "j3010s"],
+    "requirements": [
+      "Ubuntu 主机电脑",
+      "reComputer Super J4012 / J4011 / J3010 或 J3011",
+      "USB Type-C 数据线"
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "description": "将拨码开关切至 RESET 档位"
+      },
+      {
+        "step": 2,
+        "description": "连接电源线，为载板上电"
+      },
+      {
+        "step": 3,
+        "description": "用 USB Type-C 数据线将载板与 Ubuntu 主机连接"
+      }
+    ],
+    "verification": {
+      "command": "lsusb",
+      "ids": {
+        "Orin NX 16GB": "0955:7323",
+        "Orin NX 8GB": "0955:7423",
+        "Orin Nano 8GB": "0955:7523",
+        "Orin Nano 4GB": "0955:7623"
+      }
+    },
+    "images": [
+      {
+        "url": "https://files.seeedstudio.com/wiki/reComputer-Jetson/super/flash1.jpg",
+        "description": "切换至 RESET 模式"
+      }
+    ]
+  },
+  "classic": {
+    "name": "reComputer Classic 系列",
+    "products": ["j4012classic", "j4011classic", "j3011classic", "j3010classic"],
+    "requirements": [
+      "Ubuntu 主机电脑",
+      "reComputer J4012 / J4011 / J3010 或 J3011",
+      "USB Type-C 数据线"
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "description": "用跳线短接 FC REC 与 GND 引脚"
+      },
+      {
+        "step": 2,
+        "description": "将电源适配器连接至设备，为 reComputer 上电"
+      },
+      {
+        "step": 3,
+        "description": "用 USB Type-C 数据线将设备与 Ubuntu 主机连接"
+      }
+    ],
+    "verification": {
+      "command": "lsusb",
+      "ids": {
+        "Orin NX 16GB": "0955:7323",
+        "Orin NX 8GB": "0955:7423",
+        "Orin Nano 8GB": "0955:7523",
+        "Orin Nano 4GB": "0955:7623"
+      }
+    },
+    "images": [
+      {
+        "url": "https://files.seeedstudio.com/wiki/reComputer-J4012/2.png",
+        "description": "FC REC 和 GND 引脚位置"
+      }
+    ]
+  },
+  "industrial": {
+    "name": "reComputer Industrial 系列",
+    "products": ["j4012industrial", "j4011industrial", "j3011industrial", "j3010industrial", "j2012industrial", "j2011industrial"],
+    "requirements": [
+      "Ubuntu 主机电脑",
+      "reComputer Industrial",
+      "USB Type-C 数据线",
+      "2针端子电源连接器"
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "description": "用 USB Type-C 线将 DEVICE 口与电脑连接"
+      },
+      {
+        "step": 2,
+        "description": "用细针按住 REC 孔内的恢复按钮并保持"
+      },
+      {
+        "step": 3,
+        "description": "将随附的两针端子电源连接器接到板上电源口，并连接电源适配器与电源线以开机"
+      },
+      {
+        "step": 4,
+        "description": "松开 REC 按钮"
+      }
+    ],
+    "verification": {
+      "command": "lsusb",
+      "ids": {
+        "Orin NX 16GB": "0955:7323",
+        "Orin NX 8GB": "0955:7423",
+        "Orin Nano 8GB": "0955:7523",
+        "Orin Nano 4GB": "0955:7623",
+        "Xavier NX": "0955:7e19"
+      }
+    },
+    "images": [
+      {
+        "url": "https://files.seeedstudio.com/wiki/reComputer-Industrial/2.png",
+        "description": "REC 按钮位置"
+      }
+    ]
+  }
+}
