@@ -22,7 +22,7 @@ QMainWindow, QWidget#RootContainer {
                                       stop:1 #CCD9D1);
     color: #16212D;
     font-family: "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
-    font-size: 14px;
+    font-size: 13px;
 }
 
 QFrame#WindowFrame {
@@ -109,7 +109,7 @@ QFrame#Sidebar {
 
 QLabel#BrandTitle {
     color: #F6FAFF;
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 700;
 }
 
@@ -162,7 +162,7 @@ QFrame#TopBar {
 
 QLabel#TopTitle {
     color: #F3F8FF;
-    font-size: 19px;
+    font-size: 16px;
     font-weight: 700;
 }
 
@@ -270,7 +270,7 @@ QFrame#Card[priority="high"] {
 
 QLabel#CardTitle {
     color: #121C2D;
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 700;
 }
 
@@ -311,7 +311,7 @@ QPushButton#PrimaryButton {
     border-bottom: 2px solid #587E13;
     border-radius: 9px;
     padding: 10px 18px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 700;
 }
 

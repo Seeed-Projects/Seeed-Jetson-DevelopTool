@@ -19,6 +19,18 @@ from PyQt5.QtWidgets import (
 
 from .styles import MAIN_STYLE, SEEED_GREEN, SEEED_BLUE
 from ..flash import JetsonFlasher
+from ..core.platform_detect import is_jetson
+from ..core.events import bus
+
+
+# ─────────────────────────────────────────────
+#  DPI 自适应辅助
+# ─────────────────────────────────────────────
+def _pt(px: int) -> int:
+    """将基于 96DPI 设计的 px 值转换为 pt，自动跟随系统 DPI 缩放。
+    96DPI: 1pt = 1.33px  →  13px ≈ 10pt，12px ≈ 9pt，以此类推。
+    """
+    return max(8, round(px * 0.75))
 
 
 # ─────────────────────────────────────────────
@@ -43,7 +55,7 @@ C_TOPBAR    = "#0D1720"   # 顶栏
 APP_STYLE = f"""
 * {{
     font-family: "Noto Sans CJK SC", "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
-    font-size: 13px;
+    font-size: {_pt(13)}pt;
     color: {C_TEXT};
 }}
 QMainWindow, QWidget {{
@@ -124,7 +136,7 @@ QTextEdit {{
     color: {C_TEXT2};
     padding: 6px;
     font-family: "Consolas", "Courier New", monospace;
-    font-size: 12px;
+    font-size: {_pt(12)}pt;
 }}
 QToolTip {{
     background: {C_CARD2};
@@ -148,7 +160,7 @@ def shadow(widget, blur=20, y=3, alpha=80):
 def make_label(text, size=13, color=C_TEXT, bold=False, wrap=False):
     lbl = QLabel(text)
     weight = "700" if bold else "400"
-    lbl.setStyleSheet(f"color:{color}; font-size:{size}px; font-weight:{weight}; background:transparent;")
+    lbl.setStyleSheet(f"color:{color}; font-size:{_pt(size)}pt; font-weight:{weight}; background:transparent;")
     if wrap:
         lbl.setWordWrap(True)
     return lbl
@@ -157,9 +169,9 @@ def make_label(text, size=13, color=C_TEXT, bold=False, wrap=False):
 def make_btn(text, primary=False, danger=False, small=False):
     btn = QPushButton(text)
     btn.setCursor(Qt.PointingHandCursor)
-    h = "32px" if small else "38px"
-    px = "12px 16px" if small else "10px 22px"
-    fs = "12px" if small else "13px"
+    h = f"{_pt(38)}px" if small else f"{_pt(46)}px"
+    px = "8px 16px" if small else "10px 22px"
+    fs = f"{_pt(12)}pt" if small else f"{_pt(13)}pt"
     if primary:
         bg, bg2, border, tc = C_GREEN, C_GREEN2, "#6A9A18", "#0A1A00"
     elif danger:
@@ -271,10 +283,12 @@ class SidebarButton(QPushButton):
         self._icon = icon
         self._label = label
         self.setText(f"  {icon}  {label}")
-        self.setFixedHeight(44)
+        self.setMinimumHeight(_pt(52))
         self._apply_style(False)
 
     def _apply_style(self, active):
+        fs   = f"{_pt(15)}pt"
+        pad  = f"{_pt(16)}px"
         if active:
             self.setStyleSheet(f"""
                 QPushButton {{
@@ -284,10 +298,10 @@ class SidebarButton(QPushButton):
                     border-left: 3px solid {C_GREEN};
                     border-radius: 0px;
                     color: {C_GREEN};
-                    font-size: 13px;
+                    font-size: {fs};
                     font-weight: 700;
                     text-align: left;
-                    padding-left: 14px;
+                    padding-left: {pad};
                 }}
             """)
         else:
@@ -298,10 +312,10 @@ class SidebarButton(QPushButton):
                     border-left: 3px solid transparent;
                     border-radius: 0px;
                     color: {C_TEXT2};
-                    font-size: 13px;
+                    font-size: {fs};
                     font-weight: 500;
                     text-align: left;
-                    padding-left: 14px;
+                    padding-left: {pad};
                 }}
                 QPushButton:hover {{
                     background: rgba(255,255,255,0.04);
@@ -326,6 +340,11 @@ class MainWindowV2(QMainWindow):
         self.flash_thread = None
         self._nav_btns = []
         self._current_page = 0
+        self._is_jetson = is_jetson()
+        self._remote_connected = False
+
+        bus.device_connected.connect(self._on_remote_connected)
+        bus.device_disconnected.connect(self._on_remote_disconnected)
 
         self.l4t_data = []
         self.product_images = {}
@@ -355,7 +374,7 @@ class MainWindowV2(QMainWindow):
     # ── UI 骨架 ───────────────────────────────
     def _init_ui(self):
         self.setWindowTitle("Seeed Jetson Develop Tool")
-        self.setMinimumSize(1280, 800)
+        self.setMinimumSize(960, 640)
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         self.setStyleSheet(APP_STYLE)
 
@@ -384,11 +403,15 @@ class MainWindowV2(QMainWindow):
 
         self.stack = QStackedWidget()
         self.stack.setStyleSheet("background:transparent;")
+        from seeed_jetson_develop.modules.devices.page import build_page as _devices_page
+        from seeed_jetson_develop.modules.apps.page import build_page as _apps_page
+        from seeed_jetson_develop.modules.skills.page import build_page as _skills_page
+        from seeed_jetson_develop.modules.remote.page import build_page as _remote_page
         self.stack.addWidget(self._build_flash_page())
-        self.stack.addWidget(self._build_devices_page())
-        self.stack.addWidget(self._build_apps_page())
-        self.stack.addWidget(self._build_skills_page())
-        self.stack.addWidget(self._build_remote_page())
+        self.stack.addWidget(_devices_page())
+        self.stack.addWidget(_apps_page())
+        self.stack.addWidget(_skills_page())
+        self.stack.addWidget(_remote_page())
         self.stack.addWidget(self._build_community_page())
         content_layout.addWidget(self.stack)
 
@@ -400,7 +423,7 @@ class MainWindowV2(QMainWindow):
     # ── 标题栏 ────────────────────────────────
     def _build_titlebar(self):
         bar = QFrame()
-        bar.setFixedHeight(42)
+        bar.setFixedHeight(_pt(52))
         bar.setStyleSheet(f"""
             QFrame {{
                 background: {C_TOPBAR};
@@ -417,7 +440,8 @@ class MainWindowV2(QMainWindow):
         logo_lbl = QLabel()
         logo_path = self.project_root / "assets" / "seeed-logo-blend.png"
         if logo_path.exists():
-            pix = QPixmap(str(logo_path)).scaled(90, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            lh = _pt(34)
+            pix = QPixmap(str(logo_path)).scaled(int(lh * 90/28), lh, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             logo_lbl.setPixmap(pix)
         else:
             logo_lbl.setText("🌱 Seeed")
@@ -483,8 +507,11 @@ class MainWindowV2(QMainWindow):
 
     # ── 侧边栏 ────────────────────────────────
     def _build_sidebar(self):
+        from PyQt5.QtWidgets import QApplication as _QApp
+        _screen = _QApp.primaryScreen()
+        _sw = int(200 * (_screen.logicalDotsPerInch() / 96.0)) if _screen else 200
         sidebar = QFrame()
-        sidebar.setFixedWidth(200)
+        sidebar.setFixedWidth(max(180, min(260, _sw)))
         sidebar.setStyleSheet(f"""
             QFrame {{
                 background: {C_SIDEBAR};
@@ -530,13 +557,48 @@ class MainWindowV2(QMainWindow):
         ver.setContentsMargins(16, 8, 0, 0)
         lay.addWidget(ver)
 
+        self._env_label = make_label("", 11, C_TEXT3)
+        self._env_label.setContentsMargins(16, 2, 0, 0)
+        lay.addWidget(self._env_label)
+        self._update_env_label()
+
         return sidebar
 
     def _set_page(self, idx):
+        # 设备管理/应用市场/Skills (1/2/3) 在 PC 模式且未连接时，跳转到远程开发页
+        if idx in (1, 2, 3) and not self._is_jetson and not self._remote_connected:
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.information(
+                self, "需要先连接设备",
+                "当前运行在 PC 上，请先在「远程开发」页建立 SSH 连接，再使用此功能。"
+            )
+            idx = 4  # 跳转到远程开发
+
         self._current_page = idx
         self.stack.setCurrentIndex(idx)
         for i, btn in enumerate(self._nav_btns):
             btn.setActive(i == idx)
+
+    def _update_env_label(self):
+        if self._is_jetson:
+            self._env_label.setText("🟢 Jetson 本机")
+            self._env_label.setStyleSheet(f"color:{C_GREEN}; font-size:11px; background:transparent; padding-left:16px;")
+        elif self._remote_connected:
+            self._env_label.setText("🔵 远程模式 (已连接)")
+            self._env_label.setStyleSheet(f"color:{C_BLUE}; font-size:11px; background:transparent; padding-left:16px;")
+        else:
+            self._env_label.setText("🟡 远程模式 (未连接)")
+            self._env_label.setStyleSheet(f"color:{C_ORANGE}; font-size:11px; background:transparent; padding-left:16px;")
+
+    def _on_remote_connected(self, payload: dict):
+        self._remote_connected = True
+        if hasattr(self, "_env_label"):
+            self._update_env_label()
+
+    def _on_remote_disconnected(self, ip: str):
+        self._remote_connected = False
+        if hasattr(self, "_env_label"):
+            self._update_env_label()
 
     # ── 通用页面头部 ──────────────────────────
     def _page_header(self, title, subtitle, badge=None):
@@ -580,6 +642,7 @@ class MainWindowV2(QMainWindow):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         inner = QWidget()
         inner.setStyleSheet(f"background:{C_BG};")
         inner_lay = QVBoxLayout(inner)
@@ -788,7 +851,7 @@ class MainWindowV2(QMainWindow):
         self.status_dot.setText("● 刷写中")
         self.status_dot.setStyleSheet(f"color:{C_ORANGE}; font-size:12px; background:transparent;")
         self.flash_log.clear()
-        self.flash_log.append(f"[INFO] 开始：{product} / L4T {l4t}")
+        self._flash_log(f"[INFO] 开始：{product} / L4T {l4t}")
 
         self.flash_thread = FlashThread(product, l4t,
                                         self.skip_verify_cb.isChecked(),
@@ -798,13 +861,20 @@ class MainWindowV2(QMainWindow):
         self.flash_thread.finished.connect(self._on_flash_done)
         self.flash_thread.start()
 
+    def _flash_log(self, text: str):
+        """安全追加日志到 flash_log，避免 QTextCursor out of range 警告。"""
+        from PyQt5.QtGui import QTextCursor
+        self.flash_log.moveCursor(QTextCursor.End)
+        self.flash_log.insertPlainText(text + "\n")
+        self.flash_log.ensureCursorVisible()
+
     def _cancel_flash(self):
         if self.flash_thread:
             self.flash_thread.cancel()
 
     def _on_flash_msg(self, msg):
         self.flash_status_lbl.setText(msg)
-        self.flash_log.append(f"[INFO] {msg}")
+        self._flash_log(f"[INFO] {msg}")
 
     def _on_flash_done(self, ok, msg):
         self.flash_run_btn.setVisible(True)
@@ -813,7 +883,7 @@ class MainWindowV2(QMainWindow):
         icon = "✓" if ok else "✗"
         self.flash_status_lbl.setText(f"{icon} {msg}")
         self.flash_status_lbl.setStyleSheet(f"color:{color}; background:transparent;")
-        self.flash_log.append(f"[{'OK' if ok else 'ERR'}] {msg}")
+        self._flash_log(f"[{'OK' if ok else 'ERR'}] {msg}")
         self.status_dot.setText("● 就绪")
         self.status_dot.setStyleSheet(f"color:{C_GREEN}; font-size:12px; background:transparent;")
 
@@ -829,6 +899,7 @@ class MainWindowV2(QMainWindow):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         inner = QWidget()
         inner.setStyleSheet(f"background:{C_BG};")
         inner_lay = QVBoxLayout(inner)
@@ -962,6 +1033,7 @@ class MainWindowV2(QMainWindow):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         inner = QWidget()
         inner.setStyleSheet(f"background:{C_BG};")
         inner_lay = QVBoxLayout(inner)
@@ -1071,6 +1143,7 @@ class MainWindowV2(QMainWindow):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         inner = QWidget()
         inner.setStyleSheet(f"background:{C_BG};")
         inner_lay = QVBoxLayout(inner)
@@ -1179,115 +1252,6 @@ class MainWindowV2(QMainWindow):
         return page
 
     # ══════════════════════════════════════════
-    #  PAGE 5: 远程开发
-    # ══════════════════════════════════════════
-    def _build_remote_page(self):
-        page = QWidget()
-        lay = QVBoxLayout(page)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(0)
-        lay.addWidget(self._page_header("💻 远程开发", "通过 VS Code / Web IDE / AI 辅助建立远程开发环境"))
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        inner = QWidget()
-        inner.setStyleSheet(f"background:{C_BG};")
-        inner_lay = QVBoxLayout(inner)
-        inner_lay.setContentsMargins(28, 24, 28, 24)
-        inner_lay.setSpacing(16)
-
-        # 连接状态卡片
-        conn_card = card_frame()
-        conn_lay = QVBoxLayout(conn_card)
-        conn_lay.setContentsMargins(20, 18, 20, 18)
-        conn_lay.setSpacing(12)
-
-        hdr = QHBoxLayout()
-        hdr.addWidget(make_label("🔗 设备连接", 14, C_TEXT, bold=True))
-        hdr.addStretch()
-        conn_status = QLabel("● 未连接")
-        conn_status.setStyleSheet(f"color:{C_TEXT3}; font-size:12px; background:transparent;")
-        hdr.addWidget(conn_status)
-        conn_lay.addLayout(hdr)
-
-        conn_row = QHBoxLayout()
-        conn_row.addWidget(make_label("设备 IP / 主机名", 12, C_TEXT2))
-        from PyQt5.QtWidgets import QLineEdit
-        ip_input = QLineEdit()
-        ip_input.setPlaceholderText("192.168.1.xxx 或 jetson.local")
-        ip_input.setStyleSheet(f"""
-            QLineEdit {{
-                background: {C_CARD2};
-                border: 1px solid {C_BORDER};
-                border-radius: 6px;
-                color: {C_TEXT};
-                padding: 6px 10px;
-                font-size: 13px;
-            }}
-            QLineEdit:focus {{ border-color: {C_GREEN}; }}
-        """)
-        conn_row.addWidget(ip_input, 1)
-        scan_btn = make_btn("🔍 扫描设备", small=True)
-        conn_row.addWidget(scan_btn)
-        conn_lay.addLayout(conn_row)
-        shadow(conn_card)
-        inner_lay.addWidget(conn_card)
-
-        # 开发工具卡片
-        tools = [
-            ("🔵", "VS Code Remote SSH", "通过 SSH 远程连接，在本机 VS Code 中编辑 Jetson 代码",
-             "需要本机安装 VS Code + Remote SSH 插件", "打开配置"),
-            ("🌐", "VS Code Server (Web)", "在 Jetson 上运行 code-server，浏览器直接访问开发环境",
-             "需要先通过 Skills 安装 code-server", "一键部署"),
-            ("🤖", "Claude / AI 辅助", "接入 Claude API，在远程开发中获得 AI 代码辅助",
-             "需要配置 API Key", "配置接入"),
-            ("📓", "Jupyter Lab", "在 Jetson 上运行 Jupyter，浏览器访问交互式开发",
-             "需要先安装 Jupyter Lab", "启动服务"),
-        ]
-
-        tools_card = card_frame()
-        tools_lay = QVBoxLayout(tools_card)
-        tools_lay.setContentsMargins(20, 18, 20, 18)
-        tools_lay.setSpacing(12)
-        tools_lay.addWidget(make_label("🛠 开发工具", 14, C_TEXT, bold=True))
-
-        for icon, name, desc, note, action in tools:
-            row = QFrame()
-            row.setStyleSheet(f"""
-                QFrame {{
-                    background: {C_CARD2};
-                    border: 1px solid {C_BORDER};
-                    border-radius: 8px;
-                }}
-            """)
-            rl = QHBoxLayout(row)
-            rl.setContentsMargins(14, 12, 14, 12)
-            rl.setSpacing(14)
-
-            icon_lbl = QLabel(icon)
-            icon_lbl.setStyleSheet("font-size:24px; background:transparent;")
-            icon_lbl.setFixedWidth(36)
-            rl.addWidget(icon_lbl)
-
-            info = QVBoxLayout()
-            info.setSpacing(3)
-            info.addWidget(make_label(name, 13, C_TEXT, bold=True))
-            info.addWidget(make_label(desc, 11, C_TEXT2))
-            info.addWidget(make_label(f"ℹ  {note}", 10, C_TEXT3))
-            rl.addLayout(info, 1)
-
-            act_btn = make_btn(action, primary=True, small=True)
-            rl.addWidget(act_btn)
-            tools_lay.addWidget(row)
-
-        shadow(tools_card)
-        inner_lay.addWidget(tools_card)
-        inner_lay.addStretch()
-        scroll.setWidget(inner)
-        lay.addWidget(scroll, 1)
-        return page
-
-    # ══════════════════════════════════════════
     #  PAGE 6: 社区
     # ══════════════════════════════════════════
     def _build_community_page(self):
@@ -1299,6 +1263,7 @@ class MainWindowV2(QMainWindow):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         inner = QWidget()
         inner.setStyleSheet(f"background:{C_BG};")
         inner_lay = QVBoxLayout(inner)
@@ -1376,9 +1341,34 @@ class MainWindowV2(QMainWindow):
 #  入口
 # ─────────────────────────────────────────────
 def main():
+    from PyQt5.QtGui import QFont
     app = QApplication(sys.argv)
     app.setApplicationName("Seeed Jetson Develop Tool")
+
+    # DPI 自适应字体
+    screen = app.primaryScreen()
+    if screen:
+        dpi = screen.logicalDotsPerInch()
+        base_pt = max(11, round(13 * dpi / 96))
+        app.setFont(QFont(
+            "Noto Sans CJK SC, PingFang SC, Microsoft YaHei, Segoe UI, sans-serif",
+            base_pt,
+        ))
+
     win = MainWindowV2()
+
+    # 窗口大小基于屏幕可用区域
+    if screen:
+        geo = screen.availableGeometry()
+        w = max(960, min(int(geo.width()  * 0.85), 1920))
+        h = max(640, min(int(geo.height() * 0.88), 1080))
+        win.resize(w, h)
+        # 居中
+        win.move(
+            geo.x() + (geo.width()  - w) // 2,
+            geo.y() + (geo.height() - h) // 2,
+        )
+
     win.show()
     sys.exit(app.exec_())
 
