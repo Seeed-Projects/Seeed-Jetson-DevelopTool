@@ -1,0 +1,102 @@
+{
+  "j4012s": {
+    "name": "reComputer Super J4012",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/2/-/2-114110311-recomputer-super-j3010_1.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_super_hardware_interfaces_usage/"
+  },
+  "j4011s": {
+    "name": "reComputer Super J4011",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/2/-/2-114110311-recomputer-super-j3010-8g.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_super_hardware_interfaces_usage/"
+  },
+  "j3011s": {
+    "name": "reComputer Super J3011",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/2/-/2-114110311-recomputer-super-j3010-nano-8g.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_super_hardware_interfaces_usage/"
+  },
+  "j3010s": {
+    "name": "reComputer Super J3010",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/2/-/2-114110311-recomputer-super-j3010-nano-4g.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_super_hardware_interfaces_usage/"
+  },
+  "j4012mini": {
+    "name": "reComputer mini J4012",
+    "image": "https://files.seeedstudio.com/wiki/reComputer-Jetson/mini/1-reComputer-Mini-bundle.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_mini_hardware_interfaces_usage/"
+  },
+  "j4011mini": {
+    "name": "reComputer mini J4011",
+    "image": "https://files.seeedstudio.com/wiki/reComputer-Jetson/mini/1-reComputer-Mini-bundle.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_mini_hardware_interfaces_usage/"
+  },
+  "j3011mini": {
+    "name": "reComputer mini J3011",
+    "image": "https://files.seeedstudio.com/wiki/reComputer-Jetson/mini/1-reComputer-Mini-bundle.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_mini_hardware_interfaces_usage/"
+  },
+  "j3010mini": {
+    "name": "reComputer mini J3010",
+    "image": "https://files.seeedstudio.com/wiki/reComputer-Jetson/mini/1-reComputer-Mini-bundle.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_mini_hardware_interfaces_usage/"
+  },
+  "j4012robotics": {
+    "name": "reComputer robotics J4012",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/1/-/1-114110310-recomputer-robotics_2.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_robotics_j401_getting_started/"
+  },
+  "j4011robotics": {
+    "name": "reComputer robotics J4011",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/1/-/1-114110310-recomputer-robotics_2.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_robotics_j401_getting_started/"
+  },
+  "j3011robotics": {
+    "name": "reComputer robotics J3011",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/1/-/1-114110310-recomputer-robotics_2.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_robotics_j401_getting_started/"
+  },
+  "j3010robotics": {
+    "name": "reComputer robotics J3010",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/1/-/1-114110310-recomputer-robotics_2.jpg",
+    "wiki": "https://wiki.seeedstudio.com/recomputer_jetson_robotics_j401_getting_started/"
+  },
+  "j4012classic": {
+    "name": "reComputer J4012 / reComputer J4012B",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/r/e/recomputer_classic_optional_accessories_nvidia_jetson_orin_powered_edge_ai_box.jpeg",
+    "wiki": "https://wiki.seeedstudio.com/J401_carrierboard_Hardware_Interfaces_Usage/"
+  },
+  "j4011classic": {
+    "name": "reComputer J4011 / reComputer J4011B",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/r/e/recomputer_classic_optional_accessories_nvidia_jetson_orin_powered_edge_ai_box.jpeg",
+    "wiki": "https://wiki.seeedstudio.com/J401_carrierboard_Hardware_Interfaces_Usage/"
+  },
+  "j3011classic": {
+    "name": "reComputer J3011 / reComputer J3011B",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/r/e/recomputer_classic_optional_accessories_nvidia_jetson_orin_powered_edge_ai_box.jpeg",
+    "wiki": "https://wiki.seeedstudio.com/J401_carrierboard_Hardware_Interfaces_Usage/"
+  },
+  "j3010classic": {
+    "name": "reComputer J3010 / reComputer J3010B",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/r/e/recomputer_classic_optional_accessories_nvidia_jetson_orin_powered_edge_ai_box.jpeg",
+    "wiki": "https://wiki.seeedstudio.com/J401_carrierboard_Hardware_Interfaces_Usage/"
+  },
+  "j4012industrial": {
+    "name": "reComputer industrial J4012",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/1/-/1--recomputer-industrial-bundle.jpg",
+    "wiki": "https://wiki.seeedstudio.com/reComputer_Industrial_J40_J30_Hardware_Interfaces_Usage/"
+  },
+  "j4011industrial": {
+    "name": "reComputer industrial J4011",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/1/-/1--recomputer-industrial-bundle.jpg",
+    "wiki": "https://wiki.seeedstudio.com/reComputer_Industrial_J40_J30_Hardware_Interfaces_Usage/"
+  },
+  "j3011industrial": {
+    "name": "reComputer industrial J3011",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/1/-/1--recomputer-industrial-bundle.jpg",
+    "wiki": "https://wiki.seeedstudio.com/reComputer_Industrial_J40_J30_Hardware_Interfaces_Usage/"
+  },
+  "j3010industrial": {
+    "name": "reComputer industrial J3010",
+    "image": "https://media-cdn.seeedstudio.com/media/catalog/product/cache/bb49d3ec4ee05b6f018e93f896b8a25d/1/-/1--recomputer-industrial-bundle.jpg",
+    "wiki": "https://wiki.seeedstudio.com/reComputer_Industrial_J40_J30_Hardware_Interfaces_Usage/"
+  }
+}
