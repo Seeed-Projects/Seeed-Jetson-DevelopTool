@@ -77,13 +77,38 @@ seeed_jetson_develop/
 **根目录**
 
 ```
-run_v2.py       # ★ 新版 UI 启动入口（python3 run_v2.py）
-run_gui.py      # 旧版启动入口
-prd_images/     # 从 PRD docx 提取的参考截图
-  image1.png    # 图1：烧录流程界面
-  image2.png    # 图2：设备管理首页
-  image3.png    # 图3：应用空间
-  image4.png    # 图4：示例应用市场
+run_v2.py            # ★ 主启动入口（python3 run_v2.py）
+setup.py             # 包配置（包名 seeed-jetson-develop）
+requirements.txt
+LICENSE
+README.md
+CONTEXT.md           # 本文档
+jetson_Develop_prd.docx  # 原始 PRD
+
+assets/              # 图片 / logo 资源
+  seeed-logo-blend.png
+  seeed-logo.png
+  reference-UI.png
+
+docs/                # 文档
+  QUICKSTART.md
+  INSTALL_GUI.md
+  GUI_GUIDE.md
+  USAGE.md  ...
+
+scripts/             # Shell 工具脚本
+  flash_jetson.sh          # L4T 原生刷写命令封装
+  collect_jetson_logs.sh   # 诊断日志收集
+  create_app_workspace.sh  # 创建应用工作区
+  jetson_dev_cli.sh        # 交互式 CLI 入口
+  run_gui.sh               # 启动旧版 GUI
+
+prd_images/          # 从 PRD 提取的参考截图（image1~4.png）
+
+skills/              # ★ 大量已有 Skill 定义（按 AI 平台分类）
+  claude/            # ~90 个 skill（已验证）
+  codex/
+  openclaw/
 ```
 
 ---

@@ -580,7 +580,7 @@ class MainWindow(QMainWindow):
         self.logo_label.setObjectName("BrandLogo")
         self.logo_label.setAlignment(Qt.AlignCenter)
         self.logo_label.setMinimumHeight(58)
-        logo_path = self.project_root / "seeed-logo-blend.png"
+        logo_path = self.project_root / "assets" / "seeed-logo-blend.png"
         if logo_path.exists():
             pix = QPixmap(str(logo_path))
             if not pix.isNull():

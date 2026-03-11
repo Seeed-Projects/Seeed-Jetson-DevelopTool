@@ -1,5 +1,0 @@
-include README.md
-include LICENSE
-include requirements.txt
-recursive-include seeed_jetson_flash/data *.json
-recursive-include seeed_jetson_flash/assets *

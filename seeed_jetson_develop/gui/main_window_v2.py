@@ -415,7 +415,7 @@ class MainWindowV2(QMainWindow):
 
         # Logo
         logo_lbl = QLabel()
-        logo_path = self.project_root / "seeed-logo-blend.png"
+        logo_path = self.project_root / "assets" / "seeed-logo-blend.png"
         if logo_path.exists():
             pix = QPixmap(str(logo_path)).scaled(90, 28, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             logo_lbl.setPixmap(pix)
