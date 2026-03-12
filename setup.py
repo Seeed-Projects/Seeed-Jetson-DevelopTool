@@ -32,6 +32,11 @@ setup(
         ],
     },
     package_data={
-        "seeed_jetson_develop": ["data/*.json", "assets/images/*"],
+        "seeed_jetson_develop": [
+            "data/*.json",
+            "assets/images/*",
+            "modules/apps/data/*.json",
+            "modules/skills/data/*.json",
+        ],
     },
 )

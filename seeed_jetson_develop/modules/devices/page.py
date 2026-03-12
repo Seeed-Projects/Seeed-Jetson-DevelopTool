@@ -1,36 +1,24 @@
-"""设备管理页 — 完整实现
+"""设备管理页 — 无边框大气风格
 包含：设备信息卡、快速诊断、外设检测，全部接入真实命令执行。
 """
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QGridLayout,
-    QScrollArea, QGraphicsDropShadowEffect,
-    QDialog, QTextEdit,
+    QScrollArea, QDialog, QTextEdit,
 )
-
-# DPI 转换（与 main_window_v2 保持一致）
-def _pt(px: int) -> int:
-    return max(8, round(px * 0.75))
 
 from seeed_jetson_develop.core.runner import Runner, get_runner
 from seeed_jetson_develop.core.events import bus
+from seeed_jetson_develop.gui.theme import (
+    C_BG, C_BG_DEEP, C_CARD, C_CARD_LIGHT,
+    C_GREEN, C_BLUE, C_ORANGE, C_RED,
+    C_TEXT, C_TEXT2, C_TEXT3,
+    pt as _pt, make_label as _lbl, make_button as _btn,
+    make_card as _card, make_input_card as _input_card,
+    apply_shadow as _shadow,
+)
 from .diagnostics import DIAG_ITEMS, PERIPH_ITEMS, run_all, run_periph, collect_info
-
-# ── 颜色常量（与 main_window_v2 保持一致）─────────────────────────────────
-C_BG     = "#0F1923"
-C_CARD   = "#162030"
-C_CARD2  = "#1A2840"
-C_BORDER = "#1E3048"
-C_GREEN  = "#8DC21F"
-C_GREEN2 = "#76B900"
-C_BLUE   = "#2C7BE5"
-C_ORANGE = "#F5A623"
-C_RED    = "#E53E3E"
-C_TEXT   = "#E8F0F8"
-C_TEXT2  = "#8BA0B8"
-C_TEXT3  = "#4A6278"
 
 COLOR_MAP = {
     "ok":    C_GREEN,
@@ -40,75 +28,16 @@ COLOR_MAP = {
 }
 
 
-# ── 共用辅助函数 ─────────────────────────────────────────────────────────────
-def _shadow(w, blur=20, y=3, alpha=80):
-    fx = QGraphicsDropShadowEffect()
-    fx.setBlurRadius(blur)
-    fx.setOffset(0, y)
-    fx.setColor(QColor(0, 0, 0, alpha))
-    w.setGraphicsEffect(fx)
-    return w
-
-
-def _lbl(text, size=13, color=C_TEXT, bold=False, wrap=False):
-    l = QLabel(text)
-    l.setStyleSheet(
-        f"color:{color}; font-size:{_pt(size)}pt; "
-        f"font-weight:{'700' if bold else '400'}; background:transparent;"
-    )
-    if wrap:
-        l.setWordWrap(True)
-    return l
-
-
-def _card(radius=12):
-    f = QFrame()
-    f.setStyleSheet(f"""
-        QFrame {{
-            background: {C_CARD};
-            border: 1px solid {C_BORDER};
-            border-radius: {radius}px;
-        }}
-    """)
-    return f
-
-
-def _btn(text, primary=False, small=False):
-    b = QPushButton(text)
-    b.setCursor(Qt.PointingHandCursor)
-    h = f"{_pt(38)}px" if small else f"{_pt(46)}px"
-    px = "8px 16px" if small else "10px 22px"
-    fs = f"{_pt(12)}pt" if small else f"{_pt(13)}pt"
-    if primary:
-        bg, bg2, border, tc = C_GREEN, C_GREEN2, "#6A9A18", "#0A1A00"
-    else:
-        bg, bg2, border, tc = C_CARD2, C_CARD, C_BORDER, C_TEXT2
-    b.setStyleSheet(f"""
-        QPushButton {{
-            background: qlineargradient(x1:0,y1:0,x2:0,y2:1,stop:0 {bg},stop:1 {bg2});
-            border: 1px solid {border};
-            border-radius: 7px;
-            color: {tc};
-            font-size: {fs};
-            font-weight: 600;
-            padding: {px};
-            min-height: {h};
-        }}
-        QPushButton:hover {{ background: {bg}; }}
-        QPushButton:pressed {{ background: {bg2}; }}
-        QPushButton:disabled {{ opacity: 0.45; }}
-    """)
-    return b
-
-
-def _status_tag(text="待检测", color=C_TEXT3):
+def _status_tag(text="待检测", color=C_TEXT3) -> QLabel:
+    """状态标签 - 无边框"""
     l = QLabel(text)
     l.setStyleSheet(f"""
-        background: rgba(255,255,255,0.05);
+        background: {C_CARD_LIGHT};
         color: {color};
-        border-radius: 4px;
-        padding: 2px 10px;
-        font-size: 11px;
+        border-radius: 6px;
+        padding: 4px 12px;
+        font-size: {_pt(11)}pt;
+        font-weight: 500;
     """)
     l.setAlignment(Qt.AlignCenter)
     return l
@@ -123,7 +52,7 @@ class _DiagThread(QThread):
     def __init__(self, mode="full"):
         super().__init__()
         self._runner = get_runner()
-        self._mode = mode   # "full" | "diag" | "periph" | "info"
+        self._mode = mode
 
     def run(self):
         if self._mode in ("full", "info"):
@@ -139,13 +68,11 @@ class _DiagThread(QThread):
 # ── PyTorch 安装线程 ──────────────────────────────────────────────────────────
 class _InstallThread(QThread):
     log     = pyqtSignal(str)
-    done    = pyqtSignal(bool)   # success
+    done    = pyqtSignal(bool)
 
-    # 按 JetPack 版本分组的安装步骤
     _CMDS_JP6 = [
         "sudo apt-get -y update",
         "sudo apt-get install -y python3-pip libopenblas-dev",
-        # cuSPARSELt (JetPack 6.x 必需)
         "wget -q https://developer.download.nvidia.com/compute/cusparselt/0.7.1/local_installers/"
         "cusparselt-local-tegra-repo-ubuntu2204-0.7.1_1.0-1_arm64.deb -O /tmp/cusparselt.deb",
         "sudo dpkg -i /tmp/cusparselt.deb",
@@ -153,7 +80,6 @@ class _InstallThread(QThread):
         "/usr/share/keyrings/",
         "sudo apt-get update -qq",
         "sudo apt-get -y install libcusparselt0 libcusparselt-dev",
-        # PyTorch wheel
         "wget -q https://developer.download.nvidia.cn/compute/redist/jp/v61/pytorch/"
         "torch-2.5.0a0+872d972e41.nv24.08.17622132-cp310-cp310-linux_aarch64.whl "
         "-O /tmp/torch_jp6.whl",
@@ -196,19 +122,19 @@ class _InstallThread(QThread):
 
 # ── PyTorch 安装对话框 ────────────────────────────────────────────────────────
 class _TorchInstallDialog(QDialog):
-    install_succeeded = pyqtSignal()   # 安装成功后通知父页面刷新
+    install_succeeded = pyqtSignal()
 
     def __init__(self, l4t: str, parent=None):
         super().__init__(parent)
         self._l4t = l4t
         self._thread = None
         self.setWindowTitle("安装 PyTorch for Jetson")
-        self.setMinimumSize(620, 480)
-        self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
+        self.setMinimumSize(640, 520)
+        self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 20)
-        lay.setSpacing(14)
+        lay.setSpacing(16)
 
         # 版本提示
         jp = "JetPack 6.x (R36)" if "R36" in l4t else "JetPack 5.x (R35)"
@@ -221,11 +147,15 @@ class _TorchInstallDialog(QDialog):
         cmds = _InstallThread._CMDS_JP6 if "R36" in l4t else _InstallThread._CMDS_JP5
         preview = QTextEdit()
         preview.setReadOnly(True)
-        preview.setFixedHeight(110)
+        preview.setFixedHeight(120)
         preview.setStyleSheet(f"""
-            background:{C_CARD2}; border:1px solid {C_BORDER};
-            border-radius:6px; color:{C_TEXT2};
-            font-family:'Consolas','Courier New',monospace; font-size:11px; padding:6px;
+            background:{C_CARD_LIGHT};
+            border:none;
+            border-radius:10px;
+            color:{C_TEXT2};
+            font-family:'JetBrains Mono','Consolas',monospace;
+            font-size:11px;
+            padding:12px;
         """)
         preview.setPlainText("\n".join(f"$ {c}" for c in cmds))
         lay.addWidget(preview)
@@ -235,15 +165,19 @@ class _TorchInstallDialog(QDialog):
         self._log = QTextEdit()
         self._log.setReadOnly(True)
         self._log.setStyleSheet(f"""
-            background:{C_CARD}; border:1px solid {C_BORDER};
-            border-radius:6px; color:{C_GREEN};
-            font-family:'Consolas','Courier New',monospace; font-size:11px; padding:6px;
+            background:{C_CARD};
+            border:none;
+            border-radius:10px;
+            color:{C_GREEN};
+            font-family:'JetBrains Mono','Consolas',monospace;
+            font-size:11px;
+            padding:12px;
         """)
         lay.addWidget(self._log, 1)
 
         # 按钮行
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(10)
+        btn_row.setSpacing(12)
         self._start_btn = _btn("▶  开始安装", primary=True)
         self._stop_btn  = _btn("■  停止")
         self._stop_btn.setEnabled(False)
@@ -296,15 +230,15 @@ def build_page() -> QWidget:
     root.setContentsMargins(0, 0, 0, 0)
     root.setSpacing(0)
 
-    # ── 页头 ──
-    header = QFrame()
-    header.setStyleSheet(f"background:{C_CARD}; border-bottom:1px solid {C_BORDER};")
-    header.setFixedHeight(64)
+    # ── 页头 - 无边框 ──
+    header = QWidget()
+    header.setStyleSheet(f"background:{C_BG_DEEP};")
+    header.setFixedHeight(_pt(64))
     hl = QHBoxLayout(header)
     hl.setContentsMargins(28, 0, 28, 0)
-    hl.addWidget(_lbl("🖥 设备管理", 18, C_TEXT, bold=True))
+    hl.addWidget(_lbl("设备管理", 18, C_TEXT, bold=True))
     hl.addSpacing(12)
-    hl.addWidget(_lbl("查看已连接设备状态、运行诊断与外设检测", 12, C_TEXT2))
+    hl.addWidget(_lbl("查看已连接设备状态、运行诊断与外设检测", 12, C_TEXT3))
     hl.addStretch()
     run_btn = _btn("▶  运行全部检测", primary=True, small=True)
     hl.addWidget(run_btn)
@@ -319,14 +253,14 @@ def build_page() -> QWidget:
     inner.setStyleSheet(f"background:{C_BG};")
     lay = QVBoxLayout(inner)
     lay.setContentsMargins(28, 24, 28, 24)
-    lay.setSpacing(16)
+    lay.setSpacing(20)
 
     # ═══════════════════════════════════════
     # 1. 设备信息卡（4 格）
     # ═══════════════════════════════════════
     info_row = QHBoxLayout()
-    info_row.setSpacing(12)
-    info_cards: dict[str, QLabel] = {}   # key → value label
+    info_row.setSpacing(16)
+    info_cards: dict[str, QLabel] = {}
 
     for key, icon, label in [
         ("model",   "🖥",  "设备型号"),
@@ -334,60 +268,52 @@ def build_page() -> QWidget:
         ("memory",  "🧠", "内存使用"),
         ("ip",      "🌐", "IP 地址"),
     ]:
-        c = _card(8)
+        c = _card(10)
         cl = QVBoxLayout(c)
         cl.setContentsMargins(16, 14, 16, 14)
-        cl.setSpacing(4)
-        cl.addWidget(_lbl(icon, 18))
-        val_lbl = _lbl("采集中…", 13, C_TEXT2, bold=False)
+        cl.setSpacing(6)
+        cl.addWidget(_lbl(icon, 20))
+        val_lbl = _lbl("采集中…", 14, C_TEXT2, bold=False)
         cl.addWidget(val_lbl)
         cl.addWidget(_lbl(label, 11, C_TEXT3))
         info_cards[key] = val_lbl
-        _shadow(c, blur=12)
+        _shadow(c, blur=16)
         info_row.addWidget(c, 1)
     lay.addLayout(info_row)
 
     # ═══════════════════════════════════════
-    # 2. 快速诊断卡
+    # 2. 快速诊断卡 - 无边框行
     # ═══════════════════════════════════════
-    diag_card = _card()
+    diag_card = _card(12)
     dc_lay = QVBoxLayout(diag_card)
     dc_lay.setContentsMargins(20, 18, 20, 18)
-    dc_lay.setSpacing(12)
+    dc_lay.setSpacing(14)
 
     dh = QHBoxLayout()
-    dh.addWidget(_lbl("🔍 快速诊断", 14, C_TEXT, bold=True))
+    dh.addWidget(_lbl("🔍 快速诊断", 15, C_TEXT, bold=True))
     dh.addStretch()
     diag_only_btn = _btn("仅运行诊断", small=True)
     dh.addWidget(diag_only_btn)
     dc_lay.addLayout(dh)
-    dc_lay.addWidget(_lbl("自动检查网络、GPU Torch、Docker、jtop、摄像头等关键组件状态", 12, C_TEXT2))
+    dc_lay.addWidget(_lbl("自动检查网络、GPU Torch、Docker、jtop、摄像头等关键组件状态", 12, C_TEXT3))
 
     diag_tags: dict[str, QLabel] = {}
-    _torch_install_btn: list[QPushButton] = [None]   # 安装按钮引用
-    _l4t_ver: list[str] = ["R36"]                    # 从 info 回调更新
+    _torch_install_btn: list[QPushButton] = [None]
+    _l4t_ver: list[str] = ["R36"]
 
     for item in DIAG_ITEMS:
-        row = QFrame()
-        row.setStyleSheet(f"""
-            QFrame {{
-                background: {C_CARD2};
-                border: 1px solid {C_BORDER};
-                border-radius: 6px;
-            }}
-        """)
+        row = _input_card(8)
         rl = QHBoxLayout(row)
-        rl.setContentsMargins(12, 8, 12, 8)
-        rl.addWidget(_lbl(item.icon, 14))
+        rl.setContentsMargins(14, 10, 14, 10)
+        rl.addWidget(_lbl(item.icon, 16))
         rl.addWidget(_lbl(item.name, 13, C_TEXT))
         rl.addStretch()
 
-        # torch 行额外加一个隐藏安装按钮
         if item.id == "torch":
             inst_btn = _btn("安装 PyTorch", small=True)
             inst_btn.hide()
             rl.addWidget(inst_btn)
-            rl.addSpacing(8)
+            rl.addSpacing(10)
             _torch_install_btn[0] = inst_btn
 
         tag = _status_tag("待检测")
@@ -401,26 +327,26 @@ def build_page() -> QWidget:
     # ═══════════════════════════════════════
     # 3. 外设状态卡
     # ═══════════════════════════════════════
-    periph_card = _card()
+    periph_card = _card(12)
     pc_lay = QVBoxLayout(periph_card)
     pc_lay.setContentsMargins(20, 18, 20, 18)
-    pc_lay.setSpacing(12)
+    pc_lay.setSpacing(14)
 
     ph = QHBoxLayout()
-    ph.addWidget(_lbl("🔌 外设状态", 14, C_TEXT, bold=True))
+    ph.addWidget(_lbl("🔌 外设状态", 15, C_TEXT, bold=True))
     ph.addStretch()
     periph_only_btn = _btn("仅检测外设", small=True)
     ph.addWidget(periph_only_btn)
     pc_lay.addLayout(ph)
 
     periph_grid = QGridLayout()
-    periph_grid.setSpacing(10)
+    periph_grid.setSpacing(12)
     periph_tags: dict[str, QLabel] = {}
     for i, item in enumerate(PERIPH_ITEMS):
         c = _card(8)
         cl = QVBoxLayout(c)
-        cl.setContentsMargins(12, 10, 12, 10)
-        cl.setSpacing(4)
+        cl.setContentsMargins(14, 12, 14, 12)
+        cl.setSpacing(6)
         cl.addWidget(_lbl(f"{item.icon}  {item.name}", 12, C_TEXT))
         tag = _status_tag("待检测")
         periph_tags[item.id] = tag
@@ -434,10 +360,10 @@ def build_page() -> QWidget:
     # ═══════════════════════════════════════
     # 4. 存储 & 温度信息条
     # ═══════════════════════════════════════
-    sys_card = _card(8)
+    sys_card = _card(10)
     sc_lay = QHBoxLayout(sys_card)
     sc_lay.setContentsMargins(20, 14, 20, 14)
-    sc_lay.setSpacing(32)
+    sc_lay.setSpacing(40)
     sys_labels: dict[str, QLabel] = {}
     for key, icon, label in [
         ("storage", "💾", "存储"),
@@ -445,13 +371,14 @@ def build_page() -> QWidget:
     ]:
         pair = QHBoxLayout()
         pair.setSpacing(8)
-        pair.addWidget(_lbl(icon, 14))
+        pair.addWidget(_lbl(icon, 16))
         pair.addWidget(_lbl(label + "：", 12, C_TEXT2))
         val = _lbl("—", 12, C_TEXT)
         sys_labels[key] = val
         pair.addWidget(val)
         sc_lay.addLayout(pair)
     sc_lay.addStretch()
+    _shadow(sys_card)
     lay.addWidget(sys_card)
 
     lay.addStretch()
@@ -468,10 +395,10 @@ def build_page() -> QWidget:
         periph_only_btn.setEnabled(False)
         for t in diag_tags.values():
             t.setText("检测中…")
-            t.setStyleSheet(f"color:{C_TEXT3}; background:rgba(255,255,255,0.05); border-radius:4px; padding:2px 10px; font-size:11px;")
+            t.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:6px; padding:4px 12px; font-size:11px;")
         for t in periph_tags.values():
             t.setText("检测中…")
-            t.setStyleSheet(f"color:{C_TEXT3}; background:rgba(255,255,255,0.05); border-radius:4px; padding:2px 10px; font-size:11px;")
+            t.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:6px; padding:4px 12px; font-size:11px;")
 
     def _reset_buttons():
         run_btn.setEnabled(True)
@@ -485,13 +412,13 @@ def build_page() -> QWidget:
         if tag:
             tag.setText(status)
             tag.setStyleSheet(f"""
-                background: rgba(255,255,255,0.05);
+                background: {C_CARD_LIGHT};
                 color: {color};
-                border-radius: 4px;
-                padding: 2px 10px;
+                border-radius: 6px;
+                padding: 4px 12px;
                 font-size: 11px;
+                font-weight: 500;
             """)
-        # torch 未安装/CPU模式 → 显示安装按钮
         if item_id == "torch":
             btn = _torch_install_btn[0]
             if btn:
@@ -503,10 +430,9 @@ def build_page() -> QWidget:
     def _on_info(info: dict):
         for key, lbl in info_cards.items():
             lbl.setText(info.get(key, "—"))
-            lbl.setStyleSheet(f"color:{C_TEXT}; font-size:13px; background:transparent;")
+            lbl.setStyleSheet(f"color:{C_TEXT}; font-size:14px; background:transparent; font-weight:600;")
         for key, lbl in sys_labels.items():
             lbl.setText(info.get(key, "—"))
-        # 记录 L4T 版本供安装对话框使用
         l4t = info.get("l4t", "R36")
         _l4t_ver[0] = l4t
 
@@ -527,13 +453,12 @@ def build_page() -> QWidget:
 
     def _open_torch_install():
         dlg = _TorchInstallDialog(_l4t_ver[0], parent=page)
-        dlg.install_succeeded.connect(lambda: _start("diag"))  # 安装成功后重新检测
+        dlg.install_succeeded.connect(lambda: _start("diag"))
         dlg.exec_()
 
     if _torch_install_btn[0]:
         _torch_install_btn[0].clicked.connect(_open_torch_install)
 
-    # 启动时自动采集设备信息
     _start("info")
 
     return page

@@ -29,6 +29,12 @@ from PyQt5.QtWidgets import (
 
 from .styles import MAIN_STYLE
 from ..flash import JetsonFlasher
+from ..core.platform_detect import is_jetson
+from ..core.events import bus
+from ..modules.devices.page import build_page as build_devices_page
+from ..modules.apps.page import build_page as build_apps_page
+from ..modules.skills.page import build_page as build_skills_page
+from ..modules.remote.page import build_page as build_remote_page
 import requests
 
 
@@ -39,6 +45,21 @@ I18N = {
         "nav_flash": "刷写中心",
         "nav_recovery": "Recovery 指南",
         "nav_about": "关于工具",
+        "nav_devices": "设备管理",
+        "nav_apps": "应用市场",
+        "nav_skills": "Skills",
+        "nav_remote": "远程连接",
+        "top_devices_title": "设备管理",
+        "top_devices_subtitle": "查看 Jetson 设备状态、运行诊断与外设检测",
+        "top_apps_title": "应用市场",
+        "top_apps_subtitle": "浏览并安装适用于 Jetson 的应用",
+        "top_skills_title": "Skills 中心",
+        "top_skills_subtitle": "通过 AI 辅助执行操作手册",
+        "top_remote_title": "远程连接",
+        "top_remote_subtitle": "建立到 Jetson 设备的 SSH 连接",
+        "env_jetson": "Jetson 本机",
+        "env_pc": "远程模式",
+        "hint_need_remote": "请先在「远程连接」页建立 SSH 连接，再使用此功能。",
         "top_flash_title": "刷写中心",
         "top_flash_subtitle": "选择产品和 L4T 版本，然后执行下载或刷写",
         "top_recovery_title": "Recovery 指南",
@@ -129,6 +150,21 @@ I18N = {
         "nav_flash": "Flash Center",
         "nav_recovery": "Recovery Guide",
         "nav_about": "About",
+        "nav_devices": "Devices",
+        "nav_apps": "App Market",
+        "nav_skills": "Skills",
+        "nav_remote": "Remote",
+        "top_devices_title": "Device Manager",
+        "top_devices_subtitle": "View Jetson status, run diagnostics and peripheral checks",
+        "top_apps_title": "App Market",
+        "top_apps_subtitle": "Browse and install apps for Jetson",
+        "top_skills_title": "Skills Center",
+        "top_skills_subtitle": "Run playbooks with AI assistance",
+        "top_remote_title": "Remote Connection",
+        "top_remote_subtitle": "Establish SSH connection to a Jetson device",
+        "env_jetson": "Jetson Local",
+        "env_pc": "Remote Mode",
+        "hint_need_remote": "Please connect to a Jetson via SSH in the Remote page first.",
         "top_flash_title": "Flash Center",
         "top_flash_subtitle": "Select product and L4T version, then run download or flash",
         "top_recovery_title": "Recovery Guide",
@@ -332,6 +368,11 @@ class MainWindow(QMainWindow):
         self.retranslate_pairs = []
         self.image_cache = {}
         self.recovery_local_images = {}
+        self._is_jetson = is_jetson()
+        self._remote_connected = False
+
+        bus.device_connected.connect(self._on_remote_connected)
+        bus.device_disconnected.connect(self._on_remote_disconnected)
 
         self.load_data()
         self.prime_recovery_images()
@@ -487,9 +528,13 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         self.stack.setObjectName("MainStack")
-        self.stack.addWidget(self.create_flash_page())
-        self.stack.addWidget(self.create_recovery_page())
-        self.stack.addWidget(self.create_about_page())
+        self.stack.addWidget(self.create_flash_page())      # 0
+        self.stack.addWidget(self.create_recovery_page())   # 1
+        self.stack.addWidget(self.create_about_page())      # 2
+        self.stack.addWidget(build_devices_page())          # 3
+        self.stack.addWidget(build_apps_page())             # 4
+        self.stack.addWidget(build_skills_page())           # 5
+        self.stack.addWidget(build_remote_page())           # 6
         right_layout.addWidget(self.stack, 1)
         self.add_elevation(self.stack, blur=18, y_offset=2, alpha=36)
 
@@ -602,7 +647,8 @@ class MainWindow(QMainWindow):
         gap.setStyleSheet("background: transparent;")
         layout.addWidget(gap)
 
-        nav_keys = ["nav_flash", "nav_recovery", "nav_about"]
+        nav_keys = ["nav_flash", "nav_recovery", "nav_about",
+                    "nav_devices", "nav_apps", "nav_skills", "nav_remote"]
         for idx, key in enumerate(nav_keys):
             btn = QPushButton()
             btn.setCursor(Qt.PointingHandCursor)
@@ -614,6 +660,13 @@ class MainWindow(QMainWindow):
             self.nav_buttons.append(btn)
 
         layout.addStretch()
+
+        # 环境状态指示器
+        self._env_label = QLabel()
+        self._env_label.setObjectName("BrandSubtitle")
+        self._env_label.setStyleSheet("padding: 4px 2px;")
+        self._update_env_label()
+        layout.addWidget(self._env_label)
 
         flow = QLabel()
         flow.setObjectName("BrandSubtitle")
@@ -896,6 +949,24 @@ class MainWindow(QMainWindow):
         layout.addStretch()
         return page
 
+    def _update_env_label(self):
+        if self._is_jetson:
+            self._env_label.setText("🟢 " + self.tr("env_jetson"))
+        elif self._remote_connected:
+            self._env_label.setText("🔵 " + self.tr("env_pc") + " (已连接)")
+        else:
+            self._env_label.setText("🟡 " + self.tr("env_pc"))
+
+    def _on_remote_connected(self, payload: dict):
+        self._remote_connected = True
+        if hasattr(self, "_env_label"):
+            self._update_env_label()
+
+    def _on_remote_disconnected(self, ip: str):
+        self._remote_connected = False
+        if hasattr(self, "_env_label"):
+            self._update_env_label()
+
     def set_status(self, text_key, status_style):
         self.status_key = text_key
         self.status_style = status_style
@@ -906,6 +977,15 @@ class MainWindow(QMainWindow):
         self.status_chip.update()
 
     def set_nav_index(self, index):
+        # 非 Jetson 且未建立远程连接时，门控 devices/apps/skills（索引 3/4/5）
+        if index in (3, 4, 5) and not self._is_jetson and not self._remote_connected:
+            QMessageBox.information(
+                self,
+                self.tr("msg_info_title"),
+                self.tr("hint_need_remote"),
+            )
+            index = 6  # 跳转到远程连接页
+
         self.stack.setCurrentIndex(index)
         for idx, btn in enumerate(self.nav_buttons):
             btn.setProperty("active", idx == index)
@@ -914,9 +994,13 @@ class MainWindow(QMainWindow):
             btn.update()
 
         page_map = {
-            0: ("top_flash_title", "top_flash_subtitle"),
+            0: ("top_flash_title",    "top_flash_subtitle"),
             1: ("top_recovery_title", "top_recovery_subtitle"),
-            2: ("top_about_title", "top_about_subtitle"),
+            2: ("top_about_title",    "top_about_subtitle"),
+            3: ("top_devices_title",  "top_devices_subtitle"),
+            4: ("top_apps_title",     "top_apps_subtitle"),
+            5: ("top_skills_title",   "top_skills_subtitle"),
+            6: ("top_remote_title",   "top_remote_subtitle"),
         }
         title_key, sub_key = page_map.get(index, ("top_flash_title", "top_flash_subtitle"))
         self.top_title.setText(self.tr(title_key))

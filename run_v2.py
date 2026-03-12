@@ -52,4 +52,6 @@ QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 from seeed_jetson_develop.gui.main_window_v2 import main
+from seeed_jetson_develop.gui.theme import apply_app_theme
+apply_app_theme()
 main()

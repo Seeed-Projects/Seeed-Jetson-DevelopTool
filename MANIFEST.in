@@ -3,3 +3,4 @@ include LICENSE
 include requirements.txt
 recursive-include seeed_jetson_develop/data *.json
 recursive-include seeed_jetson_develop/assets *
+recursive-include seeed_jetson_develop/modules *.json
