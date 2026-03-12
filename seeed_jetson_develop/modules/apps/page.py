@@ -69,17 +69,19 @@ class _InstallThread(QThread):
         self.done.emit(True)
 
 
-# ── 安装对话框 ────────────────────────────────────────────────────────────────
+# ── 安装/卸载对话框 ───────────────────────────────────────────────────────────
 class _InstallDialog(QDialog):
     install_done = pyqtSignal(str, bool)
 
-    def __init__(self, app: dict, cmds: list[str], parent=None):
+    def __init__(self, app: dict, cmds: list[str], parent=None, mode: str = "install"):
         super().__init__(parent)
         self._app    = app
         self._cmds   = cmds
         self._thread = None
+        self._mode   = mode  # "install" or "uninstall"
 
-        self.setWindowTitle(f"安装  {app['name']}")
+        title = "卸载" if mode == "uninstall" else "安装"
+        self.setWindowTitle(f"{title}  {app['name']}")
         self.setMinimumSize(640, 520)
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
 
@@ -99,7 +101,8 @@ class _InstallDialog(QDialog):
         lay.addLayout(info_row)
 
         # 步骤预览
-        lay.addWidget(_lbl("安装步骤", 12, C_TEXT3))
+        step_label = "卸载步骤" if mode == "uninstall" else "安装步骤"
+        lay.addWidget(_lbl(step_label, 12, C_TEXT3))
         preview = QTextEdit()
         preview.setReadOnly(True)
         preview.setFixedHeight(120)
@@ -116,14 +119,16 @@ class _InstallDialog(QDialog):
         lay.addWidget(preview)
 
         # 日志区
-        lay.addWidget(_lbl("安装日志", 12, C_TEXT3))
+        log_label = "卸载日志" if mode == "uninstall" else "安装日志"
+        lay.addWidget(_lbl(log_label, 12, C_TEXT3))
         self._log_edit = QTextEdit()
         self._log_edit.setReadOnly(True)
+        log_color = C_RED if mode == "uninstall" else C_GREEN
         self._log_edit.setStyleSheet(f"""
             background:{C_CARD};
             border:none;
             border-radius:10px;
-            color:{C_GREEN};
+            color:{log_color};
             font-family:'JetBrains Mono','Consolas',monospace;
             font-size:11px;
             padding:12px;
@@ -133,7 +138,22 @@ class _InstallDialog(QDialog):
         # 按钮行
         btn_row = QHBoxLayout()
         btn_row.setSpacing(12)
-        self._start_btn = _btn("▶  开始安装", primary=True)
+        start_label = "▶  开始卸载" if mode == "uninstall" else "▶  开始安装"
+        self._start_btn = _btn(start_label, primary=(mode == "install"))
+        if mode == "uninstall":
+            self._start_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background:{C_RED};
+                    color:#fff;
+                    border:none;
+                    border-radius:8px;
+                    padding:8px 20px;
+                    font-size:{_pt(12)}pt;
+                    font-weight:600;
+                }}
+                QPushButton:hover {{ background:#c0392b; }}
+                QPushButton:disabled {{ background:#555; color:#888; }}
+            """)
         self._stop_btn  = _btn("■  停止")
         self._stop_btn.setEnabled(False)
         close_btn = _btn("关闭")
@@ -170,12 +190,20 @@ class _InstallDialog(QDialog):
     def _on_done(self, success: bool):
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
-        if success:
-            self._append("\n✅ 安装成功！")
-            self.install_done.emit(self._app["id"], True)
+        if self._mode == "uninstall":
+            if success:
+                self._append("\n✅ 卸载成功！")
+                self.install_done.emit(self._app["id"], True)
+            else:
+                self._append("\n❌ 卸载失败，请检查日志。")
+                self.install_done.emit(self._app["id"], False)
         else:
-            self._append("\n❌ 安装失败，请检查日志。")
-            self.install_done.emit(self._app["id"], False)
+            if success:
+                self._append("\n✅ 安装成功！")
+                self.install_done.emit(self._app["id"], True)
+            else:
+                self._append("\n❌ 安装失败，请检查日志。")
+                self.install_done.emit(self._app["id"], False)
 
 
 # ── 主页面 ────────────────────────────────────────────────────────────────────
@@ -340,7 +368,7 @@ def build_page() -> QWidget:
                     f"「{app['name']}」的安装脚本暂未配置，敬请期待。"
                 )
                 return
-            dlg = _InstallDialog(app, cmds, parent=page)
+            dlg = _InstallDialog(app, cmds, parent=page, mode="install")
             dlg.install_done.connect(_on_install_done)
             dlg.exec_()
         except Exception:
@@ -348,9 +376,43 @@ def build_page() -> QWidget:
             logging.getLogger("seeed").error("打开安装对话框失败:\n%s", msg)
             QMessageBox.critical(page, "错误", f"打开安装对话框时发生异常：\n\n{msg[-600:]}")
 
+    def _open_uninstall(app_id: str):
+        import logging, traceback as _tb
+        try:
+            app = next((a for a in apps_data if a["id"] == app_id), None)
+            if not app:
+                return
+            cmds = app.get("uninstall_cmds") or []
+            if not cmds:
+                QMessageBox.information(
+                    page, "提示",
+                    f"「{app['name']}」的卸载脚本暂未配置。"
+                )
+                return
+            ret = QMessageBox.question(
+                page, "确认卸载",
+                f"确定要卸载「{app['name']}」吗？",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if ret != QMessageBox.Yes:
+                return
+            dlg = _InstallDialog(app, cmds, parent=page, mode="uninstall")
+            dlg.install_done.connect(_on_uninstall_done)
+            dlg.exec_()
+        except Exception:
+            msg = _tb.format_exc()
+            logging.getLogger("seeed").error("打开卸载对话框失败:\n%s", msg)
+            QMessageBox.critical(page, "错误", f"打开卸载对话框时发生异常：\n\n{msg[-600:]}")
+
     def _on_install_done(app_id: str, success: bool):
         if success:
             _statuses[app_id] = "installed"
+            _rebuild_grid()
+
+    def _on_uninstall_done(app_id: str, success: bool):
+        if success:
+            _statuses[app_id] = "available"
             _rebuild_grid()
 
     # ── 构建卡片 ──
@@ -373,8 +435,21 @@ def build_page() -> QWidget:
 
     def _make_action_btn(app_id: str, status: str) -> QPushButton:
         if status == "installed":
-            b = _btn("已安装", small=True)
-            b.setEnabled(False)
+            b = QPushButton("卸载")
+            b.setCursor(Qt.PointingHandCursor)
+            b.setStyleSheet(f"""
+                QPushButton {{
+                    background: rgba(231,76,60,0.15);
+                    color: {C_RED};
+                    border: 1px solid rgba(231,76,60,0.4);
+                    border-radius: 6px;
+                    padding: 4px 14px;
+                    font-size: {_pt(11)}pt;
+                    font-weight: 600;
+                }}
+                QPushButton:hover {{ background: rgba(231,76,60,0.3); }}
+            """)
+            b.clicked.connect(lambda: _open_uninstall(app_id))
         else:
             b = _btn("安装", primary=True, small=True)
             b.setEnabled(status != "checking")

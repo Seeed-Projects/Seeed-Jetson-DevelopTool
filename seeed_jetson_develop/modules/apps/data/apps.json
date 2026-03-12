@@ -10,6 +10,9 @@
     "install_cmds": [
       "pip3 install ultralytics",
       "python3 -c 'import ultralytics; print(\"YOLOv8:\", ultralytics.__version__)'"
+    ],
+    "uninstall_cmds": [
+      "pip3 uninstall -y ultralytics"
     ]
   },
   {
@@ -20,7 +23,10 @@
     "desc": "阿里 Qwen2 模型，支持中文对话，针对 Jetson 内存占用优化",
     "skill_id": "qwen_demo",
     "check_cmd": "python3 -c 'import transformers' 2>/dev/null",
-    "install_cmds": null
+    "install_cmds": null,
+    "uninstall_cmds": [
+      "pip3 uninstall -y transformers"
+    ]
   },
   {
     "id": "lerobot",
@@ -30,7 +36,10 @@
     "desc": "Hugging Face LeRobot 开发套件，支持机械臂控制与模仿学习",
     "skill_id": "lerobot",
     "check_cmd": "python3 -c 'import lerobot' 2>/dev/null",
-    "install_cmds": null
+    "install_cmds": null,
+    "uninstall_cmds": [
+      "pip3 uninstall -y lerobot"
+    ]
   },
   {
     "id": "kokoro",
@@ -43,6 +52,9 @@
     "install_cmds": [
       "pip3 install kokoro>=0.9.4 soundfile",
       "python3 -c 'import kokoro; print(\"Kokoro ready\")'"
+    ],
+    "uninstall_cmds": [
+      "pip3 uninstall -y kokoro soundfile"
     ]
   },
   {
@@ -56,6 +68,9 @@
     "install_cmds": [
       "pip3 install diffusers transformers accelerate",
       "python3 -c 'import diffusers; print(\"diffusers:\", diffusers.__version__)'"
+    ],
+    "uninstall_cmds": [
+      "pip3 uninstall -y diffusers accelerate"
     ]
   },
   {
@@ -69,6 +84,9 @@
     "install_cmds": [
       "pip3 install jupyterlab",
       "jupyter --version"
+    ],
+    "uninstall_cmds": [
+      "pip3 uninstall -y jupyterlab"
     ]
   },
   {
@@ -83,6 +101,9 @@
       "sudo apt-get install -y nodejs npm",
       "sudo npm install -g --unsafe-perm node-red",
       "node-red --version"
+    ],
+    "uninstall_cmds": [
+      "sudo npm uninstall -g node-red"
     ]
   },
   {
@@ -96,6 +117,10 @@
     "install_cmds": [
       "curl -fsSL https://ollama.com/install.sh | sh",
       "ollama --version"
+    ],
+    "uninstall_cmds": [
+      "sudo rm -f /usr/local/bin/ollama",
+      "sudo rm -rf /usr/local/lib/ollama"
     ]
   },
   {
@@ -109,6 +134,9 @@
     "install_cmds": [
       "pip3 install faster-whisper",
       "python3 -c 'import faster_whisper; print(\"Whisper ready\")'"
+    ],
+    "uninstall_cmds": [
+      "pip3 uninstall -y faster-whisper"
     ]
   },
   {
@@ -119,6 +147,9 @@
     "desc": "jetson-stats 系统监控工具，实时查看 GPU / CPU / 内存使用率",
     "skill_id": "install_jtop",
     "check_cmd": "which jtop 2>/dev/null",
-    "install_cmds": null
+    "install_cmds": null,
+    "uninstall_cmds": [
+      "sudo pip3 uninstall -y jetson-stats"
+    ]
   }
 ]

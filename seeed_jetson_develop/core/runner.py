@@ -100,6 +100,7 @@ class SSHRunner:
                 look_for_keys=True,
                 allow_agent=True,
             )
+            client.get_transport().set_keepalive(30)
             try:
                 _, stdout, stderr = client.exec_command(cmd, timeout=timeout)
                 lines = []
