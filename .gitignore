@@ -40,3 +40,6 @@ Thumbs.db
 jetson_firmware/
 *.tar.gz
 *.tar
+
+# Claude Code
+.claude/
