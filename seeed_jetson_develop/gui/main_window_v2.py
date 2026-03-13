@@ -115,6 +115,7 @@ NAV_ITEMS = [
     ("skills",   "Skills"),
     ("remote",   "远程开发"),
     ("community","社区"),
+    ("ai",       "AI 助手"),
 ]
 
 
@@ -246,12 +247,14 @@ class MainWindowV2(QMainWindow):
         from seeed_jetson_develop.modules.apps.page import build_page as _apps_page
         from seeed_jetson_develop.modules.skills.page import build_page as _skills_page
         from seeed_jetson_develop.modules.remote.page import build_page as _remote_page
+        from seeed_jetson_develop.modules.ai.page import build_page as _ai_page
         self.stack.addWidget(self._build_flash_page())
         self.stack.addWidget(_devices_page())
         self.stack.addWidget(_apps_page())
         self.stack.addWidget(_skills_page())
         self.stack.addWidget(_remote_page())
         self.stack.addWidget(self._build_community_page())
+        self.stack.addWidget(_ai_page())
         content_layout.addWidget(self.stack)
 
         body_layout.addWidget(content_area, 1)

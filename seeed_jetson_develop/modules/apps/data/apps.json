@@ -80,10 +80,10 @@
     "category": "开发工具",
     "desc": "交互式 Python 开发环境，支持 GPU 监控插件",
     "skill_id": null,
-    "check_cmd": "which jupyter 2>/dev/null",
+    "check_cmd": "python3 -m jupyter --version 2>/dev/null",
     "install_cmds": [
       "pip3 install jupyterlab",
-      "jupyter --version"
+      "python3 -m jupyter --version"
     ],
     "uninstall_cmds": [
       "pip3 uninstall -y jupyterlab"

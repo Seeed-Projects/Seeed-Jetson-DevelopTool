@@ -1,5 +1,5 @@
 """Skills 中心页 — 无边框大气风格
-包含：分类筛选、搜索、精选/全部切换、运行对话框（含风险确认）、文档查看。
+包含：分类筛选、搜索、精选/全部切换、运行对话框（含风险确认）、文档查看、右侧 AI 面板。
 """
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QTextCursor
@@ -7,12 +7,14 @@ from PyQt5.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton, QLineEdit,
     QVBoxLayout, QHBoxLayout, QScrollArea,
     QDialog, QTextEdit, QMessageBox, QSizePolicy, QSpinBox,
+    QSplitter,
 )
 
 from seeed_jetson_develop.core.runner import Runner, get_runner
 from seeed_jetson_develop.modules.skills.engine import (
     load_skills, run_skill, Skill, CATEGORY_ICONS,
 )
+from seeed_jetson_develop.gui.ai_chat import AIChatPanel, _DEFAULT_SYSTEM
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_CARD, C_CARD_LIGHT,
     C_GREEN, C_BLUE, C_ORANGE, C_RED,
@@ -266,6 +268,14 @@ def build_page() -> QWidget:
     hl.addStretch()
     root.addWidget(header)
 
+    # ── AI 面板（右侧，供后续注入上下文） ──
+    skills_system = _DEFAULT_SYSTEM + (
+        "\n\n你当前在 Skills 中心页面。用户可以点击 Skill 行上的「问 AI」按钮，"
+        "你会收到该 Skill 的名称、描述和命令，请帮用户理解它的用途、适用场景和注意事项。"
+        "也可以根据用户的需求，推荐合适的 Skill。"
+    )
+    _ai_panel = AIChatPanel(system_prompt=skills_system, title="AI 助手")
+
     # ── 加载数据 ──
     all_skills  = load_skills()
     _completed: set[str] = set()
@@ -420,6 +430,9 @@ def build_page() -> QWidget:
         dlg = _DocDialog(skill, parent=page)
         dlg.exec_()
 
+    def _open_ai(skill: Skill):
+        _ai_panel.inject_context(skill.name, skill.desc, skill.commands or [])
+
     def _on_run_done(skill_id: str, success: bool):
         if success:
             _completed.add(skill_id)
@@ -512,6 +525,23 @@ def build_page() -> QWidget:
         doc_b.setFixedWidth(_pt(48))
         doc_b.clicked.connect(lambda _, s=skill: _open_doc(s))
         rl.addWidget(doc_b)
+        ai_b = _btn("AI", small=True)
+        ai_b.setFixedWidth(_pt(44))
+        ai_b.setStyleSheet(f"""
+            QPushButton {{
+                background: rgba(44,123,229,0.15);
+                border: none;
+                border-radius: 8px;
+                color: {C_BLUE};
+                font-size: {_pt(10)}pt;
+                font-weight: 600;
+                padding: 0 6px;
+                min-height: {_pt(32)}px;
+            }}
+            QPushButton:hover {{ background: rgba(44,123,229,0.28); }}
+        """)
+        ai_b.clicked.connect(lambda _, s=skill: _open_ai(s))
+        rl.addWidget(ai_b)
 
         return row
 
@@ -578,5 +608,14 @@ def build_page() -> QWidget:
     _rebuild()
     lay.addStretch()
     scroll.setWidget(inner)
-    root.addWidget(scroll, 1)
+
+    # ── 左右分栏：skills 列表 + AI 面板 ──
+    splitter = QSplitter(Qt.Horizontal)
+    splitter.setStyleSheet("QSplitter::handle { background: transparent; width: 1px; }")
+    splitter.addWidget(scroll)
+    splitter.addWidget(_ai_panel)
+    splitter.setSizes([680, 300])
+    splitter.setChildrenCollapsible(False)
+
+    root.addWidget(splitter, 1)
     return page
