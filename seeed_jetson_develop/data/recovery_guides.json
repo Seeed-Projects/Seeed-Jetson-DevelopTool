@@ -37,11 +37,13 @@
     "images": [
       {
         "url": "https://files.seeedstudio.com/wiki/reComputer-Jetson/mini/reComputer_mini_rec.png",
-        "description": "reComputer Mini Recovery 模式示意图"
+        "description": "reComputer Mini Recovery 模式示意图",
+        "local_image": "seeed_jetson_develop/assets/recovery/reComputer_mini_rec.png"
       },
       {
         "url": "https://files.seeedstudio.com/wiki/reComputer-J4012/3.png",
-        "description": "lsusb 命令输出示例"
+        "description": "lsusb 命令输出示例",
+        "local_image": "seeed_jetson_develop/assets/recovery/mini_lsusb_3.png"
       }
     ],
     "video": "https://www.youtube.com/embed/HEIXFkizP5Y"
@@ -84,11 +86,13 @@
     "images": [
       {
         "url": "https://files.seeedstudio.com/wiki/reComputer-Jetson/robotics_j401/flash1.jpg",
-        "description": "切换至 RESET 模式"
+        "description": "切换至 RESET 模式",
+        "local_image": "seeed_jetson_develop/assets/recovery/flash1.jpg"
       },
       {
         "url": "https://files.seeedstudio.com/wiki/reComputer-Jetson/robotics_j401/lsusb_f.png",
-        "description": "lsusb 命令输出示例"
+        "description": "lsusb 命令输出示例",
+        "local_image": "seeed_jetson_develop/assets/recovery/robotics_lsusb_f.png"
       }
     ]
   },
@@ -126,7 +130,8 @@
     "images": [
       {
         "url": "https://files.seeedstudio.com/wiki/reComputer-Jetson/super/flash1.jpg",
-        "description": "切换至 RESET 模式"
+        "description": "切换至 RESET 模式",
+        "local_image": "seeed_jetson_develop/assets/recovery/flash.jpg"
       }
     ]
   },
@@ -164,7 +169,8 @@
     "images": [
       {
         "url": "https://files.seeedstudio.com/wiki/reComputer-J4012/2.png",
-        "description": "FC REC 和 GND 引脚位置"
+        "description": "FC REC 和 GND 引脚位置",
+        "local_image": "seeed_jetson_develop/assets/recovery/classic_fc_rec_2.png"
       }
     ]
   },
@@ -208,7 +214,8 @@
     "images": [
       {
         "url": "https://files.seeedstudio.com/wiki/reComputer-Industrial/2.png",
-        "description": "REC 按钮位置"
+        "description": "REC 按钮位置",
+        "local_image": "seeed_jetson_develop/assets/recovery/industrial_rec_2.png"
       }
     ]
   }

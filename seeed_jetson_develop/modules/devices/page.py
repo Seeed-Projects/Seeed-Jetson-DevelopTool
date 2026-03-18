@@ -18,6 +18,7 @@ from seeed_jetson_develop.gui.theme import (
     make_card as _card, make_input_card as _input_card,
     apply_shadow as _shadow,
 )
+from seeed_jetson_develop.modules.remote.jetson_init import open_jetson_init_dialog
 from .diagnostics import DIAG_ITEMS, PERIPH_ITEMS, run_all, run_periph, collect_info
 
 COLOR_MAP = {
@@ -240,6 +241,8 @@ def build_page() -> QWidget:
     hl.addSpacing(12)
     hl.addWidget(_lbl("查看已连接设备状态、运行诊断与外设检测", 12, C_TEXT3))
     hl.addStretch()
+    init_btn = _btn("Jetson 初始化", small=True)
+    hl.addWidget(init_btn)
     run_btn = _btn("▶  运行全部检测", primary=True, small=True)
     hl.addWidget(run_btn)
     root.addWidget(header)
@@ -450,6 +453,7 @@ def build_page() -> QWidget:
     run_btn.clicked.connect(lambda: _start("full"))
     diag_only_btn.clicked.connect(lambda: _start("diag"))
     periph_only_btn.clicked.connect(lambda: _start("periph"))
+    init_btn.clicked.connect(lambda: open_jetson_init_dialog(parent=page))
 
     def _open_torch_install():
         dlg = _TorchInstallDialog(_l4t_ver[0], parent=page)

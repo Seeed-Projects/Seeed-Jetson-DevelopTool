@@ -12,6 +12,11 @@ from seeed_jetson_develop.core import config as _cfg
 from seeed_jetson_develop.core.events import bus
 from seeed_jetson_develop.core.runner import SSHRunner, set_runner, get_runner
 from seeed_jetson_develop.modules.remote import connector
+from seeed_jetson_develop.modules.remote.jetson_init import (
+    list_serial_ports,
+    open_jetson_init_dialog,
+    open_jetson_net_config_dialog,
+)
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_CARD, C_CARD_LIGHT,
     C_GREEN, C_BLUE, C_ORANGE, C_RED,
@@ -844,7 +849,73 @@ def build_page() -> QWidget:
     ssh_test_btn.clicked.connect(_do_ssh_test)
 
     # ─────────────────────────────────────────────────────────────
-    # 卡片 C：开发工具
+    # 卡片 C：Jetson 初始化
+    # ─────────────────────────────────────────────────────────────
+    init_card = _card(12)
+    init_lay  = QVBoxLayout(init_card)
+    init_lay.setContentsMargins(24, 20, 24, 20)
+    init_lay.setSpacing(14)
+
+    init_title_row = QHBoxLayout()
+    init_title_row.addWidget(_lbl("🧭 Jetson 初始化", 15, C_TEXT, bold=True))
+    init_title_row.addStretch()
+    _init_status_lbl = QLabel("等待检测")
+    _init_status_lbl.setStyleSheet(
+        f"color:{C_TEXT3}; font-size:{_pt(11)}pt; background:transparent;"
+    )
+    init_title_row.addWidget(_init_status_lbl)
+    init_lay.addLayout(init_title_row)
+
+    init_lay.addWidget(_lbl(
+        "刷写完成后，可先通过串口进入首次开机向导，完成用户名、密码、时区和网络配置，再继续 SSH 或远程开发。",
+        11, C_TEXT3, wrap=True
+    ))
+
+    _init_ports_lbl = _lbl("", 11, C_TEXT2, wrap=True)
+    _init_hint_lbl = _lbl("", 10, C_TEXT3, wrap=True)
+    init_lay.addWidget(_init_ports_lbl)
+    init_lay.addWidget(_init_hint_lbl)
+
+    init_btn_row = QHBoxLayout()
+    init_btn_row.setSpacing(10)
+    init_refresh_btn = _btn("刷新串口", small=True)
+    init_open_btn = _btn("打开初始化面板", primary=True, small=True)
+    init_net_btn  = _btn("配置网络 IP", small=True)
+    init_btn_row.addWidget(init_refresh_btn)
+    init_btn_row.addWidget(init_open_btn)
+    init_btn_row.addWidget(init_net_btn)
+    init_btn_row.addStretch()
+    init_lay.addLayout(init_btn_row)
+
+    def _refresh_init_summary():
+        ports = list_serial_ports()
+        if ports:
+            preview = " / ".join(ports[:3])
+            suffix = " ..." if len(ports) > 3 else ""
+            _init_status_lbl.setText("● 已发现串口")
+            _init_status_lbl.setStyleSheet(
+                f"color:{C_GREEN}; font-size:{_pt(11)}pt; background:transparent; font-weight:700;"
+            )
+            _init_ports_lbl.setText(f"当前检测到 {len(ports)} 个串口设备：{preview}{suffix}")
+            _init_hint_lbl.setText(f"推荐先从 {ports[0]} 打开初始化面板，检测当前是否仍处于首次启动配置。")
+        else:
+            _init_status_lbl.setText("● 未发现串口")
+            _init_status_lbl.setStyleSheet(
+                f"color:{C_ORANGE}; font-size:{_pt(11)}pt; background:transparent; font-weight:700;"
+            )
+            _init_ports_lbl.setText("当前未检测到 /dev/ttyACM* 或 /dev/ttyUSB* 设备。")
+            _init_hint_lbl.setText("连接 Jetson 串口线并重新上电后，可在这里直接进入初始化面板。")
+
+    init_refresh_btn.clicked.connect(_refresh_init_summary)
+    init_open_btn.clicked.connect(lambda: open_jetson_init_dialog(parent=page))
+    init_net_btn.clicked.connect(lambda: open_jetson_net_config_dialog(parent=page))
+
+    _shadow(init_card)
+    lay.addWidget(init_card)
+    _refresh_init_summary()
+
+    # ─────────────────────────────────────────────────────────────
+    # 卡片 D：开发工具
     # ─────────────────────────────────────────────────────────────
     tools_card = _card(12)
     tools_lay  = QVBoxLayout(tools_card)

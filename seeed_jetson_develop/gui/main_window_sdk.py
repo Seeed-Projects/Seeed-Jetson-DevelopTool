@@ -1093,8 +1093,15 @@ class MainWindow(QMainWindow):
             if widget is not None:
                 widget.deleteLater()
 
-    def load_recovery_image(self, url):
-        """Load and cache recovery image preview from local cache first."""
+    def load_recovery_image(self, url, local_image=""):
+        """Load recovery image from bundled assets first, then local cache, then remote."""
+        if local_image:
+            local_asset = self.project_root / local_image
+            if local_asset.exists():
+                pixmap = QPixmap(str(local_asset))
+                if not pixmap.isNull():
+                    return pixmap
+
         if not url:
             return None
         if url in self.image_cache:
@@ -1174,7 +1181,7 @@ class MainWindow(QMainWindow):
                 desc_label.setWordWrap(True)
                 self.recovery_layout.addWidget(desc_label)
 
-                pix = self.load_recovery_image(url)
+                pix = self.load_recovery_image(url, item.get("local_image", ""))
                 if pix:
                     preview = QLabel()
                     preview.setObjectName("InfoPanel")
