@@ -17,6 +17,7 @@ from seeed_jetson_develop.modules.remote.jetson_init import (
     open_jetson_init_dialog,
     open_jetson_net_config_dialog,
 )
+from seeed_jetson_develop.modules.remote.net_share_dialog import open_net_share_dialog
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_CARD, C_CARD_LIGHT,
     C_GREEN, C_BLUE, C_ORANGE, C_RED,
@@ -111,7 +112,7 @@ class _ApiKeyDialog(QDialog):
                 border-radius:10px;
                 padding:10px 16px;
                 color:{C_TEXT};
-                font-size:{_pt(12)}pt;
+                font-size:{_pt(12)}px;
                 font-family:'JetBrains Mono','Consolas',monospace;
             }}
             QLineEdit:focus {{ background:{C_CARD}; }}
@@ -138,7 +139,7 @@ class _ApiKeyDialog(QDialog):
                 border-radius:10px;
                 padding:10px 16px;
                 color:{C_TEXT};
-                font-size:{_pt(11)}pt;
+                font-size:{_pt(11)}px;
                 font-family:'JetBrains Mono','Consolas',monospace;
             }}
             QLineEdit:focus {{ background:{C_CARD}; }}
@@ -204,7 +205,7 @@ class _ApiKeyDialog(QDialog):
             status += f"  Base URL: {url}"
         self._status_lbl.setText(status)
         self._status_lbl.setStyleSheet(
-            f"color:{C_GREEN}; font-size:{_pt(11)}pt; background:transparent;"
+            f"color:{C_GREEN}; font-size:{_pt(11)}px; background:transparent;"
         )
         self.key_saved.emit()
         QMessageBox.information(self, "成功", "API Key 已保存到本地配置文件。")
@@ -225,7 +226,7 @@ class _ApiKeyDialog(QDialog):
             self._url_edit.clear()
             self._status_lbl.setText("⚠ 已清除")
             self._status_lbl.setStyleSheet(
-                f"color:{C_ORANGE}; font-size:{_pt(11)}pt; background:transparent;"
+                f"color:{C_ORANGE}; font-size:{_pt(11)}px; background:transparent;"
             )
             self.key_saved.emit()
 
@@ -281,7 +282,7 @@ class _VscodeWebDialog(QDialog):
         self._log.setStyleSheet(f"""
             background:{C_CARD}; border:none; border-radius:10px;
             color:{C_TEXT2}; font-family:'JetBrains Mono','Consolas',monospace;
-            font-size:{_pt(10)}pt; padding:12px;
+            font-size:{_pt(10)}px; padding:12px;
         """)
         lay.addWidget(self._log, 1)
 
@@ -346,12 +347,12 @@ class _VscodeWebDialog(QDialog):
             url = f"http://{self._ip}:8080"
             self._result_lbl.setText(f"✅ 部署完成！访问地址：{url}\n密码见上方日志 password 行。")
             self._result_lbl.setStyleSheet(
-                f"color:{C_GREEN}; font-size:{_pt(12)}pt; background:transparent;"
+                f"color:{C_GREEN}; font-size:{_pt(12)}px; background:transparent;"
             )
         else:
             self._result_lbl.setText(f"❌ 部署失败（rc={rc}）：{last_out[:200]}")
             self._result_lbl.setStyleSheet(
-                f"color:{C_RED}; font-size:{_pt(12)}pt; background:transparent;"
+                f"color:{C_RED}; font-size:{_pt(12)}px; background:transparent;"
             )
 
 
@@ -381,7 +382,7 @@ class _JupyterLaunchDialog(QDialog):
         self._log.setStyleSheet(f"""
             background:{C_CARD}; border:none; border-radius:10px;
             color:{C_TEXT2}; font-family:'JetBrains Mono','Consolas',monospace;
-            font-size:{_pt(10)}pt; padding:12px;
+            font-size:{_pt(10)}px; padding:12px;
         """)
         lay.addWidget(self._log, 1)
 
@@ -428,12 +429,12 @@ class _JupyterLaunchDialog(QDialog):
         if rc == 0:
             self._result_lbl.setText(f"✅ 启动完成！访问地址：{url}")
             self._result_lbl.setStyleSheet(
-                f"color:{C_GREEN}; font-size:{_pt(12)}pt; background:transparent;"
+                f"color:{C_GREEN}; font-size:{_pt(12)}px; background:transparent;"
             )
         else:
             self._result_lbl.setText(f"❌ 启动失败（rc={rc}）：{last_out[:200]}")
             self._result_lbl.setStyleSheet(
-                f"color:{C_RED}; font-size:{_pt(12)}pt; background:transparent;"
+                f"color:{C_RED}; font-size:{_pt(12)}px; background:transparent;"
             )
 
 
@@ -502,7 +503,7 @@ class _VscodeSSHDialog(QDialog):
             border-radius:10px;
             color:{C_TEXT2};
             font-family:'JetBrains Mono','Consolas',monospace;
-            font-size:{_pt(11)}pt;
+            font-size:{_pt(11)}px;
             padding:14px;
         """)
         lay.addWidget(viewer, 1)
@@ -556,7 +557,7 @@ class _JupyterDialog(QDialog):
             border-radius:10px;
             color:{C_TEXT2};
             font-family:'JetBrains Mono','Consolas',monospace;
-            font-size:{_pt(11)}pt;
+            font-size:{_pt(11)}px;
             padding:14px;
         """)
         lay.addWidget(viewer, 1)
@@ -613,7 +614,7 @@ def build_page() -> QWidget:
     api_title_row.addStretch()
 
     _api_status_lbl = QLabel()
-    _api_status_lbl.setStyleSheet(f"font-size:{_pt(11)}pt; background:transparent;")
+    _api_status_lbl.setStyleSheet(f"font-size:{_pt(11)}px; background:transparent;")
     api_title_row.addWidget(_api_status_lbl)
     api_lay.addLayout(api_title_row)
 
@@ -639,24 +640,24 @@ def build_page() -> QWidget:
         if key:
             _api_status_lbl.setText("✅ 已配置")
             _api_status_lbl.setStyleSheet(
-                f"color:{C_GREEN}; font-size:{_pt(11)}pt; background:transparent; font-weight:700;"
+                f"color:{C_GREEN}; font-size:{_pt(11)}px; background:transparent; font-weight:700;"
             )
             preview = f"API Key: {key[:12]}••••••••"
             if url and url != "https://api.anthropic.com":
                 preview += f"  |  Base URL: {url}"
             _api_key_preview.setText(preview)
             _api_key_preview.setStyleSheet(
-                f"color:{C_TEXT2}; font-size:{_pt(11)}pt; background:transparent;"
+                f"color:{C_TEXT2}; font-size:{_pt(11)}px; background:transparent;"
                 f" font-family:'JetBrains Mono','Consolas',monospace;"
             )
         else:
             _api_status_lbl.setText("⚠ 未配置")
             _api_status_lbl.setStyleSheet(
-                f"color:{C_ORANGE}; font-size:{_pt(11)}pt; background:transparent; font-weight:700;"
+                f"color:{C_ORANGE}; font-size:{_pt(11)}px; background:transparent; font-weight:700;"
             )
             _api_key_preview.setText("尚未配置 API Key")
             _api_key_preview.setStyleSheet(
-                f"color:{C_TEXT3}; font-size:{_pt(11)}pt; background:transparent;"
+                f"color:{C_TEXT3}; font-size:{_pt(11)}px; background:transparent;"
             )
 
     def _open_api_dialog():
@@ -666,6 +667,16 @@ def build_page() -> QWidget:
 
     api_config_btn.clicked.connect(_open_api_dialog)
     _refresh_api_status()
+
+    _conn_cfg = _cfg.load()
+
+    def _save_remote_form():
+        data = _cfg.load()
+        data["remote_last_host"] = _ip_input.text().strip()
+        data["remote_last_user"] = _user_input.text().strip() or "seeed"
+        data["remote_last_password"] = _pass_input.text()
+        data["remote_last_subnet"] = _subnet_input.text().strip()
+        _cfg.save(data)
 
     # ─────────────────────────────────────────────────────────────
     # 卡片 B：设备连接
@@ -679,7 +690,7 @@ def build_page() -> QWidget:
     conn_title_row.addWidget(_lbl("🔗 设备连接", 15, C_TEXT, bold=True))
     conn_title_row.addStretch()
     _conn_status_lbl = QLabel("● 未连接")
-    _conn_status_lbl.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}pt; background:transparent;")
+    _conn_status_lbl.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px; background:transparent;")
     conn_title_row.addWidget(_conn_status_lbl)
     conn_lay.addLayout(conn_title_row)
 
@@ -688,6 +699,7 @@ def build_page() -> QWidget:
     ip_row.addWidget(_lbl("设备 IP / 主机名", 12, C_TEXT2))
     _ip_input = QLineEdit()
     _ip_input.setPlaceholderText("192.168.1.xxx 或 jetson.local")
+    _ip_input.setText(_conn_cfg.get("remote_last_host", ""))
     _ip_input.setStyleSheet(f"""
         QLineEdit {{
             background:{C_CARD_LIGHT};
@@ -695,7 +707,7 @@ def build_page() -> QWidget:
             border-radius:10px;
             padding:8px 16px;
             color:{C_TEXT};
-            font-size:{_pt(12)}pt;
+            font-size:{_pt(12)}px;
         }}
         QLineEdit:focus {{ background:{C_CARD}; }}
     """)
@@ -712,7 +724,7 @@ def build_page() -> QWidget:
     auth_row.setSpacing(10)
     auth_row.addWidget(_lbl("用户名", 11, C_TEXT3))
     _user_input = QLineEdit()
-    _user_input.setText("seeed")
+    _user_input.setText(_conn_cfg.get("remote_last_user", "seeed") or "seeed")
     _user_input.setFixedHeight(_pt(40))
     _user_input.setStyleSheet(f"""
         QLineEdit {{
@@ -721,7 +733,7 @@ def build_page() -> QWidget:
             border-radius:8px;
             padding:6px 12px;
             color:{C_TEXT};
-            font-size:{_pt(11)}pt;
+            font-size:{_pt(11)}px;
         }}
     """)
     auth_row.addWidget(_user_input)
@@ -730,6 +742,7 @@ def build_page() -> QWidget:
     _pass_input = QLineEdit()
     _pass_input.setPlaceholderText("留空则使用密钥认证")
     _pass_input.setEchoMode(QLineEdit.Password)
+    _pass_input.setText(_conn_cfg.get("remote_last_password", ""))
     _pass_input.setFixedHeight(_pt(40))
     _pass_input.setStyleSheet(f"""
         QLineEdit {{
@@ -738,7 +751,7 @@ def build_page() -> QWidget:
             border-radius:8px;
             padding:6px 12px;
             color:{C_TEXT};
-            font-size:{_pt(11)}pt;
+            font-size:{_pt(11)}px;
         }}
     """)
     auth_row.addWidget(_pass_input)
@@ -748,7 +761,7 @@ def build_page() -> QWidget:
     subnet_row = QHBoxLayout()
     subnet_row.addWidget(_lbl("扫描网段", 11, C_TEXT3))
     _subnet_input = QLineEdit()
-    _subnet_input.setText("192.168.1")
+    _subnet_input.setText(_conn_cfg.get("remote_last_subnet", "192.168.1") or "192.168.1")
     _subnet_input.setPlaceholderText("192.168.x")
     _subnet_input.setStyleSheet(f"""
         QLineEdit {{
@@ -757,7 +770,7 @@ def build_page() -> QWidget:
             border-radius:8px;
             padding:6px 12px;
             color:{C_TEXT2};
-            font-size:{_pt(11)}pt;
+            font-size:{_pt(11)}px;
         }}
     """)
     _subnet_input.setFixedWidth(160)
@@ -770,8 +783,29 @@ def build_page() -> QWidget:
     _scan_result_lbl = _lbl("", 11, C_TEXT2, wrap=True)
     conn_lay.addWidget(_scan_result_lbl)
 
-    _shadow(conn_card)
-    lay.addWidget(conn_card)
+    # 网络共享按钮
+    net_share_row = QHBoxLayout()
+    net_share_row.setSpacing(10)
+    _net_share_btn = _btn("🌐 PC 网络共享", small=True)
+    _net_share_status = _lbl("未开启", 10, C_TEXT3)
+    net_share_row.addWidget(_net_share_btn)
+    net_share_row.addWidget(_net_share_status)
+    net_share_row.addStretch()
+    conn_lay.addLayout(net_share_row)
+
+    def _on_net_share_state(sharing: bool):
+        if sharing:
+            _net_share_status.setText("● 共享中")
+            _net_share_status.setStyleSheet(
+                f"color:{C_GREEN}; font-size:{_pt(10)}px; background:transparent; font-weight:700;")
+        else:
+            _net_share_status.setText("未开启")
+            _net_share_status.setStyleSheet(
+                f"color:{C_TEXT3}; font-size:{_pt(10)}px; background:transparent;")
+
+    _net_share_btn.clicked.connect(lambda: open_net_share_dialog(
+        parent=page, jetson_ip=_ip_input.text().strip(),
+        on_state_change=_on_net_share_state))
 
     # 扫描线程持有
     _scan_thread = [None]
@@ -798,6 +832,7 @@ def build_page() -> QWidget:
         if hosts:
             _scan_result_lbl.setText("发现设备：" + "  |  ".join(hosts))
             _ip_input.setText(hosts[0])
+            _save_remote_form()
         else:
             _scan_result_lbl.setText("未在局域网内发现可达的 SSH 主机")
 
@@ -817,7 +852,7 @@ def build_page() -> QWidget:
         ssh_test_btn.setText("连接中…")
         _conn_status_lbl.setText("● 检测中…")
         _conn_status_lbl.setStyleSheet(
-            f"color:{C_TEXT3}; font-size:{_pt(11)}pt; background:transparent;"
+            f"color:{C_TEXT3}; font-size:{_pt(11)}px; background:transparent;"
         )
         t = _SSHCheckThread(ip, user, pwd)
         t.result.connect(_on_ssh_result)
@@ -833,14 +868,15 @@ def build_page() -> QWidget:
         if ok:
             _conn_status_lbl.setText("● 已连通")
             _conn_status_lbl.setStyleSheet(
-                f"color:{C_GREEN}; font-size:{_pt(11)}pt; background:transparent; font-weight:700;"
+                f"color:{C_GREEN}; font-size:{_pt(11)}px; background:transparent; font-weight:700;"
             )
+            _save_remote_form()
             set_runner(SSHRunner(ip, username=user, password=pwd))
             bus.device_connected.emit({"ip": ip, "name": "Jetson", "model": ""})
         else:
             _conn_status_lbl.setText("● 连接失败")
             _conn_status_lbl.setStyleSheet(
-                f"color:{C_RED}; font-size:{_pt(11)}pt; background:transparent; font-weight:700;"
+                f"color:{C_RED}; font-size:{_pt(11)}px; background:transparent; font-weight:700;"
             )
             _conn_status_lbl.setToolTip(err)
             set_runner(None)
@@ -861,7 +897,7 @@ def build_page() -> QWidget:
     init_title_row.addStretch()
     _init_status_lbl = QLabel("等待检测")
     _init_status_lbl.setStyleSheet(
-        f"color:{C_TEXT3}; font-size:{_pt(11)}pt; background:transparent;"
+        f"color:{C_TEXT3}; font-size:{_pt(11)}px; background:transparent;"
     )
     init_title_row.addWidget(_init_status_lbl)
     init_lay.addLayout(init_title_row)
@@ -881,9 +917,11 @@ def build_page() -> QWidget:
     init_refresh_btn = _btn("刷新串口", small=True)
     init_open_btn = _btn("打开初始化面板", primary=True, small=True)
     init_net_btn  = _btn("配置网络 IP", small=True)
+    init_share_btn = _btn("🌐 网络共享", small=True)
     init_btn_row.addWidget(init_refresh_btn)
     init_btn_row.addWidget(init_open_btn)
     init_btn_row.addWidget(init_net_btn)
+    init_btn_row.addWidget(init_share_btn)
     init_btn_row.addStretch()
     init_lay.addLayout(init_btn_row)
 
@@ -894,14 +932,14 @@ def build_page() -> QWidget:
             suffix = " ..." if len(ports) > 3 else ""
             _init_status_lbl.setText("● 已发现串口")
             _init_status_lbl.setStyleSheet(
-                f"color:{C_GREEN}; font-size:{_pt(11)}pt; background:transparent; font-weight:700;"
+                f"color:{C_GREEN}; font-size:{_pt(11)}px; background:transparent; font-weight:700;"
             )
             _init_ports_lbl.setText(f"当前检测到 {len(ports)} 个串口设备：{preview}{suffix}")
             _init_hint_lbl.setText(f"推荐先从 {ports[0]} 打开初始化面板，检测当前是否仍处于首次启动配置。")
         else:
             _init_status_lbl.setText("● 未发现串口")
             _init_status_lbl.setStyleSheet(
-                f"color:{C_ORANGE}; font-size:{_pt(11)}pt; background:transparent; font-weight:700;"
+                f"color:{C_ORANGE}; font-size:{_pt(11)}px; background:transparent; font-weight:700;"
             )
             _init_ports_lbl.setText("当前未检测到 /dev/ttyACM* 或 /dev/ttyUSB* 设备。")
             _init_hint_lbl.setText("连接 Jetson 串口线并重新上电后，可在这里直接进入初始化面板。")
@@ -909,10 +947,17 @@ def build_page() -> QWidget:
     init_refresh_btn.clicked.connect(_refresh_init_summary)
     init_open_btn.clicked.connect(lambda: open_jetson_init_dialog(parent=page))
     init_net_btn.clicked.connect(lambda: open_jetson_net_config_dialog(parent=page))
+    init_share_btn.clicked.connect(lambda: open_net_share_dialog(
+        parent=page, jetson_ip=_ip_input.text().strip()))
 
     _shadow(init_card)
     lay.addWidget(init_card)
+    _shadow(conn_card)
+    lay.addWidget(conn_card)
     _refresh_init_summary()
+
+    for widget in (_ip_input, _user_input, _pass_input, _subnet_input):
+        widget.editingFinished.connect(_save_remote_form)
 
     # ─────────────────────────────────────────────────────────────
     # 卡片 D：开发工具
@@ -973,7 +1018,7 @@ def build_page() -> QWidget:
         rl.setSpacing(16)
 
         ic = QLabel(icon)
-        ic.setStyleSheet(f"font-size:{_pt(24)}pt; background:transparent;")
+        ic.setStyleSheet(f"font-size:{_pt(24)}px; background:transparent;")
         ic.setFixedWidth(_pt(40))
         rl.addWidget(ic)
 

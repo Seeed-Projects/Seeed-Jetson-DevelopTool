@@ -26,7 +26,7 @@ def _torch(rc, out):
 def _docker(rc, out):
     return ("运行中", "ok") if rc == 0 else ("未运行", "error")
 def _jtop(rc, out):
-    return ("已安装", "ok") if rc == 0 else ("未安装", "warn")
+    return ("已安装", "ok") if rc == 0 and out.strip() else ("未安装", "warn")
 
 def _camera(rc, out):
     devices = [l for l in out.splitlines() if l.strip()]
@@ -50,7 +50,7 @@ DIAG_ITEMS: list[DiagItem] = [
     DiagItem("docker",  "🐳", "Docker 服务",
              "docker ps -q", _docker),
     DiagItem("jtop",    "📊", "jtop 监控",
-             "which jtop", _jtop),
+             "pip3 show jtop 2>/dev/null | grep -i name || python3 -m jtop --version 2>/dev/null || which jtop 2>/dev/null", _jtop),
     DiagItem("camera",  "📷", "USB 摄像头",
              "ls /dev/video* 2>/dev/null", _camera),
     DiagItem("disk",    "💾", "启动磁盘",
@@ -74,7 +74,8 @@ def _hdmi(rc, out):
 
 def _nvme(rc, out):
     if rc == 0 and out.strip():
-        lines = [l for l in out.splitlines() if "nvme" in l.lower()]
+        # 只统计 disk 类型，过滤掉分区（nvme0n1p1 等）
+        lines = [l for l in out.splitlines() if "nvme" in l.lower() and "disk" in l.lower()]
         return (f"已检测到 {len(lines)} 个", "ok") if lines else ("未检测到", "warn")
     return ("未检测到", "warn")
 

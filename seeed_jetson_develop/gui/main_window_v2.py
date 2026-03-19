@@ -433,8 +433,10 @@ class MainWindowV2(QMainWindow):
         self.setWindowTitle("Seeed Jetson Develop Tool")
         self.setMinimumSize(1080, 720)
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        self.setMouseTracking(True)   # 不按键也能收到 mouseMoveEvent，用于边缘 cursor 更新
 
         root = QWidget()
+        root.setMouseTracking(True)
         self.setCentralWidget(root)
         root_layout = QVBoxLayout(root)
         root_layout.setContentsMargins(0, 0, 0, 0)
@@ -566,17 +568,17 @@ class MainWindowV2(QMainWindow):
         """检测鼠标是否在窗口边缘（用于 resize），返回方向字符串或 None"""
         if self.isMaximized():
             return None
-        m = 6  # 边缘检测宽度 px
+        m = 10  # 边缘检测宽度 px，加大方便触发
         x, y = pos.x(), pos.y()
         w, h = self.width(), self.height()
         left   = x < m
         right  = x > w - m
         top    = y < m
         bottom = y > h - m
-        if top and left:    return "tl"
-        if top and right:   return "tr"
-        if bottom and left: return "bl"
-        if bottom and right:return "br"
+        if top and left:     return "tl"
+        if top and right:    return "tr"
+        if bottom and left:  return "bl"
+        if bottom and right: return "br"
         if left:   return "l"
         if right:  return "r"
         if top:    return "t"

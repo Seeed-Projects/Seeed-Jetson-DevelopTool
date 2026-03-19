@@ -42,15 +42,10 @@ C_TEXT3     = "#5A6B7A"   # 辅助文字
 
 # ── DPI-aware 字体缩放 ────────────────────────────────────────────────────────
 def pt(px: int) -> int:
-    """将 96DPI 设计 px 转为逻辑 pt，跟随系统 DPI。"""
-    app = QApplication.instance()
-    if app is None:
-        dpi = 96
-    else:
-        screen = app.primaryScreen()
-        dpi = screen.logicalDotsPerInchX() if screen else 96
-    logical_pt = round(px * 72 / dpi)
-    return max(8, logical_pt)
+    """返回字体大小（px），stylesheet 中用 px 单位更可靠。
+    保留函数名兼容现有调用，但直接返回 px 值（最小 10）。
+    """
+    return max(10, px)
 
 
 # ── 通用组件工厂 ──────────────────────────────────────────────────────────────
@@ -60,7 +55,7 @@ def make_label(text: str, size: int = 13, color: str = C_TEXT,
     lbl = QLabel(text)
     weight = 700 if bold else 400
     lbl.setStyleSheet(
-        f"color:{color}; font-size:{pt(size)}pt; font-weight:{weight}; "
+        f"color:{color}; font-size:{pt(size)}px; font-weight:{weight}; "
         f"background:transparent; border:none;"
     )
     if wrap:
@@ -86,7 +81,7 @@ def make_button(text: str, primary: bool = False,
                 border: none;
                 border-radius: 8px;
                 color: #071200;
-                font-size: {fs}pt;
+                font-size: {fs}px;
                 font-weight: 600;
                 padding: 0 {pt(24)}px;
                 min-height: {h}px;
@@ -109,7 +104,7 @@ def make_button(text: str, primary: bool = False,
                 border: none;
                 border-radius: 8px;
                 color: #FF6B6B;
-                font-size: {fs}pt;
+                font-size: {fs}px;
                 font-weight: 600;
                 padding: 0 {pt(20)}px;
                 min-height: {h}px;
@@ -125,7 +120,7 @@ def make_button(text: str, primary: bool = False,
                 border: none;
                 border-radius: 8px;
                 color: {C_TEXT2};
-                font-size: {fs}pt;
+                font-size: {fs}px;
                 font-weight: 500;
                 padding: 0 {pt(16)}px;
                 min-height: {h}px;
@@ -272,7 +267,7 @@ QComboBox QAbstractItemView {{
 QCheckBox {{
     color: {C_TEXT2};
     spacing: 10px;
-    font-size: {pt(12)}pt;
+    font-size: {pt(12)}px;
 }}
 QCheckBox::indicator {{
     width: 18px; height: 18px;
@@ -311,7 +306,7 @@ QTextEdit {{
     color: {C_TEXT2};
     padding: 14px;
     font-family: "JetBrains Mono", "Consolas", "Courier New", monospace;
-    font-size: {pt(11)}pt;
+    font-size: {pt(11)}px;
     selection-background-color: rgba(122,179,23,0.25);
 }}
 QTextEdit:focus {{
@@ -324,7 +319,7 @@ QLineEdit {{
     border-radius: 8px;
     padding: 8px 14px;
     color: {C_TEXT};
-    font-size: {pt(12)}pt;
+    font-size: {pt(12)}px;
     selection-background-color: rgba(122,179,23,0.25);
 }}
 QLineEdit:focus {{
@@ -341,7 +336,7 @@ QToolTip {{
     border-radius: 8px;
     color: {C_TEXT};
     padding: 8px 14px;
-    font-size: {pt(11)}pt;
+    font-size: {pt(11)}px;
 }}
 
 /* 滚动区域透明背景 */
