@@ -66,29 +66,25 @@
     "category": "CV / Vision",
     "desc": "基于双路 GMSL 相机的 YOLOv26 TensorRT 视觉系统，运行检测、姿态和分割三路推理。",
     "skill_id": null,
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && test -x /home/seeed/yolov26_jetson/run_dual_gmsl_local.sh && test -f /home/seeed/ultralytics_data/yolov26n.engine && python3 -c \"import ultralytics, torch, torchvision, onnxruntime\" 2>/dev/null'",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && test -x /home/seeed/yolov26_jetson/run_dual_gmsl_local.sh && test -f /home/seeed/yolov26_jetson/ultralytics_data/yolo26n.engine && python3 -c \"import ultralytics, torch, torchvision, onnxruntime\" 2>/dev/null'",
     "install_cmds": [
-      "sudo apt-get update",
-      "sudo apt-get install -y git python3-pip v4l-utils libcusparselt0",
-      "python3 -m pip install --user -U pip",
-      "cd /home/seeed && [ -d yolov26_jetson ] || git clone https://github.com/bleaaach/yolov26_jetson.git",
-      "python3 -m pip install --user \"ultralytics[export]\"",
-      "python3 -m pip uninstall -y torch torchvision || true",
-      "python3 -m pip install --user https://github.com/ultralytics/assets/releases/download/v0.0.0/torch-2.5.0a0+872d972e41.nv24.08-cp310-cp310-linux_aarch64.whl",
-      "python3 -m pip install --user https://github.com/ultralytics/assets/releases/download/v0.0.0/torchvision-0.20.0a0+afc54f7-cp310-cp310-linux_aarch64.whl",
-      "python3 -m pip install --user https://github.com/ultralytics/assets/releases/download/v0.0.0/onnxruntime_gpu-1.23.0-cp310-cp310-linux_aarch64.whl",
+      "bash -c 'dpkg -s v4l-utils libcusparselt0 >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y git python3-pip v4l-utils libcusparselt0)'",
+      "bash -c 'cd /home/seeed && [ -d yolov26_jetson ] || git clone https://gh-proxy.org/https://github.com/bleaaach/yolov26_jetson.git || git clone https://edgeone.gh-proxy.org/https://github.com/bleaaach/yolov26_jetson.git'",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && python3 -c \"import ultralytics\" 2>/dev/null || python3 -m pip install --user \"ultralytics[export]\"'",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && python3 -c \"import torch; assert torch.__version__.startswith(\\\"2.5.0\\\")\" 2>/dev/null || (python3 -m pip uninstall -y torch torchvision 2>/dev/null; F=torch-2.5.0a0+872d972e41.nv24.08-cp310-cp310-linux_aarch64.whl && U=https://github.com/ultralytics/assets/releases/download/v0.0.0/$F && [ -f /tmp/$F ] || wget -O /tmp/$F https://gh-proxy.org/$U || wget -O /tmp/$F https://edgeone.gh-proxy.org/$U && python3 -m pip install --user /tmp/$F)'",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && python3 -c \"import torchvision\" 2>/dev/null || (F=torchvision-0.20.0a0+afc54f7-cp310-cp310-linux_aarch64.whl && U=https://github.com/ultralytics/assets/releases/download/v0.0.0/$F && [ -f /tmp/$F ] || wget -O /tmp/$F https://gh-proxy.org/$U || wget -O /tmp/$F https://edgeone.gh-proxy.org/$U && python3 -m pip install --user /tmp/$F)'",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && python3 -c \"import onnxruntime\" 2>/dev/null || (F=onnxruntime_gpu-1.23.0-cp310-cp310-linux_aarch64.whl && U=https://github.com/ultralytics/assets/releases/download/v0.0.0/$F && [ -f /tmp/$F ] || wget -O /tmp/$F https://gh-proxy.org/$U || wget -O /tmp/$F https://edgeone.gh-proxy.org/$U && python3 -m pip install --user /tmp/$F)'",
       "grep -qxF 'export PATH=$PATH:~/.local/bin' ~/.bashrc || echo 'export PATH=$PATH:~/.local/bin' >> ~/.bashrc",
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && python3 -c \"import ultralytics, torch, torchvision, onnxruntime; print(ultralytics.__version__); print(torch.__version__); print(torchvision.__version__); print(onnxruntime.__version__)\"'",
-      "mkdir -p /home/seeed/ultralytics_data",
-      "bash -c 'export PATH=$HOME/.local/bin:$PATH && cd /home/seeed/ultralytics_data && [ -f yolov26n.engine ] || yolo export model=yolov26n.pt format=engine device=0 half=True'",
-      "bash -c 'export PATH=$HOME/.local/bin:$PATH && cd /home/seeed/ultralytics_data && [ -f yolov26n-pose.engine ] || yolo export model=yolov26n-pose.pt format=engine device=0 half=True'",
-      "bash -c 'export PATH=$HOME/.local/bin:$PATH && cd /home/seeed/ultralytics_data && [ -f yolov26n-seg.engine ] || yolo export model=yolov26n-seg.pt format=engine device=0 half=True'"
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && D=/home/seeed/yolov26_jetson/ultralytics_data && cd $D && [ -f yolo26n.engine ] || yolo export model=$D/yolo26n.pt format=engine device=0 half=True'",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && D=/home/seeed/yolov26_jetson/ultralytics_data && cd $D && [ -f yolo26n-pose.engine ] || yolo export model=$D/yolo26n-pose.pt format=engine device=0 half=True'",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && D=/home/seeed/yolov26_jetson/ultralytics_data && cd $D && [ -f yolo26n-seg.engine ] || yolo export model=$D/yolo26n-seg.pt format=engine device=0 half=True'"
     ],
     "run_cmds": [
-      "cd /home/seeed/yolov26_jetson && chmod +x run_dual_gmsl_local.sh && ./run_dual_gmsl_local.sh"
+      "bash -lc 'set -e; DISP=\"${DISPLAY:-}\"; if [ -z \"$DISP\" ]; then for d in :0 :1 :2; do if xdpyinfo -display \"$d\" >/dev/null 2>&1; then DISP=\"$d\"; break; fi; done; fi; if [ -z \"$DISP\" ]; then echo \"[ERROR] No active X11 display found. Please log into the Jetson desktop or VNC session first.\"; exit 1; fi; XAUTH=\"${XAUTHORITY:-}\"; if [ -z \"$XAUTH\" ]; then for f in \"$HOME/.Xauthority\" \"/run/user/$(id -u)/gdm/Xauthority\" /run/user/$(id -u)/.mutter-Xwaylandauth.*; do [ -e \"$f\" ] && XAUTH=\"$f\" && break; done; fi; export DISPLAY=\"$DISP\"; if [ -n \"$XAUTH\" ]; then export XAUTHORITY=\"$XAUTH\"; fi; xhost +SI:localuser:$(id -un) >/dev/null 2>&1 || xhost +local: >/dev/null 2>&1 || true; echo \"[INFO] Using DISPLAY=$DISPLAY\"; if [ -n \"${XAUTHORITY:-}\" ]; then echo \"[INFO] Using XAUTHORITY=$XAUTHORITY\"; else echo \"[WARN] XAUTHORITY not found, relying on existing session auth\"; fi; cd /home/seeed/yolov26_jetson; sed -i \"s/\\r$//\" run_dual_gmsl_local.sh; chmod +x run_dual_gmsl_local.sh; ./run_dual_gmsl_local.sh'"
     ],
     "clean_cmds": [
-      "rm -f /home/seeed/ultralytics_data/yolov26n.engine /home/seeed/ultralytics_data/yolov26n-pose.engine /home/seeed/ultralytics_data/yolov26n-seg.engine"
+      "rm -f /home/seeed/yolov26_jetson/ultralytics_data/yolo26n.engine /home/seeed/yolov26_jetson/ultralytics_data/yolo26n-pose.engine /home/seeed/yolov26_jetson/ultralytics_data/yolo26n-seg.engine"
     ],
     "uninstall_cmds": [],
     "requirements": {

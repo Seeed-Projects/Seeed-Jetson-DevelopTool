@@ -13,9 +13,14 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QScrollArea,
+    QSizePolicy,
 )
 
-from seeed_jetson_develop.core.config import load as load_config, save as save_config
+from seeed_jetson_develop.core.config import (
+    get_runtime_anthropic_settings,
+    load as load_config,
+    save as save_config,
+)
 from seeed_jetson_develop.gui.theme import (
     C_BG_DEEP,
     C_CARD,
@@ -105,17 +110,11 @@ def build_ai_system_prompt(limit: int = 30) -> str:
 
 
 def _get_api_key() -> str:
-    key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not key:
-        key = load_config().get("anthropic_api_key", "")
-    return key
+    return get_runtime_anthropic_settings()["api_key"]
 
 
 def _get_base_url() -> str:
-    url = os.environ.get("ANTHROPIC_BASE_URL", "")
-    if not url:
-        url = load_config().get("anthropic_base_url", "")
-    return url
+    return get_runtime_anthropic_settings()["base_url"]
 
 
 # ── AI 线程（支持 tool_use 循环） ─────────────────────────────────────────────
@@ -160,13 +159,15 @@ class _AiToolThread(QThread):
                 if self._cancel:
                     return
 
-                resp = client.messages.create(
+                kwargs = dict(
                     model="claude-haiku-4-5-20251001",
                     max_tokens=2048,
                     system=self._system,
                     messages=messages,
-                    tools=tools,
                 )
+                if tools:
+                    kwargs["tools"] = tools
+                resp = client.messages.create(**kwargs)
 
                 # 分离文本块和工具调用块
                 text_parts: list[str] = []
@@ -307,6 +308,7 @@ class AIChatPanel(QWidget):
         self._cur_bubble = None
         self._cur_text   = ""
         self._pending_tool_bubble: _ToolCallBubble | None = None
+        self._runtime_hint = None
         self._setup_ui(title)
 
     def _setup_ui(self, title: str):
@@ -351,6 +353,14 @@ class AIChatPanel(QWidget):
             key_btn.clicked.connect(self._toggle_key_frame)
             title_row.addWidget(key_btn)
         layout.addLayout(title_row)
+
+        # Runtime hint
+        self._runtime_hint = _lbl("", 10, C_TEXT3, wrap=True)
+        self._runtime_hint.setStyleSheet(
+            f"color:{C_TEXT3}; font-size:{_pt(10)}px; background:transparent;"
+        )
+        layout.addWidget(self._runtime_hint)
+        self._update_runtime_hint()
 
         # ── 消息区 ──
         self._scroll = QScrollArea()
@@ -489,6 +499,17 @@ class AIChatPanel(QWidget):
     def _toggle_key_frame(self):
         self._key_frame.setVisible(not self._key_frame.isVisible())
 
+    def _update_runtime_hint(self):
+        settings = get_runtime_anthropic_settings()
+        base_url = settings["base_url"]
+        source = settings["base_url_source"]
+        source_label = {
+            "config": "界面配置",
+            "env": "环境变量",
+            "default": "默认官方地址",
+        }.get(source, source)
+        self._runtime_hint.setText(f"当前生效 Base URL: {base_url}  |  来源: {source_label}")
+
     def _save_key(self):
         key = self._key_input.text().strip()
         if not key:
@@ -498,6 +519,7 @@ class AIChatPanel(QWidget):
         save_config(cfg)
         self._key_frame.setVisible(False)
         self._key_input.clear()
+        self._update_runtime_hint()
         self._add_ai_bubble("API Key 已保存，现在可以开始对话了。")
 
     def _on_send(self):
@@ -547,6 +569,7 @@ class AIChatPanel(QWidget):
 
         self._cur_bubble = self._add_ai_bubble("")
         self._cur_text   = ""
+        self._had_error  = False
         self._send_btn.setEnabled(False)
         self._input.setEnabled(False)
 
@@ -598,6 +621,8 @@ class AIChatPanel(QWidget):
     def _on_error(self, msg: str):
         if self._cur_bubble:
             self._cur_bubble.set_text(f"请求失败：{msg}")
+        else:
+            self._add_ai_bubble(f"请求失败：{msg}")
         self._send_btn.setEnabled(True)
         self._input.setEnabled(True)
 
@@ -774,6 +799,8 @@ class FloatingAIAssistant(QObject):
         self._update_positions()
         self._panel.raise_()
         self._ball.raise_()
+        # 延迟再更新一次，确保 viewport 已完成布局后宽度正确
+        QTimer.singleShot(50, self._update_positions)
 
     def inject_context(self, skill_name: str, skill_desc: str, commands: list):
         self.show_panel()
@@ -854,3 +881,6 @@ class FloatingAIAssistant(QObject):
 
         self._panel.move(panel_x, panel_y)
         self._panel.raise_()
+        # 约束聊天内容宽度：用 maxWidth 而非 fixedWidth，让高度可自由增长
+        vw = self._chat._scroll.viewport().width()
+        self._chat._msg_widget.setMaximumWidth(vw)

@@ -85,7 +85,7 @@ class NetShareDialog(QDialog):
         self.setWindowTitle("PC 网络共享")
         self.setMinimumSize(640, 520)
         self.setSizeGripEnabled(True)
-        self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
+        self.setStyleSheet(f"background:{C_CARD}; color:{C_TEXT}; border-radius:12px;")
 
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 22)

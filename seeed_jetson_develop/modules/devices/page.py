@@ -38,7 +38,7 @@ class _SerialCredDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("串口连接 — 输入凭据")
         self.setMinimumWidth(380)
-        self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
+        self.setStyleSheet(f"background:{C_CARD}; color:{C_TEXT}; border-radius:12px;")
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 20)
@@ -208,7 +208,7 @@ class _TorchInstallDialog(QDialog):
         self._thread = None
         self.setWindowTitle("安装 PyTorch for Jetson")
         self.setMinimumSize(640, 520)
-        self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
+        self.setStyleSheet(f"background:{C_CARD}; color:{C_TEXT}; border-radius:12px;")
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 20)

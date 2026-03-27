@@ -380,6 +380,63 @@ QLineEdit:hover {{
     background: #253340;
 }}
 
+QDialog {{
+    background: {C_BG};
+    color: {C_TEXT};
+}}
+
+QDialog QLabel {{
+    background: transparent;
+    color: {C_TEXT2};
+}}
+
+QDialog QPushButton {{
+    background: rgba(255,255,255,0.04);
+    border: none;
+    border-radius: 8px;
+    color: {C_TEXT};
+    font-size: {pt(11)}px;
+    font-weight: 600;
+    padding: 0 {pt(16)}px;
+    min-height: {pt(38)}px;
+}}
+
+QDialog QPushButton:hover {{
+    background: rgba(255,255,255,0.10);
+}}
+
+QDialog QPushButton:pressed {{
+    background: rgba(255,255,255,0.14);
+}}
+
+QDialog QPushButton:default {{
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+        stop:0 #8DC21F, stop:1 #7AB317);
+    color: #071200;
+}}
+
+QMessageBox {{
+    background: {C_BG};
+}}
+
+QMessageBox QLabel#qt_msgbox_label {{
+    color: {C_TEXT};
+    font-size: {pt(12)}px;
+    font-weight: 600;
+    min-width: 340px;
+}}
+
+QMessageBox QLabel#qt_msgbox_informativelabel {{
+    color: {C_TEXT2};
+    font-size: {pt(11)}px;
+    font-weight: 400;
+    min-width: 340px;
+}}
+
+QMessageBox QLabel#qt_msgboxex_icon_label {{
+    background: transparent;
+}}
+
 /* 工具提示 */
 QToolTip {{
     background: {C_CARD};

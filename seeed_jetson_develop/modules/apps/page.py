@@ -460,8 +460,8 @@ def build_page() -> QWidget:
         return l4t
 
     def _l4t_matches(current_l4t: str, allowed_version: str) -> bool:
-        current = (current_l4t or "").strip()
-        allowed = (allowed_version or "").strip()
+        current = (current_l4t or "").strip().lstrip("R")
+        allowed = (allowed_version or "").strip().lstrip("R")
         if not current or not allowed:
             return False
         if allowed.endswith(".x"):
