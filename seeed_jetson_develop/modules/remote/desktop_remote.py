@@ -121,8 +121,9 @@ def build_start_vnc_cmd(password: str = "", display: str = "") -> str:
     )
     start_vnc = (
         f'pkill x11vnc 2>/dev/null; sleep 0.5; '
-        + 'rm -f ~/.vnc/passwd 2>/dev/null; '
-        + f'if [ "$HEADLESS" = "1" ]; then X11_AUTH=""; else X11_AUTH="-auth guess"; fi; '
+        # 删除所有可能的 x11vnc 密码文件，确保无密码模式
+        'rm -f ~/.vnc/passwd ~/.x11vncrc /tmp/.x11vnc-passwd 2>/dev/null; '
+        f'if [ "$HEADLESS" = "1" ]; then X11_AUTH=""; else X11_AUTH="-auth guess"; fi; '
         f'x11vnc $X11_AUTH -display $DISP -forever -shared -rfbport 5900 {auth} '
         f'-noxdamage -noxfixes -nowf -nowcr -noscr -o /tmp/x11vnc.log -bg 2>&1; '
         f'sleep 2; '
