@@ -55,31 +55,76 @@ def build_install_vnc_cmd(sudo_password: str) -> str:
     escaped = sudo_password.replace("'", "'\\''")
     return (
         f"echo '{escaped}' | sudo -S apt-get update -qq "
-        f"&& echo '{escaped}' | sudo -S apt-get install -y x11vnc"
+        f"&& echo '{escaped}' | sudo -S apt-get install -y x11vnc xvfb xauth dbus-x11 x11-xserver-utils"
+    )
+
+
+def build_enable_autologin_cmd(sudo_password: str, username: str) -> str:
+    escaped_pwd = sudo_password.replace("'", "'\\''")
+    escaped_user = username.replace("'", "'\\''")
+    return (
+        'CONF=""; '
+        'for f in /etc/gdm3/custom.conf /etc/gdm/custom.conf; do '
+        '  if [ -f "$f" ]; then CONF="$f"; break; fi; '
+        'done; '
+        'if [ -z "$CONF" ]; then CONF=/etc/gdm3/custom.conf; fi; '
+        f"echo '{escaped_pwd}' | sudo -S mkdir -p \"$(dirname \"$CONF\")\"; "
+        f"echo '{escaped_pwd}' | sudo -S touch \"$CONF\"; "
+        'grep -q "^\\[daemon\\]" "$CONF" || '
+        f"printf '\\n[daemon]\\n' | (echo '{escaped_pwd}' | sudo -S tee -a \"$CONF\" >/dev/null); "
+        'grep -q "^AutomaticLoginEnable=" "$CONF" && '
+        f"(echo '{escaped_pwd}' | sudo -S sed -i 's/^AutomaticLoginEnable=.*/AutomaticLoginEnable=true/' \"$CONF\") || "
+        f"(echo '{escaped_pwd}' | sudo -S sed -i '/^\\[daemon\\]/a AutomaticLoginEnable=true' \"$CONF\"); "
+        'grep -q "^AutomaticLogin=" "$CONF" && '
+        f"(echo '{escaped_pwd}' | sudo -S sed -i \"s/^AutomaticLogin=.*/AutomaticLogin={escaped_user}/\" \"$CONF\") || "
+        f"(echo '{escaped_pwd}' | sudo -S sed -i '/^\\[daemon\\]/a AutomaticLogin={escaped_user}' \"$CONF\"); "
+        'echo "auto-login ensured in $CONF for user: '
+        f'{escaped_user}"'
     )
 
 
 def build_start_vnc_cmd(password: str = "", display: str = "") -> str:
-    """启动 x11vnc，自动探测 display，前台启动后放入后台并验证端口。"""
-    if password:
-        auth = f"-passwd {password}"
-    else:
-        auth = "-nopw"
-    # 自动探测 display：优先用环境变量，fallback 到 :0/:1
+    """启动 x11vnc，始终以无密码模式运行。"""
+    # 为了保证客户端和 noVNC 都不再弹出 VNC 密码，这里强制使用 -nopw。
+    # password/display 参数保留仅用于兼容旧调用方。
+    auth = "-nopw"
+    # 自动探测 display：有真实桌面就接真实桌面；没有则启动 Xvfb :99 作为 headless 桌面
     detect_display = (
-        'DISP="${DISPLAY:-}"; '
+        'DISP="${DISPLAY:-}"; HEADLESS=0; '
+        'if [ -n "$DISP" ] && ! xdpyinfo -display "$DISP" >/dev/null 2>&1; then DISP=""; fi; '
         'if [ -z "$DISP" ]; then '
         '  for d in :0 :1 :2; do '
-        '    if xdpyinfo -display $d >/dev/null 2>&1; then DISP=$d; break; fi; '
+        '    if xdpyinfo -display "$d" >/dev/null 2>&1; then DISP=$d; break; fi; '
         '  done; '
         'fi; '
-        'if [ -z "$DISP" ]; then DISP=:0; fi; '
-        'echo "Using display: $DISP"; '
+        'if [ -z "$DISP" ]; then '
+        '  HEADLESS=1; DISP=:99; '
+        '  pkill -f "Xvfb :99" 2>/dev/null || true; '
+        '  rm -f /tmp/.X99-lock; '
+        '  nohup Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/tmp/seeed-xvfb.log 2>&1 & '
+        '  echo $! >/tmp/seeed-xvfb.pid; '
+        '  sleep 2; '
+        '  export DISPLAY=:99; '
+        '  if command -v gnome-session >/dev/null 2>&1; then '
+        '    nohup dbus-launch --exit-with-session gnome-session >/tmp/seeed-headless-desktop.log 2>&1 & '
+        '    echo $! >/tmp/seeed-headless-session.pid; '
+        '  elif command -v startxfce4 >/dev/null 2>&1; then '
+        '    nohup dbus-launch --exit-with-session startxfce4 >/tmp/seeed-headless-desktop.log 2>&1 & '
+        '    echo $! >/tmp/seeed-headless-session.pid; '
+        '  elif command -v openbox-session >/dev/null 2>&1; then '
+        '    nohup openbox-session >/tmp/seeed-headless-desktop.log 2>&1 & '
+        '    echo $! >/tmp/seeed-headless-session.pid; '
+        '  fi; '
+        '  sleep 3; '
+        'fi; '
+        'echo "Using display: $DISP (headless=$HEADLESS)"; '
     )
     start_vnc = (
         f'pkill x11vnc 2>/dev/null; sleep 0.5; '
-        f'x11vnc -display $DISP -forever -shared -rfbport 5900 {auth} '
-        f'-noxdamage -noxfixes -o /tmp/x11vnc.log -bg 2>&1; '
+        + 'rm -f ~/.vnc/passwd 2>/dev/null; '
+        + f'if [ "$HEADLESS" = "1" ]; then X11_AUTH=""; else X11_AUTH="-auth guess"; fi; '
+        f'x11vnc $X11_AUTH -display $DISP -forever -shared -rfbport 5900 {auth} '
+        f'-noxdamage -noxfixes -nowf -nowcr -noscr -o /tmp/x11vnc.log -bg 2>&1; '
         f'sleep 2; '
         f'if ss -tlnp 2>/dev/null | grep -q ":5900" || netstat -tlnp 2>/dev/null | grep -q ":5900"; then '
         f'  echo "x11vnc started OK on port 5900"; '
@@ -122,7 +167,17 @@ def build_start_novnc_cmd(vnc_port: int = 5900, web_port: int = 6080) -> str:
 
 
 def build_stop_cmd() -> str:
-    return STOP_CMD
+    return (
+        STOP_CMD
+        + ' ; '
+        + 'rm -f ~/.vnc/passwd 2>/dev/null'
+        + ' ; '
+        + 'if [ -f /tmp/seeed-headless-session.pid ]; then kill "$(cat /tmp/seeed-headless-session.pid)" 2>/dev/null || true; rm -f /tmp/seeed-headless-session.pid; fi'
+        + ' ; '
+        + 'if [ -f /tmp/seeed-xvfb.pid ]; then kill "$(cat /tmp/seeed-xvfb.pid)" 2>/dev/null || true; rm -f /tmp/seeed-xvfb.pid; fi'
+        + ' ; '
+        + 'pkill -f "Xvfb :99" 2>/dev/null || true'
+    )
 
 
 # ── 地址格式化 ────────────────────────────────────────────────────────────────

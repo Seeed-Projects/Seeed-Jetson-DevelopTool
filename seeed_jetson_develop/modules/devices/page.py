@@ -336,30 +336,33 @@ def build_page() -> QWidget:
     lay.setSpacing(20)
 
     # ═══════════════════════════════════════
-    # 1. 设备信息卡（4 格）
+    # 1. 设备信息卡（2×2 网格）
     # ═══════════════════════════════════════
-    info_row = QHBoxLayout()
-    info_row.setSpacing(16)
+    info_grid = QGridLayout()
+    info_grid.setSpacing(16)
+    info_grid.setColumnStretch(0, 1)
+    info_grid.setColumnStretch(1, 1)
     info_cards: dict[str, QLabel] = {}
 
-    for key, icon, label in [
-        ("model",   "🖥",  "设备型号"),
+    for idx, (key, icon, label) in enumerate([
+        ("model",   "🖥",  "Jetson 型号"),
         ("l4t",     "🔖", "L4T 版本"),
         ("memory",  "🧠", "内存使用"),
         ("ip",      "🌐", "IP 地址"),
-    ]:
+    ]):
         c = _card(10)
         cl = QVBoxLayout(c)
         cl.setContentsMargins(16, 14, 16, 14)
         cl.setSpacing(6)
         cl.addWidget(_lbl(icon, 20))
-        val_lbl = _lbl("采集中…", 14, C_TEXT2, bold=False)
+        val_lbl = _lbl("—", 14, C_TEXT2, bold=False)
+        val_lbl.setWordWrap(True)
         cl.addWidget(val_lbl)
         cl.addWidget(_lbl(label, 11, C_TEXT3))
         info_cards[key] = val_lbl
         _shadow(c, blur=16)
-        info_row.addWidget(c, 1)
-    lay.addLayout(info_row)
+        info_grid.addWidget(c, idx // 2, idx % 2)
+    lay.addLayout(info_grid)
 
     # ═══════════════════════════════════════
     # 2. 快速诊断卡 - 无边框行
@@ -421,6 +424,9 @@ def build_page() -> QWidget:
 
     periph_grid = QGridLayout()
     periph_grid.setSpacing(12)
+    periph_grid.setColumnStretch(0, 1)
+    periph_grid.setColumnStretch(1, 1)
+    periph_grid.setColumnStretch(2, 1)
     periph_tags: dict[str, QLabel] = {}
     for i, item in enumerate(PERIPH_ITEMS):
         c = _card(8)
@@ -468,17 +474,19 @@ def build_page() -> QWidget:
     # ── 线程状态 ──
     _thread: list[_DiagThread] = [None]
 
-    def _set_all_running():
+    def _set_all_running(mode="full"):
         run_btn.setEnabled(False)
         run_btn.setText("检测中…")
-        diag_only_btn.setEnabled(False)
-        periph_only_btn.setEnabled(False)
-        for t in diag_tags.values():
-            t.setText("检测中…")
-            t.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:6px; padding:4px 12px; font-size:11px;")
-        for t in periph_tags.values():
-            t.setText("检测中…")
-            t.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:6px; padding:4px 12px; font-size:11px;")
+        if mode in ("full", "diag"):
+            diag_only_btn.setEnabled(False)
+            for t in diag_tags.values():
+                t.setText("检测中…")
+                t.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:6px; padding:4px 12px; font-size:11px;")
+        if mode in ("full", "periph"):
+            periph_only_btn.setEnabled(False)
+            for t in periph_tags.values():
+                t.setText("检测中…")
+                t.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:6px; padding:4px 12px; font-size:11px;")
 
     def _reset_buttons():
         run_btn.setEnabled(True)
@@ -536,7 +544,7 @@ def build_page() -> QWidget:
         else:
             runner_to_use = current_runner
 
-        _set_all_running()
+        _set_all_running(mode)
         t = _DiagThread(mode, runner=runner_to_use)
         t.result.connect(_on_result)
         t.info_ready.connect(_on_info)
@@ -549,6 +557,9 @@ def build_page() -> QWidget:
     periph_only_btn.clicked.connect(lambda: _start("periph"))
     init_btn.clicked.connect(lambda: open_jetson_init_dialog(parent=page))
 
+    # SSH 建立后自动触发全量检测；已有数据时再次连接也刷新
+    bus.device_connected.connect(lambda: _start("full", silent_no_runner=True))
+
     def _open_torch_install():
         dlg = _TorchInstallDialog(_l4t_ver[0], parent=page)
         dlg.install_succeeded.connect(lambda: _start("diag"))
@@ -557,6 +568,7 @@ def build_page() -> QWidget:
     if _torch_install_btn[0]:
         _torch_install_btn[0].clicked.connect(_open_torch_install)
 
+    # 页面构建时若已有连接，静默采集设备信息（不重置诊断状态）
     _start("info", silent_no_runner=True)
 
     return page

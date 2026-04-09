@@ -6,26 +6,47 @@ import os
 import subprocess
 import hashlib
 import time
+import platform
+import shutil
+import stat
+import tarfile
 from pathlib import Path
 import requests
 from tqdm import tqdm
 
 
+def _is_windows_host() -> bool:
+    return platform.system() == "Windows"
+
+
+def _is_linux_host() -> bool:
+    return platform.system() == "Linux"
+
+
 def sudo_authenticate(password: str) -> bool:
     """用给定密码刷新 sudo 凭证。返回 True 表示密码正确且 sudo 已授权。"""
+    if not _is_linux_host():
+        return True
     try:
-        result = subprocess.run(
-            ["sudo", "-S", "-v"],
-            input=password + "\n",
-            capture_output=True, text=True, timeout=10
+        # 用 sudo -S bash -c true 验证密码，比 sudo -S -v 更可靠
+        # 某些 Linux 系统上 sudo -S -v 会忽略 -S 或把提示写到 /dev/tty
+        proc = subprocess.Popen(
+            ["sudo", "-S", "bash", "-c", "true"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
         )
-        return result.returncode == 0
+        out, _ = proc.communicate(input=password + "\n", timeout=10)
+        return proc.returncode == 0
     except Exception:
         return False
 
 
 def sudo_check_cached() -> bool:
     """检查 sudo 凭证是否仍在缓存期内（无需密码）。"""
+    if not _is_linux_host():
+        return True
     try:
         result = subprocess.run(
             ["sudo", "-n", "true"],
@@ -37,19 +58,20 @@ def sudo_check_cached() -> bool:
 
 
 class JetsonFlasher:
-    def __init__(self, product, l4t_version, progress_callback=None, should_cancel=None):
+    def __init__(self, product, l4t_version, progress_callback=None, should_cancel=None,
+                 download_dir: Path | None = None):
         self.product = product
         self.l4t_version = l4t_version
         self.progress_callback = progress_callback
         self.should_cancel = should_cancel
         self.data_path = Path(__file__).parent / "data" / "l4t_data.json"
         self.firmware_info = self._load_firmware_info()
-        self.download_dir = Path.home() / "jetson_firmware"
-        self.download_dir.mkdir(exist_ok=True)
+        self.download_dir = Path(download_dir) if download_dir else Path.home() / "jetson_firmware"
+        self.download_dir.mkdir(parents=True, exist_ok=True)
     
     def _load_firmware_info(self):
         """加载固件信息"""
-        with open(self.data_path, 'r') as f:
+        with open(self.data_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
         for item in data:
@@ -108,7 +130,7 @@ class JetsonFlasher:
         process = subprocess.Popen(
             args, cwd=cwd,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, bufsize=1
+            text=True, encoding='utf-8', errors='replace', bufsize=1
         )
         try:
             for line in process.stdout:
@@ -136,6 +158,36 @@ class JetsonFlasher:
             except Exception:
                 pass
 
+    @staticmethod
+    def _safe_extract_path(base_dir: Path, member_name: str) -> Path:
+        """防止 tar 成员路径逃逸到目标目录之外。"""
+        base = base_dir.resolve()
+        target = (base_dir / member_name).resolve()
+        if target == base:
+            return target
+        if not str(target).startswith(str(base) + os.sep):
+            raise ValueError(f"压缩包包含不安全路径: {member_name}")
+        return target
+
+    def _extract_archive_portable(self, filepath: Path, extract_dir: Path):
+        """跨平台解压归档，并按真实字节数上报进度。"""
+        with tarfile.open(filepath, "r:*") as tar:
+            members = tar.getmembers()
+            total_bytes = sum(m.size for m in members if m.isfile())
+            extracted_bytes = 0
+            total_members = max(1, len(members))
+
+            for idx, member in enumerate(members, start=1):
+                self._check_cancel()
+                self._safe_extract_path(extract_dir, member.name)
+                tar.extract(member, path=extract_dir, set_attrs=not _is_windows_host())
+                if member.isfile():
+                    extracted_bytes += max(0, member.size)
+                if total_bytes > 0:
+                    self._emit_progress("extract", extracted_bytes, total_bytes)
+                else:
+                    self._emit_progress("extract", idx, total_members)
+
     def _download_from_url(self, url, filepath, filename):
         """从指定 URL 下载到目标文件，支持断点续传。"""
         self._check_cancel()
@@ -161,8 +213,9 @@ class JetsonFlasher:
         response.raise_for_status()
 
         total_size = int(response.headers.get("content-length", 0))
-        if total_size and resume_pos:
-            total_size += resume_pos  # content-length 是剩余长度，换算为总长度
+        if total_size and resume_pos and response.status_code == 206:
+            # 206 Partial Content: content-length 是剩余长度，换算为总长度
+            total_size += resume_pos
 
         content_type = response.headers.get("content-type", "")
         chunks = response.iter_content(chunk_size=65536)
@@ -214,19 +267,31 @@ class JetsonFlasher:
         return filepath.exists() and filepath.stat().st_size > 1024 * 1024
 
     def firmware_extracted(self) -> bool:
-        """检查当前产品的固件是否已解压。
-        只做精确匹配：foldername 就是解压后的实际目录名。
-        不做前缀/关键词兜底，避免跨产品误判（如 classic 的 mfi_recomputer-orin
-        误匹配 super 的 mfi_recomputer-orin-super-j401）。
+        """检查当前产品+版本的固件是否已解压且内容匹配。
+        通过标记文件确认解压内容属于当前 product+l4t，避免共用 foldername 时用错固件。
         """
         extract_dir = self.download_dir / "extracted"
-        foldername = self.firmware_info.get('foldername', '')
-        if not foldername or not extract_dir.exists():
+        if not extract_dir.exists():
             return False
-        return (extract_dir / foldername).is_dir()
+        actual = self._detect_extracted_dir(extract_dir)
+        if actual is None:
+            return False
+        marker = actual / ".seeed_flash_marker"
+        if marker.exists():
+            try:
+                content = marker.read_text().strip()
+                return content == f"{self.product}|{self.l4t_version}"
+            except Exception:
+                return False
+        # 无标记文件时：只有目录名与当前产品的 foldername 精确匹配才认为已解压
+        # 避免兜底逻辑把其他产品的目录误判为当前产品已解压
+        foldername = self.firmware_info.get('foldername', '')
+        return bool(foldername) and actual.name == foldername
 
     def clear_cache(self, clear_archive=True, clear_extracted=True):
-        """清除本地缓存。返回 (删了哪些路径) 列表。"""
+        """清除本地缓存。返回已删除路径列表。
+        解压目录内含 rootfs（root 权限文件），优先用 sudo rm -rf 删除。
+        """
         import shutil
         removed = []
         if clear_archive:
@@ -240,11 +305,41 @@ class JetsonFlasher:
                 removed.append(str(part))
         if clear_extracted:
             extract_dir = self.download_dir / "extracted"
-            actual = self._detect_extracted_dir(extract_dir)
-            if actual and actual.exists():
-                shutil.rmtree(actual)
-                removed.append(str(actual))
+            foldername = self.firmware_info.get('foldername', '')
+            if foldername and extract_dir.exists():
+                # 只删精确匹配当前产品 foldername 的目录，绝不误删其他产品的目录
+                actual = extract_dir / foldername
+                if actual.exists():
+                    self._rmtree_privileged(actual)
+                    removed.append(str(actual))
         return removed
+
+    @staticmethod
+    def _rmtree_privileged(path: Path):
+        """删除目录，自动处理 rootfs 等需要 root 权限的子目录。
+        先尝试普通删除，失败则用 sudo rm -rf。
+        """
+        def _retry_remove(func, target, _exc):
+            try:
+                os.chmod(target, stat.S_IWRITE)
+            except Exception:
+                pass
+            func(target)
+
+        try:
+            shutil.rmtree(path, onerror=_retry_remove)
+        except PermissionError:
+            if not _is_linux_host():
+                raise
+            print(f"普通删除失败，尝试 sudo rm -rf: {path}")
+            result = subprocess.run(
+                ["sudo", "rm", "-rf", str(path)],
+                capture_output=True, text=True
+            )
+            if result.returncode != 0:
+                raise PermissionError(
+                    f"sudo rm -rf 失败 (exit {result.returncode}): {result.stderr.strip()}"
+                )
 
     def download_firmware(self, force_redownload: bool = False):
         """下载固件。force_redownload=True 时忽略缓存强制重新下载。"""
@@ -293,14 +388,19 @@ class JetsonFlasher:
         filename = self.firmware_info['filename']
         filepath = self.download_dir / filename
         expected_sha256 = self.firmware_info['sha256'].lower()
+        total_size = filepath.stat().st_size if filepath.exists() else 0
         
         print(f"正在校验固件: {filename}")
         
         sha256_hash = hashlib.sha256()
+        processed = 0
         with open(filepath, "rb") as f:
             for byte_block in iter(lambda: f.read(4096), b""):
                 self._check_cancel()
                 sha256_hash.update(byte_block)
+                processed += len(byte_block)
+                if total_size > 0:
+                    self._emit_progress("verify", processed, total_size)
         
         actual_sha256 = sha256_hash.hexdigest().lower()
         
@@ -331,29 +431,45 @@ class JetsonFlasher:
         return None
 
     def extract_firmware(self):
-        """解压固件"""
         self._check_cancel()
         filename = self.firmware_info['filename']
         filepath = self.download_dir / filename
         extract_dir = self.download_dir / "extracted"
         extract_dir.mkdir(exist_ok=True)
-        
+
+        # 已解压且内容匹配当前 product+l4t，直接跳过
+        if self.firmware_extracted():
+            existing = self._detect_extracted_dir(extract_dir)
+            self._extracted_dir = existing
+            print(f"固件已解压，跳过解压步骤: {existing}")
+            return True
+
+        # 目录存在但内容不匹配（切换了版本），先清理当前产品的目录
+        foldername = self.firmware_info.get('foldername', '')
+        if foldername:
+            target = extract_dir / foldername
+            if target.exists():
+                print(f"检测到旧解压目录（版本不匹配），清理: {target}")
+                self._rmtree_privileged(target)
+
         print(f"正在解压固件: {filename}")
         
         try:
-            if filename.endswith('.tar.gz'):
-                args = ["tar", "-xzf", str(filepath), "-C", str(extract_dir)]
-            elif filename.endswith('.tar'):
-                args = ["tar", "-xf", str(filepath), "-C", str(extract_dir)]
-            else:
+            if not (filename.endswith('.tar.gz') or filename.endswith('.tar')):
                 print(f"不支持的文件格式: {filename}")
                 return False
-            
-            self._run_cancelable_process(args)
+
+            self._extract_archive_portable(filepath, extract_dir)
 
             actual_dir = self._detect_extracted_dir(extract_dir)
             if actual_dir:
                 self._extracted_dir = actual_dir
+                # 写入标记文件，记录当前 product+l4t
+                try:
+                    marker = actual_dir / ".seeed_flash_marker"
+                    marker.write_text(f"{self.product}|{self.l4t_version}")
+                except Exception:
+                    pass
                 print(f"解压完成: {actual_dir}")
             else:
                 print(f"解压完成，但无法确定顶层目录: {extract_dir}")
@@ -369,6 +485,12 @@ class JetsonFlasher:
     def flash_firmware(self):
         """刷写固件（需已解压，设备已进入 Recovery 模式）。"""
         self._check_cancel()
+        if _is_windows_host():
+            msg = "Windows 主机当前仅支持下载/校验/解压与 Recovery 检测；原生刷写仍需 Linux 或已配置 USB 透传的 WSL2。"
+            print(msg)
+            self._emit_log(msg)
+            return False
+
         extract_dir = self.download_dir / "extracted"
 
         actual_dir = getattr(self, '_extracted_dir', None)

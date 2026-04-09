@@ -1,11 +1,11 @@
 """应用市场页 — 无边框大气风格
 包含：分类筛选、搜索、后台安装检测、安装对话框。
 """
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton, QLineEdit,
     QVBoxLayout, QHBoxLayout, QGridLayout,
-    QScrollArea, QDialog, QTextEdit, QMessageBox,
+    QScrollArea, QDialog, QTextEdit, QMessageBox, QSizePolicy,
 )
 
 from seeed_jetson_develop.core.runner import Runner, SSHRunner, get_runner
@@ -16,7 +16,7 @@ from seeed_jetson_develop.core.platform_detect import is_jetson
 def _can_execute_from_current_env(parent: QWidget) -> bool:
     if is_jetson() or isinstance(get_runner(), SSHRunner):
         return True
-    QMessageBox.information(
+    _show_info_message(
         parent,
         "需要远程连接",
         "当前运行在 PC 上，安装或部署前必须先在「远程开发」页连接 Jetson 设备。",
@@ -32,7 +32,30 @@ from seeed_jetson_develop.gui.theme import (
     pt as _pt, make_label as _lbl, make_button as _btn,
     make_card as _card, make_input_card as _input_card,
     apply_shadow as _shadow,
+    ask_question_message as _ask_question_message,
+    show_error_message as _show_error_message,
+    show_info_message as _show_info_message,
+    show_warning_message as _show_warning_message,
 )
+
+
+class _ResponsiveScrollArea(QScrollArea):
+    def __init__(self, *args, on_resize=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._on_resize = on_resize
+        self._resize_timer = None
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._on_resize:
+            # 防抖：延迟 100ms 再重建，避免频繁刷新
+            from PyQt5.QtCore import QTimer
+            if self._resize_timer:
+                self._resize_timer.stop()
+            self._resize_timer = QTimer(self)
+            self._resize_timer.setSingleShot(True)
+            self._resize_timer.timeout.connect(self._on_resize)
+            self._resize_timer.start(100)
 
 
 # ── 后台安装状态检测线程 ──────────────────────────────────────────────────────
@@ -97,7 +120,13 @@ class _InstallDialog(QDialog):
         self._thread = None
         self._mode   = mode  # "install" or "uninstall"
 
-        title = "卸载" if mode == "uninstall" else "安装"
+        title_map = {
+            "install": "安装",
+            "uninstall": "卸载",
+            "run": "运行",
+            "clean": "清理",
+        }
+        title = title_map.get(mode, "执行")
         self.setWindowTitle(f"{title}  {app['name']}")
         self.setMinimumSize(640, 520)
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
@@ -118,7 +147,7 @@ class _InstallDialog(QDialog):
         lay.addLayout(info_row)
 
         # 步骤预览
-        step_label = "卸载步骤" if mode == "uninstall" else "安装步骤"
+        step_label = f"{title}步骤"
         lay.addWidget(_lbl(step_label, 12, C_TEXT3))
         preview = QTextEdit()
         preview.setReadOnly(True)
@@ -136,7 +165,7 @@ class _InstallDialog(QDialog):
         lay.addWidget(preview)
 
         # 日志区
-        log_label = "卸载日志" if mode == "uninstall" else "安装日志"
+        log_label = f"{title}日志"
         lay.addWidget(_lbl(log_label, 12, C_TEXT3))
         self._log_edit = QTextEdit()
         self._log_edit.setReadOnly(True)
@@ -155,8 +184,8 @@ class _InstallDialog(QDialog):
         # 按钮行
         btn_row = QHBoxLayout()
         btn_row.setSpacing(12)
-        start_label = "▶  开始卸载" if mode == "uninstall" else "▶  开始安装"
-        self._start_btn = _btn(start_label, primary=(mode == "install"))
+        start_label = f"▶  开始{title}"
+        self._start_btn = _btn(start_label, primary=(mode in {"install", "run"}))
         if mode == "uninstall":
             self._start_btn.setStyleSheet(f"""
                 QPushButton {{
@@ -174,9 +203,14 @@ class _InstallDialog(QDialog):
         self._stop_btn  = _btn("■  停止")
         self._stop_btn.setEnabled(False)
         close_btn = _btn("关闭")
+        self._ai_btn = _btn("问 AI", primary=False, small=True)
+        self._ai_btn.setVisible(False)
+        self._ai_btn.clicked.connect(self._ask_ai)
         btn_row.addWidget(self._start_btn)
         btn_row.addWidget(self._stop_btn)
         btn_row.addStretch()
+        btn_row.addWidget(self._ai_btn)
+        btn_row.addSpacing(8)
         btn_row.addWidget(close_btn)
         lay.addLayout(btn_row)
 
@@ -192,6 +226,7 @@ class _InstallDialog(QDialog):
 
     def _start(self):
         self._log_edit.clear()
+        self._ai_btn.setVisible(False)
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
         t = _InstallThread(self._cmds)
@@ -207,20 +242,25 @@ class _InstallDialog(QDialog):
     def _on_done(self, success: bool):
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
-        if self._mode == "uninstall":
-            if success:
-                self._append("\n✅ 卸载成功！")
-                self.install_done.emit(self._app["id"], True)
-            else:
-                self._append("\n❌ 卸载失败，请检查日志。")
-                self.install_done.emit(self._app["id"], False)
+        action_text = {
+            "install": ("安装成功！", "安装失败，请检查日志。"),
+            "uninstall": ("卸载成功！", "卸载失败，请检查日志。"),
+            "run": ("运行完成。", "运行失败，请检查日志。"),
+            "clean": ("清理完成。", "清理失败，请检查日志。"),
+        }.get(self._mode, ("执行成功。", "执行失败，请检查日志。"))
+        if success:
+            self._append(f"\n✅ {action_text[0]}")
         else:
-            if success:
-                self._append("\n✅ 安装成功！")
-                self.install_done.emit(self._app["id"], True)
-            else:
-                self._append("\n❌ 安装失败，请检查日志。")
-                self.install_done.emit(self._app["id"], False)
+            self._append(f"\n❌ {action_text[1]}")
+            self._ai_btn.setVisible(True)
+        self.install_done.emit(self._app["id"], success)
+
+    def _ask_ai(self):
+        host = self.parent().window() if self.parent() else None
+        assistant = getattr(host, "_floating_ai", None)
+        if assistant:
+            log_text = self._log_edit.toPlainText()
+            assistant.inject_error(self._app["name"], log_text)
 
 
 # ── 主页面 ────────────────────────────────────────────────────────────────────
@@ -231,7 +271,6 @@ def build_page() -> QWidget:
     root.setContentsMargins(0, 0, 0, 0)
     root.setSpacing(0)
 
-    # ── 页头 - 无边框 ──
     header = QWidget()
     header.setStyleSheet(f"background:{C_BG_DEEP};")
     header.setFixedHeight(_pt(64))
@@ -239,9 +278,8 @@ def build_page() -> QWidget:
     hl.setContentsMargins(28, 0, 28, 0)
     hl.addWidget(_lbl("应用市场", 18, C_TEXT, bold=True))
     hl.addSpacing(12)
-    hl.addWidget(_lbl("浏览、安装和管理 Jetson 应用与 Demo", 12, C_TEXT3))
+    hl.addWidget(_lbl("浏览、安装、运行并管理 Jetson 应用与示例", 12, C_TEXT3))
     hl.addStretch()
-    
     badge = QLabel("Beta")
     badge.setStyleSheet(f"""
         background:{C_BLUE};
@@ -254,7 +292,6 @@ def build_page() -> QWidget:
     hl.addWidget(badge)
     root.addWidget(header)
 
-    # ── 滚动区域 ──
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -265,26 +302,34 @@ def build_page() -> QWidget:
     lay.setContentsMargins(28, 24, 28, 24)
     lay.setSpacing(20)
 
-    # ── 数据 & 状态 ──
     apps_data = load_apps()
     _statuses: dict[str, str] = {}
-    _filter   = {"cat": "全部", "search": ""}
-    _grid_ref = [None]
+    _filter = {"cat": "全部", "search": ""}
+    _list_ref = [None]
+    _device_meta = {"l4t": None}
 
     for a in apps_data:
         _statuses[a["id"]] = "checking" if a.get("check_cmd") else "available"
 
-    # 分类列表
-    _seen, _cats = set(), ["全部"]
+    _cats = ["全部"]
     for a in apps_data:
-        c = a["category"]
-        if c not in _seen:
-            _seen.add(c)
-            _cats.append(c)
+        cat = a.get("category") or "其他"
+        if cat not in _cats:
+            _cats.append(cat)
     _cats.append("已安装")
 
-    # ── 筛选行：分类 Tab + 搜索框 - 无边框 ──
-    filter_row = QHBoxLayout()
+    tabs_scroll = QScrollArea()
+    tabs_scroll.setWidgetResizable(True)
+    tabs_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    tabs_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    tabs_scroll.setStyleSheet("""
+        QScrollArea { background:transparent; border:none; }
+        QScrollBar:horizontal { height:0px; background:transparent; }
+    """)
+    tabs_wrap = QWidget()
+    tabs_wrap.setStyleSheet("background:transparent;")
+    filter_row = QHBoxLayout(tabs_wrap)
+    filter_row.setContentsMargins(0, 0, 0, 0)
     filter_row.setSpacing(10)
     _tab_btns: dict[str, QPushButton] = {}
 
@@ -305,22 +350,27 @@ def build_page() -> QWidget:
 
     def _on_tab(label: str):
         _filter["cat"] = label
-        for lbl, b in _tab_btns.items():
-            b.setStyleSheet(_tab_style(lbl == label))
-        _rebuild_grid()
+        for lbl, btn in _tab_btns.items():
+            btn.setStyleSheet(_tab_style(lbl == label))
+        _rebuild()
 
     for cat in _cats:
-        b = QPushButton(cat)
-        b.setCursor(Qt.PointingHandCursor)
-        b.setStyleSheet(_tab_style(cat == "全部"))
-        b.clicked.connect(lambda _, c=cat: _on_tab(c))
-        _tab_btns[cat] = b
-        filter_row.addWidget(b)
-
+        btn = QPushButton(cat)
+        btn.setCursor(Qt.PointingHandCursor)
+        btn.setStyleSheet(_tab_style(cat == _filter["cat"]))
+        btn.clicked.connect(lambda _, c=cat: _on_tab(c))
+        _tab_btns[cat] = btn
+        filter_row.addWidget(btn)
     filter_row.addStretch()
+    tabs_scroll.setWidget(tabs_wrap)
+    tabs_scroll.setFixedHeight(_pt(52))
+    lay.addWidget(tabs_scroll)
 
+    search_row = QHBoxLayout()
+    search_row.setSpacing(10)
+    search_row.addStretch()
     search_edit = QLineEdit()
-    search_edit.setPlaceholderText("🔍  搜索应用…")
+    search_edit.setPlaceholderText("搜索应用...")
     search_edit.setStyleSheet(f"""
         QLineEdit {{
             background:{C_CARD_LIGHT};
@@ -333,28 +383,26 @@ def build_page() -> QWidget:
         QLineEdit:focus {{ background:{C_CARD}; }}
     """)
     search_edit.setFixedHeight(_pt(44))
-    search_edit.setMaximumWidth(280)
-    search_edit.textChanged.connect(
-        lambda t: (_filter.update({"search": t}), _rebuild_grid())
-    )
-    filter_row.addWidget(search_edit)
-    lay.addLayout(filter_row)
+    search_edit.setMaximumWidth(260)
+    search_edit.textChanged.connect(lambda t: (_filter.update({"search": t}), _rebuild()))
+    search_row.addWidget(search_edit)
+    lay.addLayout(search_row)
 
-    # ── 计数 + 刷新 ──
     ctrl_row = QHBoxLayout()
     _count_lbl = _lbl("", 12, C_TEXT3)
     ctrl_row.addWidget(_count_lbl)
     ctrl_row.addStretch()
-    refresh_btn = _btn("↻  刷新状态", small=True)
+    refresh_btn = _btn("刷新状态", small=True)
     ctrl_row.addWidget(refresh_btn)
     lay.addLayout(ctrl_row)
 
-    # ── 网格容器 ──
-    grid_outer = QVBoxLayout()
-    grid_outer.setSpacing(0)
-    lay.addLayout(grid_outer)
+    list_container = QWidget()
+    list_container.setStyleSheet("background:transparent;")
+    list_outer = QVBoxLayout(list_container)
+    list_outer.setContentsMargins(0, 0, 0, 0)
+    list_outer.setSpacing(10)
+    lay.addWidget(list_container)
 
-    # ── 获取安装命令 ──
     def _get_cmds(app: dict) -> list[str]:
         skill_id = app.get("skill_id")
         if skill_id:
@@ -367,12 +415,89 @@ def build_page() -> QWidget:
             except Exception:
                 import logging, traceback
                 logging.getLogger("seeed").error(
-                    "加载 skill '%s' 失败:\n%s", skill_id, traceback.format_exc()
+                    "load skill '%s' failed:\n%s", skill_id, traceback.format_exc()
                 )
         return app.get("install_cmds") or []
 
-    # ── 安装对话框 ──
-    def _open_install(app_id: str):
+    def _get_run_cmds(app: dict) -> list[str]:
+        return app.get("run_cmds") or []
+
+    def _get_clean_cmds(app: dict) -> list[str]:
+        return app.get("clean_cmds") or []
+
+    def _get_ai_details(app: dict) -> list[str]:
+        details = [f"分类：{app.get('category', '-')}"]
+        req = app.get("requirements") or {}
+        if req.get("jetpack_versions"):
+            details.append(f"L4T：{', '.join(req['jetpack_versions'])}")
+        if req.get("required_disk_gb") is not None:
+            details.append(f"磁盘：{req['required_disk_gb']}GB")
+        if req.get("required_mem_gb") is not None:
+            details.append(f"内存：{req['required_mem_gb']}GB")
+        cmds = _get_cmds(app)
+        run_cmds = _get_run_cmds(app)
+        if cmds and cmds != run_cmds:
+            details.append("安装：")
+            details.extend(cmds[:4])
+        if run_cmds:
+            details.append("运行：")
+            details.extend(run_cmds[:2])
+        return details
+
+    def _open_ai(app: dict):
+        host = page.window()
+        assistant = getattr(host, "_floating_ai", None)
+        if assistant:
+            assistant.inject_topic(app["name"], app["desc"], _get_ai_details(app))
+
+    def _get_current_l4t(force: bool = False) -> str:
+        if _device_meta["l4t"] and not force:
+            return _device_meta["l4t"]
+        runner = get_runner()
+        cmd = (
+            "head -1 /etc/nv_tegra_release 2>/dev/null | "
+            "awk '{gsub(\",\",\"\",$5); print $2\".\"$5}'"
+        )
+        rc, out = runner.run(cmd, timeout=5)
+        l4t = (out or "").strip().splitlines()[-1].strip() if rc == 0 and (out or "").strip() else ""
+        _device_meta["l4t"] = l4t
+        return l4t
+
+    def _l4t_matches(current_l4t: str, allowed_version: str) -> bool:
+        current = (current_l4t or "").strip()
+        allowed = (allowed_version or "").strip()
+        if not current or not allowed:
+            return False
+        if allowed.endswith(".x"):
+            return current.startswith(allowed[:-1])
+        return current == allowed
+
+    def _ensure_l4t_compatible(app: dict) -> bool:
+        req = app.get("requirements") or {}
+        allowed = req.get("jetpack_versions") or []
+        if not allowed:
+            return True
+        current_l4t = _get_current_l4t()
+        if not current_l4t:
+            _show_info_message(
+                page,
+                "L4T 检测失败",
+                f"无法读取当前设备的 L4T 版本，已跳过兼容性拦截。\n\n"
+                f"{app['name']} 支持版本：{', '.join(allowed)}",
+            )
+            return True
+        if any(_l4t_matches(current_l4t, item) for item in allowed):
+            return True
+        _show_warning_message(
+            page,
+            "L4T 版本不兼容",
+            f"{app['name']} 不支持当前设备的 L4T {current_l4t}。\n\n"
+            f"支持版本：{', '.join(allowed)}\n"
+            "已拦截本次运行，避免进入 demo 初始化后再失败。",
+        )
+        return False
+
+    def _open_dialog(app_id: str, mode: str, cmds: list[str], done_cb):
         import logging, traceback as _tb
         try:
             app = next((a for a in apps_data if a["id"] == app_id), None)
@@ -380,71 +505,83 @@ def build_page() -> QWidget:
                 return
             if not _can_execute_from_current_env(page):
                 return
-            cmds = _get_cmds(app)
             if not cmds:
-                QMessageBox.information(
-                    page, "提示",
-                    f"「{app['name']}」的安装脚本暂未配置，敬请期待。"
-                )
+                _show_info_message(page, "提示", f"《{app['name']}》暂未配置可执行命令。")
                 return
-            dlg = _InstallDialog(app, cmds, parent=page, mode="install")
-            dlg.install_done.connect(_on_install_done)
+            dlg = _InstallDialog(app, cmds, parent=page, mode=mode)
+            dlg.install_done.connect(done_cb)
             dlg.exec_()
         except Exception:
             msg = _tb.format_exc()
-            logging.getLogger("seeed").error("打开安装对话框失败:\n%s", msg)
-            QMessageBox.critical(page, "错误", f"打开安装对话框时发生异常：\n\n{msg[-600:]}")
+            logging.getLogger("seeed").error("打开应用对话框失败:\n%s", msg)
+            _show_error_message(page, "错误", f"打开应用对话框时发生异常：\n\n{msg[-600:]}")
+
+    def _open_install(app_id: str):
+        app = next(a for a in apps_data if a["id"] == app_id)
+        _open_dialog(app_id, "install", _get_cmds(app), _on_install_done)
+
+    def _open_run(app_id: str):
+        app = next(a for a in apps_data if a["id"] == app_id)
+        if not _ensure_l4t_compatible(app):
+            return
+        _open_dialog(app_id, "run", _get_run_cmds(app), _on_run_done)
+
+    def _open_clean(app_id: str):
+        app = next((a for a in apps_data if a["id"] == app_id), None)
+        if not app:
+            return
+        ret = _ask_question_message(
+            page, "确认清理",
+            f"确认清理《{app['name']}》生成的数据吗？",
+            buttons=QMessageBox.Yes | QMessageBox.No,
+            default_button=QMessageBox.No,
+        )
+        if ret == QMessageBox.Yes:
+            _open_dialog(app_id, "clean", _get_clean_cmds(app), _on_clean_done)
 
     def _open_uninstall(app_id: str):
-        import logging, traceback as _tb
-        try:
-            app = next((a for a in apps_data if a["id"] == app_id), None)
-            if not app:
-                return
-            if not _can_execute_from_current_env(page):
-                return
-            cmds = app.get("uninstall_cmds") or []
-            if not cmds:
-                QMessageBox.information(
-                    page, "提示",
-                    f"「{app['name']}」的卸载脚本暂未配置。"
-                )
-                return
-            ret = QMessageBox.question(
-                page, "确认卸载",
-                f"确定要卸载「{app['name']}」吗？",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
-            )
-            if ret != QMessageBox.Yes:
-                return
-            dlg = _InstallDialog(app, cmds, parent=page, mode="uninstall")
-            dlg.install_done.connect(_on_uninstall_done)
-            dlg.exec_()
-        except Exception:
-            msg = _tb.format_exc()
-            logging.getLogger("seeed").error("打开卸载对话框失败:\n%s", msg)
-            QMessageBox.critical(page, "错误", f"打开卸载对话框时发生异常：\n\n{msg[-600:]}")
+        app = next((a for a in apps_data if a["id"] == app_id), None)
+        if not app:
+            return
+        cmds = app.get("uninstall_cmds") or []
+        if not cmds:
+            _show_info_message(page, "提示", f"《{app['name']}》暂未配置卸载命令。")
+            return
+        ret = _ask_question_message(
+            page, "确认卸载",
+            f"确认卸载《{app['name']}》吗？",
+            buttons=QMessageBox.Yes | QMessageBox.No,
+            default_button=QMessageBox.No,
+        )
+        if ret == QMessageBox.Yes:
+            _open_dialog(app_id, "uninstall", cmds, _on_uninstall_done)
 
     def _on_install_done(app_id: str, success: bool):
         if success:
             _statuses[app_id] = "installed"
-            _rebuild_grid()
+            _rebuild()
+
+    def _on_run_done(app_id: str, success: bool):
+        if success:
+            _statuses[app_id] = "installed"
+        _rebuild()
+
+    def _on_clean_done(app_id: str, success: bool):
+        _rebuild()
 
     def _on_uninstall_done(app_id: str, success: bool):
         if success:
             _statuses[app_id] = "available"
-            _rebuild_grid()
+            _rebuild()
 
-    # ── 构建卡片 ──
     def _make_status_lbl(status: str) -> QLabel:
         cfg = {
             "installed": ("已安装", C_GREEN, "rgba(122,179,23,0.15)"),
-            "checking":  ("检测中…", C_TEXT3, C_CARD_LIGHT),
+            "checking": ("检测中", C_TEXT3, C_CARD_LIGHT),
         }.get(status, ("可安装", C_BLUE, "rgba(44,123,229,0.12)"))
         text, color, bg = cfg
-        l = QLabel(text)
-        l.setStyleSheet(f"""
+        lbl = QLabel(text)
+        lbl.setStyleSheet(f"""
             background:{bg};
             color:{color};
             border-radius:6px;
@@ -452,183 +589,181 @@ def build_page() -> QWidget:
             font-size:{_pt(10)}pt;
             font-weight:600;
         """)
-        return l
+        return lbl
 
-    def _make_action_btn(app_id: str, status: str) -> QPushButton:
-        if status == "installed":
-            b = QPushButton("卸载")
-            b.setCursor(Qt.PointingHandCursor)
-            b.setStyleSheet(f"""
-                QPushButton {{
-                    background: rgba(231,76,60,0.15);
-                    color: {C_RED};
-                    border: 1px solid rgba(231,76,60,0.4);
-                    border-radius: 6px;
-                    padding: 4px 14px;
-                    font-size: {_pt(11)}pt;
-                    font-weight: 600;
-                }}
-                QPushButton:hover {{ background: rgba(231,76,60,0.3); }}
-            """)
-            b.clicked.connect(lambda: _open_uninstall(app_id))
-        else:
-            b = _btn("安装", primary=True, small=True)
-            b.setEnabled(status != "checking")
-            b.clicked.connect(lambda: _open_install(app_id))
-        return b
-
-    def _build_card(app: dict) -> QFrame:
-        app_id = app["id"]
-        status = _statuses.get(app_id, "available")
-
-        # 分类颜色映射
-        _cat_colors = {
-            "CV / 视觉":   "#2C7BE5",
-            "大语言模型":  "#7AB317",
-            "TTS 语音":    "#F5A623",
-            "机器人":      "#E040FB",
-            "开发工具":    "#00BCD4",
-        }
-        cat_color = _cat_colors.get(app.get("category", ""), "#5A6B7A")
-
-        c = _card(12)
-        c.setMinimumWidth(180)
-        cl = QVBoxLayout(c)
-        cl.setContentsMargins(18, 16, 18, 16)
-        cl.setSpacing(12)
-
-        # 顶部：彩色图标块 + 分类 badge
-        top = QHBoxLayout()
-        top.setSpacing(12)
-
-        # 分类颜色图标容器 - 无边框
-        icon_block = QFrame()
-        icon_block.setFixedSize(_pt(48), _pt(48))
-        icon_block.setStyleSheet(f"""
-            QFrame {{
-                background: {cat_color}20;
-                border: none;
-                border-radius: 12px;
-            }}
+    def _build_row(app: dict) -> QFrame:
+        status = _statuses.get(app["id"], "available")
+        row = _input_card(10)
+        row.setStyleSheet(f"""
+            background:{C_CARD};
+            border:none;
+            border-radius:10px;
         """)
-        icon_inner = QHBoxLayout(icon_block)
-        icon_inner.setContentsMargins(0, 0, 0, 0)
-        icon_emoji = QLabel(app["icon"])
-        icon_emoji.setAlignment(Qt.AlignCenter)
-        icon_emoji.setStyleSheet(f"font-size:{_pt(24)}pt; background:transparent;")
-        icon_inner.addWidget(icon_emoji)
-        top.addWidget(icon_block)
+        outer = QVBoxLayout(row)
+        outer.setContentsMargins(16, 14, 16, 14)
+        outer.setSpacing(12)
 
-        top.addStretch()
-        cat_l = QLabel(app["category"])
-        cat_l.setStyleSheet(f"""
-            background:{cat_color}15;
-            color:{cat_color};
-            border: none;
-            border-radius: 6px;
-            padding: 3px 10px;
+        top_row = QHBoxLayout()
+        top_row.setSpacing(14)
+
+        icon_box = QFrame()
+        icon_box.setFixedSize(_pt(48), _pt(48))
+        icon_box.setStyleSheet("background: rgba(122,179,23,0.20); border:none; border-radius:12px;")
+        icon_lay = QHBoxLayout(icon_box)
+        icon_lay.setContentsMargins(0, 0, 0, 0)
+        icon = QLabel(app.get("icon", "APP"))
+        icon.setAlignment(Qt.AlignCenter)
+        icon.setStyleSheet(f"font-size:{_pt(18)}pt; color:{C_TEXT}; background:transparent;")
+        icon_lay.addWidget(icon)
+        top_row.addWidget(icon_box)
+
+        info = QVBoxLayout()
+        info.setSpacing(4)
+        name_row = QHBoxLayout()
+        name_row.setSpacing(10)
+        title_lbl = _lbl(app["name"], 13, C_TEXT, bold=True)
+        title_lbl.setWordWrap(True)
+        name_row.addWidget(title_lbl, 1)
+        cat = QLabel(app.get("category", "应用"))
+        cat.setStyleSheet(f"""
+            background:rgba(44,123,229,0.10);
+            color:{C_BLUE};
+            border-radius:4px;
+            padding:2px 10px;
             font-size:{_pt(9)}pt;
-            font-weight:600;
         """)
-        top.addWidget(cat_l, 0, Qt.AlignTop)
-        cl.addLayout(top)
+        name_row.addWidget(cat)
+        info.addLayout(name_row)
+        desc_lbl = _lbl(app.get("desc", ""), 11, C_TEXT2, wrap=True)
+        desc_lbl.setWordWrap(True)
+        info.addWidget(desc_lbl)
+        top_row.addLayout(info, 1)
 
-        # 名称
-        name_lbl = _lbl(app["name"], 14, C_TEXT, bold=True)
-        cl.addWidget(name_lbl)
+        top_row.addWidget(_make_status_lbl(status), 0, Qt.AlignTop)
+        outer.addLayout(top_row)
 
-        # 描述
-        desc_l = _lbl(app["desc"], 11, C_TEXT2, wrap=True)
-        desc_l.setMinimumHeight(_pt(44))
-        cl.addWidget(desc_l)
+        action_row = QHBoxLayout()
+        action_row.setSpacing(8)
+        action_row.addStretch()
 
-        cl.addStretch()
+        is_example = bool(app.get("example_name"))
 
-        # 底部行：状态 + 操作按钮
-        bot = QHBoxLayout()
-        bot.setSpacing(10)
-        bot.addWidget(_make_status_lbl(status))
-        bot.addStretch()
-        bot.addWidget(_make_action_btn(app_id, status))
-        cl.addLayout(bot)
+        if status == "installed" and _get_clean_cmds(app):
+            clean_b = _btn("清理", small=True)
+            clean_b.clicked.connect(lambda _, app_id=app["id"]: _open_clean(app_id))
+            action_row.addWidget(clean_b)
 
-        _shadow(c, blur=16)
-        return c
+        # 卸载按钮：已安装 + 有卸载命令时，独立显示（不与运行互斥）
+        if status == "installed" and app.get("uninstall_cmds"):
+            uninstall_b = _btn("卸载", danger=True, small=True)
+            uninstall_b.clicked.connect(lambda _, app_id=app["id"]: _open_uninstall(app_id))
+            action_row.addWidget(uninstall_b)
 
-    # ── 重建网格 ──
-    def _rebuild_grid():
-        if _grid_ref[0] is not None:
-            grid_outer.removeWidget(_grid_ref[0])
-            _grid_ref[0].deleteLater()
-            _grid_ref[0] = None
+        # 运行 / 安装按钮
+        if (is_example or status == "installed") and _get_run_cmds(app):
+            run_b = _btn("运行", primary=True, small=True)
+            run_b.clicked.connect(lambda _, app_id=app["id"]: _open_run(app_id))
+            action_row.addWidget(run_b)
+        elif not is_example and status != "installed":
+            install_b = _btn("安装", primary=True, small=True)
+            install_b.setEnabled(status != "checking")
+            install_b.clicked.connect(lambda _, app_id=app["id"]: _open_install(app_id))
+            action_row.addWidget(install_b)
 
+        ai_b = _btn("AI", small=True)
+        ai_b.setFixedWidth(_pt(44))
+        ai_b.setStyleSheet(f"""
+            QPushButton {{
+                background: rgba(44,123,229,0.15);
+                border: none;
+                border-radius: 8px;
+                color: {C_BLUE};
+                font-size: {_pt(10)}pt;
+                font-weight: 600;
+                padding: 0 6px;
+                min-height: {_pt(32)}px;
+            }}
+            QPushButton:hover {{ background: rgba(44,123,229,0.28); }}
+        """)
+        ai_b.clicked.connect(lambda _, a=app: _open_ai(a))
+        action_row.addWidget(ai_b)
+        outer.addLayout(action_row)
+        return row
+
+    def _clear_list_outer():
+        while list_outer.count():
+            item = list_outer.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    _batch_gen = [0]
+
+    def _rebuild():
+        _batch_gen[0] += 1
+        gen = _batch_gen[0]
+
+        _clear_list_outer()
         cat = _filter["cat"]
-        kw  = _filter["search"].lower()
-
+        kw = _filter["search"].lower()
         filtered = [
             a for a in apps_data
-            if (cat == "全部"
-                or (cat == "已安装" and _statuses.get(a["id"]) == "installed")
-                or a["category"] == cat)
-            and (not kw
-                 or kw in a["name"].lower()
-                 or kw in a["desc"].lower())
+            if (cat == "全部" or (cat == "已安装" and _statuses.get(a["id"]) == "installed") or a.get("category") == cat)
+            and (not kw or kw in a.get("name", "").lower() or kw in a.get("desc", "").lower() or kw in a.get("id", "").lower())
         ]
-
         _count_lbl.setText(f"共 {len(filtered)} 个应用")
 
+        # 脱离 layout 树构建，完成后一次性挂入
+        w = QWidget()
+        w.setStyleSheet("background:transparent;")
+        wl = QVBoxLayout(w)
+        wl.setContentsMargins(0, 0, 0, 0)
+        wl.setSpacing(10)
+
         if not filtered:
-            empty = QWidget()
-            empty.setStyleSheet("background:transparent;")
-            vl = QVBoxLayout(empty)
-            vl.setContentsMargins(0, 40, 0, 0)
-            vl.addWidget(_lbl("暂无符合条件的应用", 14, C_TEXT3))
-            vl.addStretch()
-            grid_outer.addWidget(empty)
-            _grid_ref[0] = empty
+            wl.addWidget(_lbl("暂无符合当前筛选条件的应用", 14, C_TEXT3))
+            wl.addStretch()
+            list_outer.addWidget(w)
+            _list_ref[0] = w
             return
 
-        w  = QWidget()
-        w.setStyleSheet("background:transparent;")
-        gl = QGridLayout(w)
-        gl.setSpacing(16)
-        gl.setContentsMargins(0, 0, 0, 0)
+        idx_ref = [0]
+        BATCH = 6
 
-        cols = 3
-        for i, app in enumerate(filtered):
-            gl.addWidget(_build_card(app), i // cols, i % cols)
+        def _add_batch():
+            if _batch_gen[0] != gen:
+                return
+            for _ in range(BATCH):
+                if idx_ref[0] >= len(filtered):
+                    break
+                wl.addWidget(_build_row(filtered[idx_ref[0]]))
+                idx_ref[0] += 1
+            if idx_ref[0] < len(filtered):
+                QTimer.singleShot(10, _add_batch)
+            else:
+                wl.addStretch()
+                list_outer.addWidget(w)
+                _list_ref[0] = w
 
-        # 补齐末行
-        remainder = len(filtered) % cols
-        if remainder:
-            for j in range(cols - remainder):
-                ph = QWidget()
-                ph.setStyleSheet("background:transparent;")
-                gl.addWidget(ph, len(filtered) // cols, remainder + j)
+        QTimer.singleShot(0, _add_batch)
 
-        grid_outer.addWidget(w)
-        _grid_ref[0] = w
-
-    # ── 后台状态检测 ──
     _check_thread = [None]
 
     def _start_check():
         if _check_thread[0] and _check_thread[0].isRunning():
             return
         if not isinstance(get_runner(), SSHRunner):
-            # 未连接设备，无法检测，所有状态重置为 available
             for a in apps_data:
                 _statuses[a["id"]] = "available"
             refresh_btn.setEnabled(True)
-            refresh_btn.setText("↻  刷新状态")
-            _rebuild_grid()
+            refresh_btn.setText("刷新状态")
+            _rebuild()
             return
         for a in apps_data:
             if a.get("check_cmd"):
                 _statuses[a["id"]] = "checking"
         refresh_btn.setEnabled(False)
-        refresh_btn.setText("检测中…")
-        _rebuild_grid()
+        refresh_btn.setText("检测中...")
+        _rebuild()
         t = _StatusCheckThread(apps_data)
         t.all_done.connect(_on_check_done)
         t.start()
@@ -638,17 +773,14 @@ def build_page() -> QWidget:
         for app_id, status in results.items():
             _statuses[app_id] = status
         refresh_btn.setEnabled(True)
-        refresh_btn.setText("↻  刷新状态")
-        _rebuild_grid()
+        refresh_btn.setText("刷新状态")
+        _rebuild()
 
     refresh_btn.clicked.connect(_start_check)
-    bus.device_connected.connect(lambda _: _start_check())
+    bus.device_connected.connect(lambda _: (_device_meta.update({"l4t": None}), _start_check()))
 
-    # ── 初始化 ──
-    _rebuild_grid()
     lay.addStretch()
     scroll.setWidget(inner)
     root.addWidget(scroll, 1)
-    _start_check()
-
+    QTimer.singleShot(200, _start_check)
     return page

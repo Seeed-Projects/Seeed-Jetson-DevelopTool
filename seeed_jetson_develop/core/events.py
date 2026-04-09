@@ -23,6 +23,10 @@ class EventBus(QObject):
     # 导航
     navigate_to         = pyqtSignal(int)    # page index
 
+    # 状态栏
+    status_busy         = pyqtSignal(str)    # message
+    status_idle         = pyqtSignal(str)    # message
+
 
 # 全局单例，所有模块 from seeed_jetson_develop.core import bus
 bus = EventBus()

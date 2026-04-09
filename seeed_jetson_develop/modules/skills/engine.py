@@ -7,7 +7,10 @@ from typing import Callable, Optional
 from seeed_jetson_develop.core.runner import Runner
 
 _DATA        = Path(__file__).parent / "data" / "skills.json"
-_OPENCLAW    = Path(__file__).parent.parent.parent.parent / "skills" / "openclaw"
+_SKILLS_ROOT = Path(__file__).parent.parent.parent.parent / "skills"
+_OPENCLAW    = _SKILLS_ROOT / "openclaw"
+_CLAUDE      = _SKILLS_ROOT / "claude"
+_CODEX       = _SKILLS_ROOT / "codex"
 
 # 分类图标映射
 CATEGORY_ICONS = {
@@ -32,14 +35,26 @@ class Skill:
     verified:      bool = False
     risk:          str  = ""
     params:        dict = field(default_factory=dict)
-    source:        str  = "builtin"   # "builtin" | "openclaw"
-    md_path:       str  = ""          # SKILL.md 路径（openclaw 用）
+    source:        str  = "builtin"   # "builtin" | "openclaw" | "claude" | "codex"
+    md_path:       str  = ""          # SKILL.md / CLAUDE.md / AGENTS.md 路径
 
 
-# ── SKILL.md 解析器 ──────────────────────────────────────────────────────────
-def _parse_skill_md(md_file: Path, slug: str) -> Optional[Skill]:
+# ── SKILL.md / CLAUDE.md / AGENTS.md 解析器 ─────────────────────────────────
+def _parse_skill_md(md_file: Path, slug: str, source: str = "openclaw", fast: bool = False) -> Optional[Skill]:
+    """解析 skill 文件。fast=True 时只读前 40 行（仅提取 frontmatter），跳过 bash 命令提取。"""
     try:
-        text = md_file.read_text(encoding="utf-8", errors="replace")
+        if fast:
+            with open(md_file, encoding="utf-8", errors="replace") as f:
+                lines = []
+                for _ in range(40):
+                    line = f.readline()
+                    if not line:
+                        break
+                    lines.append(line)
+            text = "".join(lines)
+        else:
+            text = md_file.read_text(encoding="utf-8", errors="replace")
+
         name, desc = slug, ""
         # frontmatter
         if text.startswith("---"):
@@ -50,18 +65,22 @@ def _parse_skill_md(md_file: Path, slug: str) -> Optional[Skill]:
                         name = line.split(":", 1)[1].strip()
                     elif line.startswith("description:"):
                         desc = line.split(":", 1)[1].strip()[:120]
-        # bash code blocks → commands
-        cmds, in_bash = [], False
-        for line in text.splitlines():
-            stripped = line.strip()
-            if stripped.startswith("```bash"):
-                in_bash = True
-                continue
-            if stripped == "```" and in_bash:
-                in_bash = False
-                continue
-            if in_bash and stripped and not stripped.startswith("#"):
-                cmds.append(line.rstrip())
+
+        # bash code blocks → commands（fast 模式跳过）
+        cmds: list[str] = []
+        if not fast:
+            in_bash = False
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("```bash"):
+                    in_bash = True
+                    continue
+                if stripped == "```" and in_bash:
+                    in_bash = False
+                    continue
+                if in_bash and stripped and not stripped.startswith("#"):
+                    cmds.append(line.rstrip())
+
         # category from slug keywords
         sl = slug.lower()
         if any(k in sl for k in ("wifi","driver","fix","repair","usb-timeout","uuid","recomp")):
@@ -82,38 +101,79 @@ def _parse_skill_md(md_file: Path, slug: str) -> Optional[Skill]:
             id=slug, name=name, desc=desc or f"{slug} skill",
             category=cat, commands=cmds[:15],
             duration_hint="—", verified=False,
-            source="openclaw", md_path=str(md_file),
+            source=source, md_path=str(md_file),
         )
     except Exception:
         return None
 
 
-def load_openclaw_skills() -> list[Skill]:
-    """扫描 skills/openclaw/ 目录，解析所有 SKILL.md。"""
-    if not _OPENCLAW.exists():
+def _scan_skill_dir(root: Path, filename: str, source: str, cap: int = 60, fast: bool = False) -> list[Skill]:
+    """扫描指定目录，按文件名加载 skill，最多 cap 个。fast=True 只读 frontmatter。"""
+    if not root.exists():
         return []
     skills = []
-    for d in sorted(_OPENCLAW.iterdir()):
+    for d in sorted(root.iterdir()):
+        if len(skills) >= cap:
+            break
         if not d.is_dir():
             continue
-        md = d / "SKILL.md"
+        md = d / filename
         if md.exists():
-            s = _parse_skill_md(md, d.name)
+            s = _parse_skill_md(md, d.name, source, fast=fast)
             if s:
                 skills.append(s)
     return skills
 
 
-def load_skills() -> list[Skill]:
-    """加载技能列表：先读 skills.json，否则用内置默认值；追加 openclaw 参考技能。"""
+def load_openclaw_skills() -> list[Skill]:
+    """扫描 skills/openclaw/ 目录，解析所有 SKILL.md。最多加载 60 个避免过慢。"""
+    return _scan_skill_dir(_OPENCLAW, "SKILL.md", "openclaw", cap=60)
+
+
+def load_external_skills() -> list[Skill]:
+    """加载所有外部 skill（openclaw + claude + codex），合并去重（同名时先到先得）。"""
+    skills: list[Skill] = []
+    seen: set[str] = set()
+    for s in (
+        _scan_skill_dir(_OPENCLAW, "SKILL.md",  "openclaw", cap=60)
+        + _scan_skill_dir(_CLAUDE,  "CLAUDE.md", "claude",  cap=60)
+        + _scan_skill_dir(_CODEX,   "AGENTS.md", "codex",   cap=60)
+    ):
+        if s.id not in seen:
+            seen.add(s.id)
+            skills.append(s)
+    return skills
+
+
+_variants_cache: list | None = None
+
+def load_all_variants(fast: bool = False) -> list[Skill]:
+    """返回所有外部 skill，不去重。fast=True 只读 frontmatter，速度快 3-5x，结果缓存在内存。"""
+    global _variants_cache
+    if _variants_cache is not None:
+        return _variants_cache
+    result = []
+    result.extend(_scan_skill_dir(_OPENCLAW, "SKILL.md",  "openclaw", cap=100, fast=fast))
+    result.extend(_scan_skill_dir(_CLAUDE,   "CLAUDE.md", "claude",   cap=100, fast=fast))
+    result.extend(_scan_skill_dir(_CODEX,    "AGENTS.md", "codex",    cap=100, fast=fast))
+    if not fast:
+        _variants_cache = result
+    return result
+
+
+def load_builtin_skills() -> list[Skill]:
+    """仅加载内置精选 skills（从 JSON 或默认列表），速度极快。"""
     if _DATA.exists():
         raw = json.loads(_DATA.read_text(encoding="utf-8"))
-        builtin = [Skill(**{k: v for k, v in s.items() if k in Skill.__dataclass_fields__}) for s in raw]
-    else:
-        builtin = list(_DEFAULT_SKILLS)
-    # 补充 openclaw 技能（不重复）
+        return [Skill(**{k: v for k, v in s.items() if k in Skill.__dataclass_fields__}) for s in raw]
+    return list(_DEFAULT_SKILLS)
+
+
+def load_skills() -> list[Skill]:
+    """加载全部技能：内置 + openclaw + claude + codex。供后台线程调用。"""
+    builtin = load_builtin_skills()
     existing_ids = {s.id for s in builtin}
-    for s in load_openclaw_skills():
+    for s in load_external_skills():
         if s.id not in existing_ids:
             builtin.append(s)
     return builtin

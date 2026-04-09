@@ -45,8 +45,9 @@ def scan_local_network(
     subnet: str | None = None,
     *,
     port: int = 22,
-    timeout: float = 0.5,
+    timeout: float = 1.0,
     workers: int = 64,
+    retries: int = 2,
     on_progress: "Callable[[int, int], None] | None" = None,
 ) -> list[str]:
     """
@@ -70,11 +71,14 @@ def scan_local_network(
     scanned = 0
 
     def _probe(host: str) -> str | None:
-        try:
-            with socket.create_connection((host, port), timeout=timeout):
-                return host
-        except OSError:
-            return None
+        for attempt in range(max(1, retries)):
+            probe_timeout = timeout * (attempt + 1)
+            try:
+                with socket.create_connection((host, port), timeout=probe_timeout):
+                    return host
+            except OSError:
+                continue
+        return None
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = {pool.submit(_probe, h): h for h in all_hosts}

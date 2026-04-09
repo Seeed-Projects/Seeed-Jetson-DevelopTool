@@ -1,0 +1,632 @@
+[
+  {
+    "id": "jx-audiocraft",
+    "icon": "AUD",
+    "name": "Audiocraft",
+    "category": "Audio",
+    "desc": "Launch `audiocraft` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "audiocraft",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run audiocraft'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run audiocraft'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean audiocraft'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 25,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-comfyui",
+    "icon": "CV",
+    "name": "ComfyUI",
+    "category": "CV / Vision",
+    "desc": "Launch `comfyui` from jetson-examples. Disk 30GB. RAM 15GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0.",
+    "source": "jetson-examples",
+    "example_name": "comfyui",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run comfyui'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run comfyui'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean comfyui'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0"
+      ],
+      "required_disk_gb": 30,
+      "required_mem_gb": 15,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-deep-live-cam",
+    "icon": "CV",
+    "name": "Deep Live Cam",
+    "category": "CV / Vision",
+    "desc": "Launch `deep-live-cam` from jetson-examples. Disk 40GB. RAM 20GB. JetPack/L4T 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "deep-live-cam",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run deep-live-cam'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run deep-live-cam'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean deep-live-cam'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "36.3.0"
+      ],
+      "required_disk_gb": 40,
+      "required_mem_gb": 20,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-depth-anything",
+    "icon": "CV",
+    "name": "Depth Anything",
+    "category": "CV / Vision",
+    "desc": "Launch `depth-anything` from jetson-examples. Disk 20GB. RAM 4GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0.",
+    "source": "jetson-examples",
+    "example_name": "depth-anything",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run depth-anything'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run depth-anything'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean depth-anything'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0"
+      ],
+      "required_disk_gb": 20,
+      "required_mem_gb": 4,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-depth-anything-v2",
+    "icon": "CV",
+    "name": "Depth Anything V2",
+    "category": "CV / Vision",
+    "desc": "Launch `depth-anything-v2` from jetson-examples. Disk 15GB. RAM 4GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0.",
+    "source": "jetson-examples",
+    "example_name": "depth-anything-v2",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run depth-anything-v2'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run depth-anything-v2'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean depth-anything-v2'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0"
+      ],
+      "required_disk_gb": 15,
+      "required_mem_gb": 4,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-llama-factory",
+    "icon": "LLM",
+    "name": "Llama Factory",
+    "category": "LLM / GenAI",
+    "desc": "Launch `llama-factory` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0.",
+    "source": "jetson-examples",
+    "example_name": "llama-factory",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llama-factory'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llama-factory'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean llama-factory'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0"
+      ],
+      "required_disk_gb": 25,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-llama3",
+    "icon": "LLM",
+    "name": "Llama 3",
+    "category": "LLM / GenAI",
+    "desc": "Launch `llama3` from jetson-examples. Disk 15GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "llama3",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llama3'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llama3'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean llama3'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 15,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-llama3.2",
+    "icon": "LLM",
+    "name": "Llama 3.2",
+    "category": "LLM / GenAI",
+    "desc": "Launch `llama3.2` from jetson-examples. Disk 15GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "llama3.2",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llama3.2'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llama3.2'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean llama3.2'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0",
+        "36.4.0"
+      ],
+      "required_disk_gb": 15,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-llava",
+    "icon": "LLM",
+    "name": "LLaVA",
+    "category": "LLM / GenAI",
+    "desc": "Launch `llava` from jetson-examples. Disk 15GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "llava",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llava'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llava'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean llava'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 15,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-llava-v1.5-7b",
+    "icon": "LLM",
+    "name": "LLaVA v1.5 7B",
+    "category": "LLM / GenAI",
+    "desc": "Launch `llava-v1.5-7b` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "llava-v1.5-7b",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llava-v1.5-7b'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llava-v1.5-7b'"
+    ],
+    "clean_cmds": [],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 25,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-llava-v1.6-vicuna-7b",
+    "icon": "LLM",
+    "name": "LLaVA v1.6 Vicuna 7B",
+    "category": "LLM / GenAI",
+    "desc": "Launch `llava-v1.6-vicuna-7b` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "llava-v1.6-vicuna-7b",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llava-v1.6-vicuna-7b'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llava-v1.6-vicuna-7b'"
+    ],
+    "clean_cmds": [],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 25,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-nanodb",
+    "icon": "DB",
+    "name": "Nanodb",
+    "category": "RAG / Vector DB",
+    "desc": "Launch `nanodb` from jetson-examples. Disk 80GB. RAM 15GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "nanodb",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run nanodb'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run nanodb'"
+    ],
+    "clean_cmds": [],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 80,
+      "required_mem_gb": 15,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-nanoowl",
+    "icon": "CV",
+    "name": "Nanoowl",
+    "category": "CV / Vision",
+    "desc": "Launch `nanoowl` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "nanoowl",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run nanoowl'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run nanoowl'"
+    ],
+    "clean_cmds": [],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 25,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-ollama",
+    "icon": "LLM",
+    "name": "Ollama",
+    "category": "LLM / GenAI",
+    "desc": "Launch `ollama` from jetson-examples. Disk 15GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "ollama",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run ollama'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run ollama'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean ollama'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 15,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-Sheared-LLaMA-2.7B-ShareGPT",
+    "icon": "LLM",
+    "name": "Sheared-LLaMA 2.7B ShareGPT",
+    "category": "LLM / GenAI",
+    "desc": "Launch `Sheared-LLaMA-2.7B-ShareGPT` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "Sheared-LLaMA-2.7B-ShareGPT",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run Sheared-LLaMA-2.7B-ShareGPT'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run Sheared-LLaMA-2.7B-ShareGPT'"
+    ],
+    "clean_cmds": [],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 25,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-stable-diffusion-webui",
+    "icon": "CV",
+    "name": "Stable Diffusion WebUI",
+    "category": "CV / Vision",
+    "desc": "Launch `stable-diffusion-webui` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "stable-diffusion-webui",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run stable-diffusion-webui'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run stable-diffusion-webui'"
+    ],
+    "clean_cmds": [],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 25,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-text-generation-webui",
+    "icon": "LLM",
+    "name": "Text Generation WebUI",
+    "category": "LLM / GenAI",
+    "desc": "Launch `text-generation-webui` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "text-generation-webui",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run text-generation-webui'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run text-generation-webui'"
+    ],
+    "clean_cmds": [],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 25,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-ultralytics-yolo",
+    "icon": "CV",
+    "name": "Ultralytics Yolo",
+    "category": "CV / Vision",
+    "desc": "Launch `ultralytics-yolo` from jetson-examples. Disk 16GB. RAM 2GB. JetPack/L4T 32.6.1, 35.3.1, 35.4.1, 35.5.0.",
+    "source": "jetson-examples",
+    "example_name": "ultralytics-yolo",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run ultralytics-yolo'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run ultralytics-yolo'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean ultralytics-yolo'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "32.6.1",
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0",
+        "36.4.0",
+        "36.4.3"
+      ],
+      "required_disk_gb": 16,
+      "required_mem_gb": 2,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-whisper",
+    "icon": "AUD",
+    "name": "Whisper",
+    "category": "Audio",
+    "desc": "Launch `whisper` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "whisper",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run whisper'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run whisper'"
+    ],
+    "clean_cmds": [],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 25,
+      "required_mem_gb": 7,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-yolov10",
+    "icon": "CV",
+    "name": "Yolov10",
+    "category": "CV / Vision",
+    "desc": "Launch `yolov10` from jetson-examples. Disk 20GB. RAM 4GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "yolov10",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run yolov10'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run yolov10'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean yolov10'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 20,
+      "required_mem_gb": 4,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-yolov8-rail-inspection",
+    "icon": "CV",
+    "name": "Yolov8 Rail Inspection",
+    "category": "CV / Vision",
+    "desc": "Launch `yolov8-rail-inspection` from jetson-examples. Disk 20GB. RAM 4GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
+    "source": "jetson-examples",
+    "example_name": "yolov8-rail-inspection",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run yolov8-rail-inspection'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run yolov8-rail-inspection'"
+    ],
+    "clean_cmds": [],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "35.3.1",
+        "35.4.1",
+        "35.5.0",
+        "36.3.0"
+      ],
+      "required_disk_gb": 20,
+      "required_mem_gb": 4,
+      "docker_enabled": true
+    }
+  }
+]

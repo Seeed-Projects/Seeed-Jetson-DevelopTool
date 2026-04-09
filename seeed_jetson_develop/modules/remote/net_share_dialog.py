@@ -11,14 +11,32 @@ from PyQt5.QtWidgets import (
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3,
-    apply_shadow, make_button, make_card, make_label, pt,
+    apply_shadow, ask_question_message, make_button, make_card,
+    make_label, pt, show_warning_message,
+)
+from seeed_jetson_develop.gui.runtime_i18n import (
+    apply_language,
+    get_current_lang,
+    translate_text,
 )
 from seeed_jetson_develop.modules.remote.net_share import (
     detect_wan_interface, list_interfaces,
     enable_nat, disable_nat,
     get_interface_ip, build_jetson_gateway_cmd,
+    build_jetson_time_sync_cmd,
+    detect_local_proxy, build_jetson_proxy_cmd, build_jetson_clear_proxy_cmd,
 )
 from seeed_jetson_develop.core.runner import SSHRunner, get_runner
+
+
+class _RefreshThread(QThread):
+    """后台枚举网卡，避免 PowerShell 启动时阻塞 UI。"""
+    done = pyqtSignal(list, object)  # ifaces, wan_default (str|None)
+
+    def run(self):
+        ifaces = list_interfaces()
+        wan_default = detect_wan_interface()
+        self.done.emit(ifaces, wan_default)
 
 
 class _NatThread(QThread):
@@ -44,23 +62,87 @@ class _JetsonGatewayThread(QThread):
     """后台通过 SSH 配置 Jetson 的网关和 DNS。"""
     done = pyqtSignal(bool, str)  # ok, log
 
-    def __init__(self, runner: SSHRunner, gateway: str):
+    def __init__(self, runner: SSHRunner, gateway: str, lang: str = "zh"):
         super().__init__()
         self._runner = runner
         self._gateway = gateway
+        self._lang = lang
+
+    def _msg(self, zh: str, en: str) -> str:
+        return zh if self._lang == "zh" else en
+
+    def _sync_time(self) -> str:
+        cmd = build_jetson_time_sync_cmd(self._runner.sudo_password)
+        rc, out = self._runner.run(cmd, timeout=20)
+        if rc != 0:
+            return self._msg(
+                f"⚠ 时间同步执行失败：{out}",
+                f"⚠ Time sync failed: {out}",
+            )
+
+        if "time_sync=ok" in out:
+            return self._msg(
+                f"✅ 已联网校时：{out}",
+                f"✅ Time synchronized after network recovery: {out}",
+            )
+        if "time_sync=pending" in out:
+            return self._msg(
+                f"⚠ 已启用 NTP，正在等待同步：{out}",
+                f"⚠ NTP enabled; waiting for sync: {out}",
+            )
+        return self._msg(
+            f"⚠ 已尝试校时，但状态未明确：{out}",
+            f"⚠ Time sync attempted, but the final state is unclear: {out}",
+        )
+
+    def _configure_proxy(self) -> str:
+        """检测 PC 本地代理并自动配置到 Jetson。"""
+        proxy = detect_local_proxy()
+        if not proxy:
+            return self._msg(
+                "ℹ 未检测到 PC 本地代理，跳过代理配置",
+                "ℹ No local proxy detected on PC, skipping proxy setup",
+            )
+        _, port = proxy
+        # 代理地址用 PC 的 LAN IP（Jetson 能访问到的地址），不用 127.0.0.1
+        proxy_host = self._gateway
+        cmd = build_jetson_proxy_cmd(proxy_host, port)
+        rc, out = self._runner.run(cmd, timeout=15)
+        if rc == 0 and "proxy_set=" in out:
+            proxy_url = f"http://{proxy_host}:{port}"
+            return self._msg(
+                f"✅ 已自动配置代理：{proxy_url}（PC 端口 {port} 检测到代理）",
+                f"✅ Proxy configured: {proxy_url} (detected proxy on PC port {port})",
+            )
+        return self._msg(
+            f"⚠ 代理配置失败：{out}",
+            f"⚠ Proxy setup failed: {out}",
+        )
 
     def run(self):
-        cmd = build_jetson_gateway_cmd(self._runner.password, self._gateway)
+        cmd = build_jetson_gateway_cmd(self._runner.sudo_password, self._gateway)
         rc, out = self._runner.run(cmd, timeout=15)
         if rc == 0:
             # 验证连通性
             rc2, out2 = self._runner.run("ping -c 1 -W 3 8.8.8.8", timeout=10)
             if rc2 == 0:
-                self.done.emit(True, f"{out}\n\n✅ Jetson 已可上网（ping 8.8.8.8 成功）")
+                time_sync_log = self._sync_time()
+                proxy_log = self._configure_proxy()
+                self.done.emit(
+                    True,
+                    f"{out}\n\n"
+                    f"{self._msg('✅ Jetson 已可上网（ping 8.8.8.8 成功）', '✅ Jetson is online (ping 8.8.8.8 succeeded)')}\n"
+                    f"{time_sync_log}\n"
+                    f"{proxy_log}",
+                )
             else:
-                self.done.emit(True, f"{out}\n\n⚠ 网关已配置，但 ping 8.8.8.8 失败，请检查 PC 端 NAT 是否生效")
+                self.done.emit(
+                    True,
+                    f"{out}\n\n"
+                    f"{self._msg('⚠ 网关已配置，但 ping 8.8.8.8 失败，请检查 PC 端 NAT 是否生效', '⚠ Gateway configured, but ping 8.8.8.8 failed. Check whether PC-side NAT is working')}",
+                )
         else:
-            self.done.emit(False, f"配置失败：{out}")
+            self.done.emit(False, self._msg(f"配置失败：{out}", f"Configuration failed: {out}"))
 
 
 class NetShareDialog(QDialog):
@@ -68,8 +150,11 @@ class NetShareDialog(QDialog):
         super().__init__(parent)
         self._thread: _NatThread | None = None
         self._jetson_thread: _JetsonGatewayThread | None = None
+        self._refresh_thread: _RefreshThread | None = None
         self._sharing = False
         self._jetson_ip = jetson_ip
+        self._lang = get_current_lang(parent)
+        self._ip_label: QLabel | None = None
 
         self.setWindowTitle("PC 网络共享")
         self.setMinimumSize(640, 520)
@@ -89,10 +174,11 @@ class NetShareDialog(QDialog):
 
         # 显示已知的 Jetson IP
         if jetson_ip:
-            root.addWidget(make_label(
-                f"当前 Jetson IP：{jetson_ip}（已根据 SSH 连接自动匹配 LAN 网卡）",
+            self._ip_label = make_label(
+                self._format_jetson_ip_text(),
                 11, C_GREEN, wrap=True,
-            ))
+            )
+            root.addWidget(self._ip_label)
 
         # 网卡选择卡片
         card = make_card(12)
@@ -200,10 +286,26 @@ class NetShareDialog(QDialog):
         self._disable_btn.clicked.connect(self._do_disable)
 
         self._refresh_ifaces()
+        
+        # 应用语言翻译
+        if self._lang == "en":
+            apply_language(self, "en")
 
     def _refresh_ifaces(self):
-        ifaces = list_interfaces()
-        wan_default = detect_wan_interface()
+        self._refresh_btn.setEnabled(False)
+        self._refresh_btn.setText(self._tr("检测中…"))
+        self._wan_combo.clear()
+        self._lan_combo.clear()
+        self._wan_combo.addItem(self._tr("正在检测网卡…"))
+        self._lan_combo.addItem(self._tr("正在检测网卡…"))
+
+        self._refresh_thread = _RefreshThread()
+        self._refresh_thread.done.connect(self._on_ifaces_loaded)
+        self._refresh_thread.start()
+
+    def _on_ifaces_loaded(self, ifaces: list, wan_default):
+        self._refresh_btn.setEnabled(True)
+        self._refresh_btn.setText(self._tr("刷新网卡"))
 
         self._wan_combo.clear()
         self._lan_combo.clear()
@@ -222,7 +324,7 @@ class NetShareDialog(QDialog):
         # LAN 智能选择：如果有 Jetson IP，找同网段的 PC 网卡
         lan_picked = False
         if self._jetson_ip:
-            jetson_parts = self._jetson_ip.rsplit(".", 1)[0]  # e.g. "192.168.6"
+            jetson_parts = self._jetson_ip.rsplit(".", 1)[0]
             for iface in ifaces:
                 if iface["ip"] and iface["ip"].rsplit(".", 1)[0] == jetson_parts:
                     for i in range(self._lan_combo.count()):
@@ -249,21 +351,74 @@ class NetShareDialog(QDialog):
     def _get_sudo_pwd(self) -> str:
         return self._sudo_edit.text() if self._sudo_edit else ""
 
+    def _tr(self, text: str) -> str:
+        return translate_text(text, self._lang)
+
+    def _format_jetson_ip_text(self) -> str:
+        if self._lang == "en":
+            return (
+                f"Current Jetson IP: {self._jetson_ip} "
+                f"(LAN interface auto-matched via SSH connection)"
+            )
+        return f"当前 Jetson IP：{self._jetson_ip}（已根据 SSH 连接自动匹配 LAN 网卡）"
+
+    def _format_enabled_status(self) -> str:
+        wan, lan = self._get_wan(), self._get_lan()
+        if self._lang == "en":
+            return f"Enabled: {wan} -> {lan}"
+        return f"已开启：{wan} -> {lan}"
+
+    def _format_manual_gateway_log(self) -> tuple[str, str, str]:
+        lan_ip = get_interface_ip(self._get_lan())
+        gw = lan_ip or ("<PC LAN interface IP>" if self._lang == "en" else "<PC LAN 网卡 IP>")
+        if lan_ip:
+            cmd = (
+                f"sudo ip route replace default via {gw}\n"
+                f"echo 'nameserver 8.8.8.8' | sudo tee /etc/resolv.conf"
+            )
+        else:
+            cmd = (
+                "sudo ip route replace default via <PC LAN IP>\n"
+                "echo 'nameserver 8.8.8.8' | sudo tee /etc/resolv.conf"
+            )
+        if self._lang == "en":
+            return (
+                "⚠ No SSH connection established. Jetson gateway cannot be configured automatically.",
+                f"Run these commands on Jetson manually (gateway: {gw}):",
+                cmd,
+            )
+        return (
+            "⚠ 未建立 SSH 连接，无法自动配置 Jetson 网关。",
+            f"请手动在 Jetson 上执行以下命令（网关: {gw}）：",
+            cmd,
+        )
+
+    def _format_missing_lan_ip_log(self) -> str:
+        lan = self._get_lan()
+        if self._lang == "en":
+            return f"⚠ Unable to get the IP address of LAN interface ({lan}), so Jetson cannot be configured automatically."
+        return f"⚠ 无法获取 LAN 网卡 ({lan}) 的 IP 地址，无法自动配置 Jetson。"
+
+    def _format_configuring_gateway_log(self, lan_ip: str) -> str:
+        if self._lang == "en":
+            return f"Configuring Jetson gateway via SSH -> {lan_ip}, DNS -> 8.8.8.8 ..."
+        return f"正在通过 SSH 配置 Jetson 网关 → {lan_ip}，DNS → 8.8.8.8 …"
+
     def _do_enable(self):
         wan, lan = self._get_wan(), self._get_lan()
         if not wan or not lan:
-            QMessageBox.warning(self, "提示", "请选择上网网卡和 Jetson 网卡。")
+            show_warning_message(self, self._tr("提示"), self._tr("请选择上网网卡和 Jetson 网卡。"))
             return
         if wan == lan:
-            QMessageBox.warning(self, "提示", "上网网卡和 Jetson 网卡不能相同。")
+            show_warning_message(self, self._tr("提示"), self._tr("上网网卡和 Jetson 网卡不能相同。"))
             return
         if sys.platform != "win32" and not self._get_sudo_pwd():
-            QMessageBox.warning(self, "提示", "请输入 PC 的 sudo 密码。")
+            show_warning_message(self, self._tr("提示"), self._tr("请输入 PC 的 sudo 密码。"))
             return
 
         self._enable_btn.setEnabled(False)
-        self._enable_btn.setText("开启中…")
-        self._status.setText("正在配置…")
+        self._enable_btn.setText(self._tr("开启中…"))
+        self._status.setText(self._tr("正在配置…"))
         self._status.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(12)}px; background:transparent;")
         self._log.clear()
 
@@ -273,39 +428,37 @@ class NetShareDialog(QDialog):
 
     def _on_enable_done(self, ok: bool, log: str):
         self._enable_btn.setEnabled(True)
-        self._enable_btn.setText("开启网络共享")
+        self._enable_btn.setText(self._tr("开启网络共享"))
         self._log.setPlainText(log)
         if ok:
             self._sharing = True
-            self._status.setText(f"已开启：{self._get_wan()} -> {self._get_lan()}")
+            self._status.setText(self._format_enabled_status())
             self._status.setStyleSheet(
                 f"color:{C_GREEN}; font-size:{pt(12)}px; background:transparent; font-weight:700;")
             self._disable_btn.setEnabled(True)
             # 自动配置 Jetson 网关和 DNS
             self._configure_jetson_gateway()
         else:
-            self._status.setText("开启失败，请查看日志")
+            self._status.setText(self._tr("开启失败，请查看日志"))
             self._status.setStyleSheet(f"color:{C_RED}; font-size:{pt(12)}px; background:transparent;")
 
     def _configure_jetson_gateway(self):
         """PC NAT 开启后，自动通过 SSH 配置 Jetson 的网关和 DNS。"""
         runner = get_runner()
         if not isinstance(runner, SSHRunner):
-            self._log.append("\n⚠ 未建立 SSH 连接，无法自动配置 Jetson 网关。")
-            self._log.append("请手动在 Jetson 上执行：")
-            lan_ip = get_interface_ip(self._get_lan())
-            gw = lan_ip or "<PC LAN 网卡 IP>"
-            self._log.append(f"  sudo ip route replace default via {gw}")
-            self._log.append(f"  echo 'nameserver 8.8.8.8' | sudo tee /etc/resolv.conf")
+            warn_text, tip_text, cmd = self._format_manual_gateway_log()
+            self._log.append("\n" + warn_text)
+            self._log.append(tip_text)
+            self._log.append(f"  {cmd}")
             return
 
         lan_ip = get_interface_ip(self._get_lan())
         if not lan_ip:
-            self._log.append(f"\n⚠ 无法获取 LAN 网卡 ({self._get_lan()}) 的 IP 地址，无法自动配置 Jetson。")
+            self._log.append("\n" + self._format_missing_lan_ip_log())
             return
 
-        self._log.append(f"\n正在通过 SSH 配置 Jetson 网关 → {lan_ip}，DNS → 8.8.8.8 …")
-        self._jetson_thread = _JetsonGatewayThread(runner, lan_ip)
+        self._log.append("\n" + self._format_configuring_gateway_log(lan_ip))
+        self._jetson_thread = _JetsonGatewayThread(runner, lan_ip, self._lang)
         self._jetson_thread.done.connect(self._on_jetson_gw_done)
         self._jetson_thread.start()
 
@@ -315,26 +468,34 @@ class NetShareDialog(QDialog):
     def _do_disable(self):
         wan, lan = self._get_wan(), self._get_lan()
         self._disable_btn.setEnabled(False)
-        self._disable_btn.setText("关闭中…")
+        self._disable_btn.setText(self._tr("关闭中…"))
 
         self._thread = _NatThread("disable", wan, lan, self._get_sudo_pwd())
         self._thread.done.connect(self._on_disable_done)
         self._thread.start()
 
     def _on_disable_done(self, ok: bool, log: str):
-        self._disable_btn.setText("关闭网络共享")
+        self._disable_btn.setText(self._tr("关闭网络共享"))
         self._disable_btn.setEnabled(False)
         self._sharing = False
         self._log.append("\n" + log)
-        self._status.setText("已关闭")
+        self._status.setText(self._tr("已关闭"))
         self._status.setStyleSheet(f"color:{C_TEXT3}; font-size:{pt(12)}px; background:transparent;")
+        # 关闭共享时顺带清除 Jetson 上的代理配置
+        runner = get_runner()
+        if isinstance(runner, SSHRunner):
+            from seeed_jetson_develop.modules.remote.net_share import build_jetson_clear_proxy_cmd
+            import threading
+            def _clear():
+                runner.run(build_jetson_clear_proxy_cmd(), timeout=10)
+            threading.Thread(target=_clear, daemon=True).start()
 
     def closeEvent(self, event):
         if self._sharing:
-            reply = QMessageBox.question(
-                self, "网络共享仍在运行",
-                "关闭窗口不会停止网络共享。\n是否先关闭共享再退出？",
-                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+            reply = ask_question_message(
+                self, self._tr("网络共享仍在运行"),
+                self._tr("关闭窗口不会停止网络共享。\n是否先关闭共享再退出？"),
+                buttons=QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
             )
             if reply == QMessageBox.Yes:
                 self._do_disable()

@@ -192,29 +192,51 @@ def translate_text(source: str, lang: str) -> str:
 
 
 def _translate_property(widget: QWidget, getter_name: str, setter_name: str, prop_name: str, lang: str):
-    getter = getattr(widget, getter_name, None)
-    setter = getattr(widget, setter_name, None)
+    try:
+        getter = getattr(widget, getter_name, None)
+        setter = getattr(widget, setter_name, None)
+    except RuntimeError:
+        return
     if getter is None or setter is None:
         return
 
-    current = getter()
+    try:
+        current = getter()
+    except RuntimeError:
+        return
     if current is None:
         return
 
-    source = widget.property(prop_name)
+    try:
+        source = widget.property(prop_name)
+    except RuntimeError:
+        return
     if source is None:
         source = current
-        widget.setProperty(prop_name, source)
+        try:
+            widget.setProperty(prop_name, source)
+        except RuntimeError:
+            return
 
-    setter(translate_text(source, lang))
+    try:
+        setter(translate_text(source, lang))
+    except RuntimeError:
+        return
 
 
 def apply_language(widget: QWidget, lang: str):
     if widget is None:
         return
 
-    all_widgets = [widget] + widget.findChildren(QWidget)
+    try:
+        all_widgets = [widget] + widget.findChildren(QWidget)
+    except RuntimeError:
+        return
     for item in all_widgets:
+        try:
+            item.property("_i18n_guard")
+        except RuntimeError:
+            continue
         _translate_property(item, "windowTitle", "setWindowTitle", "_i18n_source_window_title", lang)
 
         if isinstance(item, (QLabel, QPushButton, QCheckBox, QGroupBox)):
@@ -224,13 +246,22 @@ def apply_language(widget: QWidget, lang: str):
             _translate_property(item, "placeholderText", "setPlaceholderText", "_i18n_source_placeholder", lang)
 
         if isinstance(item, QComboBox) and item.property("_i18n_translate_items"):
-            source_items = item.property("_i18n_source_items")
+            try:
+                source_items = item.property("_i18n_source_items")
+            except RuntimeError:
+                continue
             if source_items is None:
-                source_items = [item.itemText(i) for i in range(item.count())]
-                item.setProperty("_i18n_source_items", source_items)
-            current_index = item.currentIndex()
-            item.blockSignals(True)
-            item.clear()
-            item.addItems([translate_text(text, lang) for text in source_items])
-            item.setCurrentIndex(current_index)
-            item.blockSignals(False)
+                try:
+                    source_items = [item.itemText(i) for i in range(item.count())]
+                    item.setProperty("_i18n_source_items", source_items)
+                except RuntimeError:
+                    continue
+            try:
+                current_index = item.currentIndex()
+                item.blockSignals(True)
+                item.clear()
+                item.addItems([translate_text(text, lang) for text in source_items])
+                item.setCurrentIndex(current_index)
+                item.blockSignals(False)
+            except RuntimeError:
+                continue

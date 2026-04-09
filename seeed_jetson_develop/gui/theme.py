@@ -12,7 +12,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QFont, QFontDatabase
 from PyQt5.QtWidgets import (
     QApplication, QFrame, QGraphicsDropShadowEffect,
-    QLabel, QPushButton, QWidget, QVBoxLayout,
+    QLabel, QMessageBox, QPushButton, QWidget, QVBoxLayout,
 )
 
 # ── 颜色系统 ──────────────────────────────────────────────────────────────────
@@ -380,6 +380,63 @@ QLineEdit:hover {{
     background: #253340;
 }}
 
+QDialog {{
+    background: {C_BG};
+    color: {C_TEXT};
+}}
+
+QDialog QLabel {{
+    background: transparent;
+    color: {C_TEXT2};
+}}
+
+QDialog QPushButton {{
+    background: rgba(255,255,255,0.04);
+    border: none;
+    border-radius: 8px;
+    color: {C_TEXT};
+    font-size: {pt(11)}px;
+    font-weight: 600;
+    padding: 0 {pt(16)}px;
+    min-height: {pt(38)}px;
+}}
+
+QDialog QPushButton:hover {{
+    background: rgba(255,255,255,0.10);
+}}
+
+QDialog QPushButton:pressed {{
+    background: rgba(255,255,255,0.14);
+}}
+
+QDialog QPushButton:default {{
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+        stop:0 #8DC21F, stop:1 #7AB317);
+    color: #071200;
+}}
+
+QMessageBox {{
+    background: {C_BG};
+}}
+
+QMessageBox QLabel#qt_msgbox_label {{
+    color: {C_TEXT};
+    font-size: {pt(12)}px;
+    font-weight: 600;
+    min-width: 340px;
+}}
+
+QMessageBox QLabel#qt_msgbox_informativelabel {{
+    color: {C_TEXT2};
+    font-size: {pt(11)}px;
+    font-weight: 400;
+    min-width: 340px;
+}}
+
+QMessageBox QLabel#qt_msgboxex_icon_label {{
+    background: transparent;
+}}
+
 /* 工具提示 */
 QToolTip {{
     background: {C_CARD};
@@ -406,3 +463,118 @@ def apply_app_theme():
         current_font = app.font()
         base_size = current_font.pointSize() if current_font.pointSize() > 0 else 11
         app.setFont(build_app_font(base_size))
+
+
+def _dialog_qss() -> str:
+    return f"""
+        QMessageBox {{
+            background: {C_BG};
+            color: {C_TEXT};
+        }}
+        QMessageBox QLabel {{
+            background: transparent;
+        }}
+        QMessageBox QLabel#qt_msgbox_label {{
+            color: {C_TEXT};
+            font-size: {pt(12)}px;
+            font-weight: 600;
+            min-width: 360px;
+            padding-right: 8px;
+        }}
+        QMessageBox QLabel#qt_msgbox_informativelabel {{
+            color: {C_TEXT2};
+            font-size: {pt(11)}px;
+            min-width: 360px;
+            line-height: 1.45;
+        }}
+        QMessageBox QPushButton {{
+            background: rgba(255,255,255,0.05);
+            border: none;
+            border-radius: 8px;
+            color: {C_TEXT};
+            font-size: {pt(11)}px;
+            font-weight: 600;
+            padding: 0 {pt(18)}px;
+            min-width: 110px;
+            min-height: {pt(38)}px;
+        }}
+        QMessageBox QPushButton:hover {{
+            background: rgba(255,255,255,0.10);
+        }}
+        QMessageBox QPushButton:pressed {{
+            background: rgba(255,255,255,0.14);
+        }}
+        QMessageBox QPushButton:default {{
+            background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                stop:0 #8DC21F, stop:1 #7AB317);
+            color: #071200;
+        }}
+    """
+
+
+def create_themed_message_box(
+    parent: QWidget | None,
+    title: str,
+    text: str,
+    *,
+    icon=QMessageBox.Information,
+    informative_text: str = "",
+    buttons=QMessageBox.Ok,
+    default_button=None,
+) -> QMessageBox:
+    msg = QMessageBox(parent)
+    msg.setWindowTitle(title)
+    msg.setIcon(icon)
+    msg.setText(text)
+    if informative_text:
+        msg.setInformativeText(informative_text)
+    msg.setStandardButtons(buttons)
+    if default_button is not None:
+        msg.setDefaultButton(default_button)
+    msg.setStyleSheet(_dialog_qss())
+    msg.setMinimumWidth(520)
+    for btn in msg.buttons():
+        btn.setCursor(Qt.PointingHandCursor)
+    return msg
+
+
+def show_info_message(parent: QWidget | None, title: str, text: str, informative_text: str = "") -> int:
+    return create_themed_message_box(
+        parent, title, text,
+        icon=QMessageBox.Information,
+        informative_text=informative_text,
+    ).exec_()
+
+
+def show_warning_message(parent: QWidget | None, title: str, text: str, informative_text: str = "") -> int:
+    return create_themed_message_box(
+        parent, title, text,
+        icon=QMessageBox.Warning,
+        informative_text=informative_text,
+    ).exec_()
+
+
+def show_error_message(parent: QWidget | None, title: str, text: str, informative_text: str = "") -> int:
+    return create_themed_message_box(
+        parent, title, text,
+        icon=QMessageBox.Critical,
+        informative_text=informative_text,
+    ).exec_()
+
+
+def ask_question_message(
+    parent: QWidget | None,
+    title: str,
+    text: str,
+    *,
+    informative_text: str = "",
+    buttons=QMessageBox.Yes | QMessageBox.No,
+    default_button=QMessageBox.No,
+) -> int:
+    return create_themed_message_box(
+        parent, title, text,
+        icon=QMessageBox.Question,
+        informative_text=informative_text,
+        buttons=buttons,
+        default_button=default_button,
+    ).exec_()

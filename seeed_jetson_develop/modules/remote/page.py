@@ -27,6 +27,10 @@ from seeed_jetson_develop.gui.theme import (
     pt as _pt, make_label as _lbl, make_button as _btn,
     make_card as _card, make_input_card as _input_card,
     apply_shadow as _shadow,
+    ask_question_message as _ask_question_message,
+    show_error_message as _show_error_message,
+    show_info_message as _show_info_message,
+    show_warning_message as _show_warning_message,
 )
 
 
@@ -248,10 +252,10 @@ class _ApiKeyDialog(QDialog):
     def _save(self):
         key = self._key_edit.text().strip()
         if not key:
-            QMessageBox.warning(self, "提示", "请输入 API Key。")
+            _show_warning_message(self, "提示", "请输入 API Key。")
             return
         if len(key) < 20:
-            QMessageBox.warning(self, "提示", "API Key 格式不正确（长度过短）。")
+            _show_warning_message(self, "提示", "API Key 格式不正确（长度过短）。")
             return
         url = self._url_edit.text().strip()
         data = _cfg.load()
@@ -266,14 +270,14 @@ class _ApiKeyDialog(QDialog):
             f"color:{C_GREEN}; font-size:{_pt(11)}px; background:transparent;"
         )
         self.key_saved.emit()
-        QMessageBox.information(self, "成功", "API Key 已保存到本地配置文件。")
+        _show_info_message(self, "成功", "API Key 已保存到本地配置文件。")
         self.close()
 
     def _clear(self):
-        reply = QMessageBox.question(
+        reply = _ask_question_message(
             self, "确认清除",
             "确定要清除已保存的 API Key 吗？",
-            QMessageBox.Yes | QMessageBox.No,
+            buttons=QMessageBox.Yes | QMessageBox.No,
         )
         if reply == QMessageBox.Yes:
             data = _cfg.load()
@@ -387,7 +391,7 @@ class _VscodeWebDialog(QDialog):
             "[ -f ${CACHE}/${DEB} ] && [ $(stat -c%s ${CACHE}/${DEB}) -gt 52428800 ] || "
             "  { echo '下载失败，文件不完整'; exit 1; } && "
             "echo '安装中…' && "
-            f"echo {self._runner.password!r} | sudo -S dpkg -i ${{CACHE}}/${{DEB}} 2>&1"
+            f"echo {self._runner.sudo_password!r} | sudo -S dpkg -i ${{CACHE}}/${{DEB}} 2>&1"
         )
         cmds = [
             (install_cmd, 600),
@@ -733,6 +737,7 @@ def build_page() -> QWidget:
         data["remote_last_host"] = _ip_input.text().strip()
         data["remote_last_user"] = _user_input.text().strip() or "seeed"
         data["remote_last_password"] = _pass_input.text()
+        data["remote_last_sudo_password"] = _sudo_input.text()
         data["remote_last_subnet"] = _subnet_input.text().strip()
         _cfg.save(data)
 
@@ -814,6 +819,28 @@ def build_page() -> QWidget:
     """)
     auth_row.addWidget(_pass_input)
     conn_lay.addLayout(auth_row)
+
+    sudo_row = QHBoxLayout()
+    sudo_row.setSpacing(10)
+    sudo_row.addWidget(_lbl("sudo 密码", 11, C_TEXT3))
+    _sudo_input = QLineEdit()
+    _sudo_input.setPlaceholderText("留空则默认使用登录密码")
+    _sudo_input.setEchoMode(QLineEdit.Password)
+    _sudo_input.setText(_conn_cfg.get("remote_last_sudo_password", ""))
+    _sudo_input.setFixedHeight(_pt(40))
+    _sudo_input.setStyleSheet(f"""
+        QLineEdit {{
+            background:{C_CARD_LIGHT};
+            border:none;
+            border-radius:8px;
+            padding:6px 12px;
+            color:{C_TEXT};
+            font-size:{_pt(11)}px;
+        }}
+    """)
+    sudo_row.addWidget(_sudo_input, 1)
+    sudo_row.addWidget(_lbl("用于 apt / systemctl / docker 等提权命令", 10, C_TEXT3))
+    conn_lay.addLayout(sudo_row)
 
     # 扫描子网输入
     subnet_row = QHBoxLayout()
@@ -904,7 +931,7 @@ def build_page() -> QWidget:
         user = _user_input.text().strip() or "seeed"
         pwd  = _pass_input.text()
         if not ip:
-            QMessageBox.warning(page, "提示", "请先输入设备 IP 或主机名。")
+            _show_warning_message(page, "提示", "请先输入设备 IP 或主机名。")
             return
         ssh_test_btn.setEnabled(False)
         ssh_test_btn.setText("连接中…")
@@ -929,7 +956,12 @@ def build_page() -> QWidget:
                 f"color:{C_GREEN}; font-size:{_pt(11)}px; background:transparent; font-weight:700;"
             )
             _save_remote_form()
-            set_runner(SSHRunner(ip, username=user, password=pwd))
+            set_runner(SSHRunner(
+                ip,
+                username=user,
+                password=pwd,
+                sudo_password=_sudo_input.text().strip() or pwd,
+            ))
             bus.device_connected.emit({"ip": ip, "name": "Jetson", "model": ""})
         else:
             _conn_status_lbl.setText("● 连接失败")
@@ -1138,7 +1170,7 @@ def build_page() -> QWidget:
                 cfg = _cfg.load()
                 key = cfg.get("anthropic_api_key", "")
                 if not key:
-                    QMessageBox.warning(page, "提示", "请先点击「配置 / 修改」配置 API Key。")
+                    _show_warning_message(page, "提示", "请先点击「配置 / 修改」配置 API Key。")
                     return
                 base_url = cfg.get("anthropic_base_url", "")
                 btn.setEnabled(False)
@@ -1148,9 +1180,9 @@ def build_page() -> QWidget:
                     b.setEnabled(True)
                     b.setText("测试连接")
                     if ok:
-                        QMessageBox.information(page, "API 测试", msg)
+                        _show_info_message(page, "API 测试", msg)
                     else:
-                        QMessageBox.critical(page, "API 测试失败", msg)
+                        _show_error_message(page, "API 测试失败", msg)
                 t.result.connect(_on_api_result)
                 t.start()
                 _api_test_thread[0] = t

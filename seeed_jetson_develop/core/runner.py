@@ -1,6 +1,7 @@
 """命令执行引擎 — 本地或远程 SSH 执行，统一接口"""
 import os
 import re
+import shlex
 import subprocess
 from typing import Callable, Optional
 
@@ -75,11 +76,42 @@ class SSHRunner(Runner):
     """
 
     def __init__(self, host: str, username: str = "seeed",
-                 password: str = "", port: int = 22):
+                 password: str = "", port: int = 22, sudo_password: str = ""):
         self.host     = host
         self.username = username
         self.password = password
+        self.sudo_password = sudo_password or password
         self.port     = port
+
+    def _wrap_with_sudo_password(self, cmd: str) -> str:
+        wrapper_parts = ["export TERM=${TERM:-xterm-256color};"]
+        if self.sudo_password:
+            wrapper_parts.extend([
+                f"export SEEED_SUDO_PASSWORD={shlex.quote(self.sudo_password)};",
+                "sudo() { printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S \"$@\"; };",
+                "export -f sudo;",
+            ])
+        wrapper_parts.append(cmd)
+        wrapper = " ".join(wrapper_parts)
+        return f"bash -lc {shlex.quote(wrapper)}"
+
+    def open_sftp(self):
+        """建立 SSH 连接并返回 (client, sftp)，调用方负责 client.close()。"""
+        import paramiko
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(
+            self.host,
+            port=self.port,
+            username=self.username,
+            password=self.password or None,
+            timeout=10,
+            look_for_keys=True,
+            allow_agent=True,
+        )
+        client.get_transport().set_keepalive(30)
+        sftp = client.open_sftp()
+        return client, sftp
 
     def run(
         self,
@@ -102,7 +134,10 @@ class SSHRunner(Runner):
             )
             client.get_transport().set_keepalive(30)
             try:
-                _, stdout, stderr = client.exec_command(cmd, timeout=timeout)
+                _, stdout, stderr = client.exec_command(
+                    self._wrap_with_sudo_password(cmd),
+                    timeout=timeout,
+                )
                 lines = []
                 for raw in stdout:
                     line = raw.rstrip("\n")
@@ -110,9 +145,21 @@ class SSHRunner(Runner):
                     if on_output:
                         on_output(line)
                 rc  = stdout.channel.recv_exit_status()
+                err = stderr.read().decode("utf-8", errors="replace").strip()
+                if err:
+                    # 过滤 sudo 密码提示行，避免污染输出
+                    filtered = [
+                        line for line in err.splitlines()
+                        if line.strip()
+                        and not line.strip().startswith("[sudo]")
+                        and "password for" not in line.lower()
+                        and "的密码" not in line
+                    ]
+                    for line in filtered:
+                        if on_output:
+                            on_output(line)
+                    lines.extend(filtered)
                 out = "\n".join(lines)
-                if not out.strip():
-                    out = stderr.read().decode("utf-8", errors="replace").strip()
                 return rc, out
             finally:
                 client.close()
@@ -198,6 +245,8 @@ class SerialRunner(Runner):
                 return -1, "登录失败，未检测到 shell 提示符"
 
             time.sleep(0.2)
+            ser.write(b"export TERM=xterm-256color\r\n")
+            _read_until([r"[$#]\s*"], 3.0)
             ser.write((cmd + "\r\n").encode())
             result = _read_until([r"[$#]\s*"], float(timeout))
 
@@ -241,4 +290,3 @@ def set_runner(runner: Optional[Runner]) -> None:
     """切换全局 Runner。传 None 恢复本地模式。"""
     global _active_runner
     _active_runner = runner
-

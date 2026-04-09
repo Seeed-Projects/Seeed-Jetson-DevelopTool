@@ -3,7 +3,9 @@ Seeed Jetson Develop Tool - 主窗口 V2
 无边框大气风格 - 用背景层次代替线条
 """
 import json
+import logging
 import sys
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -13,7 +15,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame,
     QVBoxLayout, QHBoxLayout, QGridLayout, QBoxLayout,
     QLabel, QPushButton, QComboBox, QCheckBox, QToolButton, QMenu,
-    QProgressBar, QTextEdit, QScrollArea, QDialog, QFileDialog,
+    QProgressBar, QTextEdit, QScrollArea, QDialog, QFileDialog, QMessageBox,
     QStackedWidget, QSizePolicy,
 )
 
@@ -23,7 +25,8 @@ from .theme import (
     C_GREEN, C_GREEN2, C_BLUE, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3,
     pt, make_label, make_button, make_card, make_input_card,
-    make_section_header, apply_shadow, apply_app_theme, build_app_font
+    make_section_header, apply_shadow, apply_app_theme, build_app_font,
+    create_themed_message_box,
 )
 from ..flash import JetsonFlasher, sudo_authenticate, sudo_check_cached
 from ..core.platform_detect import is_jetson
@@ -32,6 +35,9 @@ from ..modules.remote.jetson_init import open_jetson_init_dialog
 from .flash_animation import FlashAnimationWidget
 from .ai_chat import FloatingAIAssistant, build_ai_system_prompt
 from .runtime_i18n import apply_language, translate_text
+
+
+log = logging.getLogger("seeed")
 
 
 # ─────────────────────────────────────────────
@@ -471,13 +477,19 @@ class MainWindowV2(QMainWindow):
         self.stack = QStackedWidget()
         self.stack.setStyleSheet("background:transparent;")
         from seeed_jetson_develop.modules.devices.page import build_page as _devices_page
-        from seeed_jetson_develop.modules.apps.page import build_page as _apps_page
-        from seeed_jetson_develop.modules.skills.page import build_page as _skills_page
         from seeed_jetson_develop.modules.remote.page import build_page as _remote_page
         self.stack.addWidget(self._build_flash_page())
         self.stack.addWidget(_devices_page())
-        self.stack.addWidget(_apps_page())
-        self.stack.addWidget(_skills_page())
+        # Apps 页面延迟加载
+        self._apps_placeholder = QWidget()
+        self._apps_placeholder.setStyleSheet(f"background:{C_BG};")
+        self._apps_built = False
+        self.stack.addWidget(self._apps_placeholder)
+        # Skills 页面延迟加载
+        self._skills_placeholder = QWidget()
+        self._skills_placeholder.setStyleSheet(f"background:{C_BG};")
+        self._skills_built = False
+        self.stack.addWidget(self._skills_placeholder)
         self.stack.addWidget(_remote_page())
         self.stack.addWidget(self._build_community_page())
         content_layout.addWidget(self.stack)
@@ -711,7 +723,7 @@ class MainWindowV2(QMainWindow):
 
     def eventFilter(self, src, ev):
         if self._lang == "en" and ev.type() == QEvent.Show and isinstance(src, QWidget):
-            QTimer.singleShot(0, lambda w=src: apply_language(w, self._lang))
+            QTimer.singleShot(0, self._apply_runtime_language)
         if src is getattr(self, "_titlebar", None):
             if ev.type() == QEvent.MouseButtonDblClick:
                 self._toggle_max(); return True
@@ -772,10 +784,68 @@ class MainWindowV2(QMainWindow):
         return sidebar
 
     def _set_page(self, idx):
+        # Apps 页面（index=2）首次访问时懒加载
+        if idx == 2 and not self._apps_built:
+            try:
+                from seeed_jetson_develop.modules.apps.page import build_page as _apps_page
+                real_page = _apps_page()
+            except Exception:
+                msg = traceback.format_exc()
+                log.error("failed to build App Market page\n%s", msg)
+                real_page = self._build_lazy_error_page(
+                    "App Market",
+                    "页面加载失败，请重试或查看日志。",
+                    msg,
+                )
+            self._apps_built = True
+            self.stack.removeWidget(self._apps_placeholder)
+            self._apps_placeholder.deleteLater()
+            self.stack.insertWidget(2, real_page)
+        # Skills 页面（index=3）首次访问时懒加载
+        if idx == 3 and not self._skills_built:
+            try:
+                from seeed_jetson_develop.modules.skills.page import build_page as _skills_page
+                real_page = _skills_page()
+            except Exception:
+                msg = traceback.format_exc()
+                log.error("failed to build Skills page\n%s", msg)
+                real_page = self._build_lazy_error_page(
+                    "Skills",
+                    "页面加载失败，请重试或查看日志。",
+                    msg,
+                )
+            self._skills_built = True
+            self.stack.removeWidget(self._skills_placeholder)
+            self._skills_placeholder.deleteLater()
+            self.stack.insertWidget(3, real_page)
         self._current_page = idx
         self.stack.setCurrentIndex(idx)
         for i, btn in enumerate(self._nav_btns):
             btn.setActive(i == idx)
+
+    def _build_lazy_error_page(self, title: str, message: str, detail: str) -> QWidget:
+        page = QWidget()
+        page.setStyleSheet(f"background:{C_BG};")
+        lay = QVBoxLayout(page)
+        lay.setContentsMargins(pt(32), pt(28), pt(32), pt(28))
+        lay.setSpacing(pt(18))
+
+        card = make_card(12)
+        card_lay = QVBoxLayout(card)
+        card_lay.setContentsMargins(pt(24), pt(20), pt(24), pt(20))
+        card_lay.setSpacing(pt(12))
+        card_lay.addWidget(make_label(title, 16, C_TEXT, bold=True))
+        card_lay.addWidget(make_label(message, 12, C_TEXT2, wrap=True))
+
+        detail_box = QTextEdit()
+        detail_box.setReadOnly(True)
+        detail_box.setMinimumHeight(pt(220))
+        detail_box.setPlainText(detail[-1500:])
+        card_lay.addWidget(detail_box)
+
+        lay.addWidget(card)
+        lay.addStretch()
+        return page
 
     def _update_env_label(self):
         if not hasattr(self, "_env_dot"):
@@ -1747,14 +1817,19 @@ class MainWindowV2(QMainWindow):
             return
 
         if has_extracted:
-            from PyQt5.QtWidgets import QMessageBox
-            msg = QMessageBox(self)
-            msg.setWindowTitle("已有解压目录")
-            msg.setText("检测到本地已有解压好的固件目录。\n是否覆盖重新下载并解压？")
-            msg.setInformativeText("选择「跳过」可直接使用现有目录进入下一步。")
+            msg = create_themed_message_box(
+                self,
+                "已有解压目录",
+                "检测到本地已有解压好的固件目录。\n是否覆盖重新下载并解压？",
+                icon=QMessageBox.Question,
+                informative_text="选择「跳过」可直接使用现有目录进入下一步。",
+                buttons=QMessageBox.NoButton,
+            )
             skip_btn     = msg.addButton("跳过，直接下一步", QMessageBox.AcceptRole)
             overwrite_btn = msg.addButton("覆盖重新下载解压", QMessageBox.DestructiveRole)
-            msg.addButton("取消", QMessageBox.RejectRole)
+            cancel_btn = msg.addButton("取消", QMessageBox.RejectRole)
+            for btn in (skip_btn, overwrite_btn, cancel_btn):
+                btn.setCursor(Qt.PointingHandCursor)
             msg.exec_()
             clicked = msg.clickedButton()
             if clicked is skip_btn:

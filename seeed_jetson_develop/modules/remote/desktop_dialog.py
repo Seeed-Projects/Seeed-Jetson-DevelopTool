@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
-    QDialog, QHBoxLayout, QLabel, QLineEdit,
+    QDialog, QHBoxLayout, QLabel,
     QMessageBox, QSizePolicy, QTextEdit, QVBoxLayout,
 )
 
@@ -12,6 +12,7 @@ from seeed_jetson_develop.gui.theme import (
     C_BG, C_CARD, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3,
     apply_shadow, make_button, make_card, make_label, pt,
+    show_info_message,
 )
 from seeed_jetson_develop.modules.remote import desktop_remote as dr
 
@@ -84,7 +85,8 @@ class DesktopRemoteDialog(QDialog):
         root.addWidget(make_label("🖥 远程桌面", 16, C_TEXT, bold=True))
         root.addWidget(make_label(
             f"一键在 Jetson ({ip}) 上部署 VNC + noVNC 远程桌面服务。\n"
-            "部署完成后可通过浏览器直接访问 Jetson 图形桌面，也可用 VNC 客户端连接。",
+            "部署完成后可通过浏览器直接访问 Jetson 图形桌面，也可用 VNC 客户端连接。\n"
+            "未插 HDMI 时会自动尝试创建 headless 虚拟显示。",
             11, C_TEXT2, wrap=True,
         ))
 
@@ -125,20 +127,12 @@ class DesktopRemoteDialog(QDialog):
         addr_row.addStretch()
         sc.addLayout(addr_row)
 
-        # VNC 密码（可选）
-        pwd_row = QHBoxLayout()
-        pwd_row.addWidget(make_label("VNC 密码（可选）:", 11, C_TEXT3))
-        self._vnc_pwd = QLineEdit()
-        self._vnc_pwd.setPlaceholderText("留空则无密码")
-        self._vnc_pwd.setEchoMode(QLineEdit.Password)
-        self._vnc_pwd.setFixedWidth(160)
-        self._vnc_pwd.setStyleSheet(
-            f"QLineEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:8px;"
-            f" padding:6px 10px; color:{C_TEXT}; font-size:{pt(11)}px; }}"
-        )
-        pwd_row.addWidget(self._vnc_pwd)
-        pwd_row.addStretch()
-        sc.addLayout(pwd_row)
+        auth_row = QHBoxLayout()
+        auth_row.addWidget(make_label("连接认证:", 11, C_TEXT3))
+        auth_row.addWidget(make_label("当前版本固定为无密码访问", 11, C_GREEN))
+        auth_row.addWidget(make_label("（会清理旧的 VNC 密码配置）", 10, C_TEXT3))
+        auth_row.addStretch()
+        sc.addLayout(auth_row)
 
         root.addWidget(status_card)
 
@@ -249,13 +243,14 @@ class DesktopRemoteDialog(QDialog):
 
     # ── 一键部署（VNC + noVNC 全流程）─────────────────────────────────────────
     def _do_deploy_all(self):
-        pwd = self._runner.password
-        vnc_pwd = self._vnc_pwd.text().strip()
+        pwd = self._runner.sudo_password
         cmds = [
+            # 0. 先确保图形登录为自动登录，避免重启后停在登录界面
+            (dr.build_enable_autologin_cmd(pwd, self._runner.username), 30),
             # 1. 安装 x11vnc
             (dr.build_install_vnc_cmd(pwd), 180),
             # 2. 启动 x11vnc
-            (dr.build_start_vnc_cmd(password=vnc_pwd), 15),
+            (dr.build_start_vnc_cmd(), 15),
             # 3. 安装 noVNC + websockify
             (dr.build_install_novnc_cmd(pwd), 180),
             # 4. 启动 websockify
@@ -269,6 +264,7 @@ class DesktopRemoteDialog(QDialog):
         if rc == 0:
             url = dr.format_novnc_url(self._ip)
             self._append(f"\n✅ 全部部署成功！")
+            self._append("   已自动确保 GDM 免登录配置开启。")
             self._append(f"   浏览器访问：{url}")
             self._append(f"   VNC 直连：{dr.format_vnc_address(self._ip)}")
             self._do_refresh()
@@ -276,9 +272,10 @@ class DesktopRemoteDialog(QDialog):
             self._append(f"\n❌ 部署失败 (rc={rc})")
             self._append("\n排查建议：")
             self._append("  • x11vnc 需要 Jetson 有图形桌面环境（GNOME/XFCE）且已登录")
-            self._append("  • 需连接 HDMI 或 HDMI 假负载（x11vnc 需要 display :0）")
-            self._append("  • 可 SSH 到 Jetson 手动运行：x11vnc -display :0 -nopw -forever")
+            self._append("  • 当前版本会在无 HDMI 时自动创建 :99 虚拟显示，可查看 /tmp/seeed-xvfb.log")
+            self._append("  • 可 SSH 到 Jetson 手动运行：DISPLAY=:99 x11vnc -display :99 -nopw -forever")
             self._append("  • 查看日志：cat /tmp/x11vnc.log")
+            self._append("  • 若 headless 桌面为空白，可查看：cat /tmp/seeed-headless-desktop.log")
             self._append("  • 确认 Jetson 可以联网（apt-get 需要下载软件包）")
             self._do_refresh()
 
@@ -303,7 +300,7 @@ class DesktopRemoteDialog(QDialog):
     def _do_open_vnc(self):
         ok = dr.launch_vnc_viewer(self._ip)
         if not ok:
-            QMessageBox.information(
+            show_info_message(
                 self, "VNC 客户端",
                 f"未找到 VNC 客户端。\n\n"
                 f"VNC 地址：{dr.format_vnc_address(self._ip)}\n\n"

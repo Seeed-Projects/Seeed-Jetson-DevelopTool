@@ -12,6 +12,7 @@ from seeed_jetson_develop.gui.theme import (
     C_BG, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3,
     apply_shadow, make_button, make_card, make_label, pt,
+    show_warning_message,
 )
 
 
@@ -254,10 +255,10 @@ class AgentInstallDialog(QDialog):
     def _do_install(self):
         selected = [a for a in AGENTS if self._checkboxes[a["id"]].isChecked()]
         if not selected:
-            QMessageBox.warning(self, "提示", "请至少选择一个 Agent。")
+            show_warning_message(self, "提示", "请至少选择一个 Agent。")
             return
 
-        pwd = self._runner.password
+        pwd = self._runner.sudo_password
         escaped = pwd.replace("'", "'\\''")
         cmds: list[tuple[str, int]] = []
 

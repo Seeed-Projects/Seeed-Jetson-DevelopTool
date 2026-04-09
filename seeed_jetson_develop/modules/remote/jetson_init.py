@@ -26,7 +26,8 @@ from seeed_jetson_develop.modules.remote.native_terminal import NativeTerminalWi
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3,
-    apply_shadow, make_button, make_card, make_label, pt,
+    apply_shadow, ask_question_message, make_button, make_card,
+    make_label, pt, show_info_message, show_warning_message,
 )
 
 # ── 常量 ──────────────────────────────────────────────────────────────────────
@@ -718,27 +719,27 @@ class JetsonInitDialog(QDialog):
     def _release_port_lock(self):
         if not self._lock_info:
             return
-        reply = QMessageBox.question(
+        reply = ask_question_message(
             self,
             "释放串口占用",
             self._lock_info.get("detail", "") + "\n\n是否尝试释放该串口占用？",
-            QMessageBox.Yes | QMessageBox.No,
+            buttons=QMessageBox.Yes | QMessageBox.No,
         )
         if reply != QMessageBox.Yes:
             return
 
         ok, msg = release_serial_port_lock(self._lock_info)
         if ok:
-            QMessageBox.information(self, "释放成功", msg)
+            show_info_message(self, "释放成功", msg)
             self._set_lock_info(None)
             self.refresh_ports(self._current_port())
         else:
-            QMessageBox.warning(self, "释放失败", msg)
+            show_warning_message(self, "释放失败", msg)
 
     def detect_status(self):
         port = self._current_port()
         if not port:
-            QMessageBox.warning(self, "提示", "请先选择串口。")
+            show_warning_message(self, "提示", "请先选择串口。")
             return
         self._set_lock_info(None)
         self.detect_btn.setEnabled(False)
@@ -781,7 +782,7 @@ class JetsonInitDialog(QDialog):
     def open_terminal(self):
         port = self._current_port()
         if not port:
-            QMessageBox.warning(self, "提示", "请先选择串口。")
+            show_warning_message(self, "提示", "请先选择串口。")
             return
         if self._serial_thread is not None:
             self._focus_terminal_surface()
@@ -820,6 +821,9 @@ class JetsonInitDialog(QDialog):
         self._update_ui(self._current_port())
         self._focus_terminal_surface()
         self._send_terminal_bytes(b"\r")
+        # 延迟设置 TERM，确保 shell 已就绪
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(1000, lambda: self._send_terminal_bytes(b"export TERM=xterm-256color\r\n"))
 
     def _append_terminal_output(self, text: str):
         self._append_terminal_surface(text)
@@ -1069,22 +1073,22 @@ class JetsonNetConfigDialog(QDialog):
     def _release_port_lock(self):
         if not self._lock_info:
             return
-        reply = QMessageBox.question(
+        reply = ask_question_message(
             self,
             "释放串口占用",
             self._lock_info.get("detail", "") + "\n\n是否尝试释放该串口占用？",
-            QMessageBox.Yes | QMessageBox.No,
+            buttons=QMessageBox.Yes | QMessageBox.No,
         )
         if reply != QMessageBox.Yes:
             return
 
         ok, msg = release_serial_port_lock(self._lock_info)
         if ok:
-            QMessageBox.information(self, "释放成功", msg)
+            show_info_message(self, "释放成功", msg)
             self._set_lock_info(None)
             self._refresh_ports(self._port_combo.currentText().strip())
         else:
-            QMessageBox.warning(self, "释放失败", msg)
+            show_warning_message(self, "释放失败", msg)
 
     def _log_append(self, text: str):
         clean = _strip_ansi(text).replace("\r\n", "\n").replace("\r", "\n")
@@ -1095,7 +1099,7 @@ class JetsonNetConfigDialog(QDialog):
     def _do_scan(self):
         port = self._port_combo.currentText().strip()
         if not port:
-            QMessageBox.warning(self, "提示", "请先选择串口。")
+            show_warning_message(self, "提示", "请先选择串口。")
             return
         self._set_lock_info(None)
         user = self._user_edit.text().strip() or "seeed"
@@ -1153,10 +1157,10 @@ class JetsonNetConfigDialog(QDialog):
         gw = self._gw_edit.text().strip()
 
         if not ip:
-            QMessageBox.warning(self, "提示", "请填写 IP 地址。")
+            show_warning_message(self, "提示", "请填写 IP 地址。")
             return
         if not re.match(r"^\d{1,3}(\.\d{1,3}){3}$", ip):
-            QMessageBox.warning(self, "提示", "IP 地址格式不正确。")
+            show_warning_message(self, "提示", "IP 地址格式不正确。")
             return
         self._set_lock_info(None)
 

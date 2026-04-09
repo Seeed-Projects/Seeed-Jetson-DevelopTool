@@ -1,144 +1,84 @@
-"""应用注册表 — 从 apps.json 加载，管理安装状态"""
+"""App registry for App Market."""
+
+from __future__ import annotations
+
 import json
 from pathlib import Path
 from typing import Optional
 
-_DATA = Path(__file__).parent / "data" / "apps.json"
+_DATA_DIR = Path(__file__).parent / "data"
+_BASE_DATA = _DATA_DIR / "apps.json"
+_GENERATED_DATA = _DATA_DIR / "jetson_examples.json"
+
+_JX_BOOTSTRAP_CMD = (
+    "bash -c 'export PATH=$HOME/.local/bin:$PATH && "
+    "which reComputer >/dev/null 2>&1 || pip install jetson-examples'"
+)
+
+
+def _read_apps(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _prepend_bootstrap(app: dict) -> dict:
+    """For jetson-examples apps, prepend reComputer bootstrap to install/run cmds."""
+    for key in ("install_cmds", "run_cmds"):
+        cmds = app.get(key)
+        if cmds:
+            app[key] = [_JX_BOOTSTRAP_CMD] + cmds
+    return app
 
 
 def load_apps() -> list[dict]:
-    """加载应用列表，若 JSON 不存在返回内置默认值"""
-    if _DATA.exists():
-        return json.loads(_DATA.read_text(encoding="utf-8"))
-    return _DEFAULT_APPS
+    """Load built-in apps and generated jetson-examples apps."""
+    apps = _read_apps(_BASE_DATA)
+    if not apps:
+        apps = list(_DEFAULT_APPS)
+
+    by_id = {app["id"]: app for app in apps}
+    for app in _read_apps(_GENERATED_DATA):
+        by_id[app["id"]] = _prepend_bootstrap(app)
+    return list(by_id.values())
 
 
 def get_app(app_id: str) -> Optional[dict]:
     return next((a for a in load_apps() if a["id"] == app_id), None)
 
 
-# 内置默认应用列表（apps.json 未就绪时使用）
 _DEFAULT_APPS = [
     {
-        "id":           "yolov8",
-        "icon":         "🎯",
-        "name":         "YOLOv8 目标检测",
-        "category":     "CV / 视觉",
-        "desc":         "实时目标检测，支持摄像头 / MIPI 输入，适合边缘推理场景",
-        "skill_id":     None,
-        "check_cmd":    "python3 -c 'import ultralytics' 2>/dev/null",
+        "id": "yolov8",
+        "icon": "CV",
+        "name": "YOLOv8 Object Detection",
+        "category": "CV / Vision",
+        "desc": "Real-time object detection for Jetson devices.",
+        "skill_id": None,
+        "check_cmd": "python3 -c 'import ultralytics' 2>/dev/null",
         "install_cmds": [
             "pip3 install ultralytics",
             "python3 -c 'import ultralytics; print(\"YOLOv8:\", ultralytics.__version__)'",
         ],
     },
     {
-        "id":           "qwen2",
-        "icon":         "🤖",
-        "name":         "Qwen2 本地推理",
-        "category":     "大语言模型",
-        "desc":         "阿里 Qwen2 模型，支持中文对话，针对 Jetson 内存占用优化",
-        "skill_id":     "qwen_demo",
-        "check_cmd":    "python3 -c 'import transformers' 2>/dev/null",
-        "install_cmds": None,   # 由 skill_id 对应的 Skill 提供命令
-    },
-    {
-        "id":           "lerobot",
-        "icon":         "🦾",
-        "name":         "LeRobot 机器人",
-        "category":     "机器人",
-        "desc":         "Hugging Face LeRobot 开发套件，支持机械臂控制与模仿学习",
-        "skill_id":     "lerobot",
-        "check_cmd":    "python3 -c 'import lerobot' 2>/dev/null",
+        "id": "qwen2",
+        "icon": "LLM",
+        "name": "Qwen2 Local Inference",
+        "category": "LLM",
+        "desc": "Local Qwen2 inference optimized for Jetson.",
+        "skill_id": "qwen_demo",
+        "check_cmd": "python3 -c 'import transformers' 2>/dev/null",
         "install_cmds": None,
     },
     {
-        "id":           "kokoro",
-        "icon":         "🗣",
-        "name":         "Kokoro TTS",
-        "category":     "TTS 语音",
-        "desc":         "高质量文字转语音，支持多语言，本地推理无需网络",
-        "skill_id":     None,
-        "check_cmd":    "python3 -c 'import kokoro' 2>/dev/null",
-        "install_cmds": [
-            "pip3 install kokoro>=0.9.4 soundfile",
-            "python3 -c 'import kokoro; print(\"Kokoro ready\")'",
-        ],
-    },
-    {
-        "id":           "sd",
-        "icon":         "🌊",
-        "name":         "Stable Diffusion",
-        "category":     "CV / 视觉",
-        "desc":         "本地图像生成，SDXL-Turbo 优化版，支持 GPU 加速推理",
-        "skill_id":     None,
-        "check_cmd":    "python3 -c 'import diffusers' 2>/dev/null",
-        "install_cmds": [
-            "pip3 install diffusers transformers accelerate",
-            "python3 -c 'import diffusers; print(\"diffusers:\", diffusers.__version__)'",
-        ],
-    },
-    {
-        "id":           "jupyter",
-        "icon":         "📊",
-        "name":         "Jupyter Lab",
-        "category":     "开发工具",
-        "desc":         "交互式 Python 开发环境，支持 GPU 监控插件",
-        "skill_id":     None,
-        "check_cmd":    "which jupyter 2>/dev/null",
-        "install_cmds": [
-            "pip3 install jupyterlab",
-            "jupyter --version",
-        ],
-    },
-    {
-        "id":           "nodered",
-        "icon":         "🔴",
-        "name":         "Node-RED",
-        "category":     "开发工具",
-        "desc":         "可视化流程编排工具，IoT 与边缘计算场景适用",
-        "skill_id":     None,
-        "check_cmd":    "which node-red 2>/dev/null",
-        "install_cmds": [
-            "sudo apt-get install -y nodejs npm",
-            "sudo npm install -g --unsafe-perm node-red",
-            "node-red --version",
-        ],
-    },
-    {
-        "id":           "ollama",
-        "icon":         "🦙",
-        "name":         "Ollama",
-        "category":     "大语言模型",
-        "desc":         "本地 LLM 运行框架，支持 Llama、Qwen、Mistral 等多种模型",
-        "skill_id":     None,
-        "check_cmd":    "which ollama 2>/dev/null",
-        "install_cmds": [
-            "curl -fsSL https://ollama.com/install.sh | sh",
-            "ollama --version",
-        ],
-    },
-    {
-        "id":           "whisper",
-        "icon":         "🎙",
-        "name":         "Whisper 语音识别",
-        "category":     "TTS 语音",
-        "desc":         "OpenAI Whisper，离线语音转文字，支持中文，GPU 加速",
-        "skill_id":     None,
-        "check_cmd":    "python3 -c 'import faster_whisper' 2>/dev/null",
-        "install_cmds": [
-            "pip3 install faster-whisper",
-            "python3 -c 'import faster_whisper; print(\"Whisper ready\")'",
-        ],
-    },
-    {
-        "id":           "jtop",
-        "icon":         "🖥",
-        "name":         "jtop 监控",
-        "category":     "开发工具",
-        "desc":         "jetson-stats 系统监控工具，实时查看 GPU / CPU / 内存使用率",
-        "skill_id":     "install_jtop",
-        "check_cmd":    "which jtop 2>/dev/null",
+        "id": "lerobot",
+        "icon": "BOT",
+        "name": "LeRobot",
+        "category": "Robotics",
+        "desc": "LeRobot toolkit for robot control and imitation learning.",
+        "skill_id": "lerobot",
+        "check_cmd": "python3 -c 'import lerobot' 2>/dev/null",
         "install_cmds": None,
     },
 ]

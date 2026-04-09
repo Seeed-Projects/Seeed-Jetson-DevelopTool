@@ -1,7 +1,82 @@
 """诊断项定义 — 快速诊断 / 外设检测 / 设备信息"""
+import re
 from dataclasses import dataclass
 from typing import Callable
 from seeed_jetson_develop.core.runner import Runner
+
+# 匹配串口终端的 shell prompt，如 seeed@seeed-desktop:~$
+_PROMPT_RE = re.compile(r'\w[\w-]*@[\w-]+:[^\n]*?[#$]\s*')
+
+def _strip_prompts(out: str) -> str:
+    """去除串口输出中的 shell prompt 行。"""
+    return _PROMPT_RE.sub('', out).strip()
+
+
+# ── reComputer 型号识别（解析 /etc/nv_tegra_release 中的 Seeed Image Name）──
+
+_PART_MAP: dict[str, str] = {
+    'recomputer': 'reComputer', 'reserver': 'reServer',
+    'agx': 'AGX', 'nx': 'NX', 'xavier': 'Xavier',
+    'mini': 'Mini', 'super': 'Super',
+    'industrial': 'Industrial', 'robo': 'Robotics',
+    'gmsl': 'GMSL', 'devkit': 'DevKit',
+}
+
+def _extract_image_prefix(image_name: str) -> str:
+    """从镜像文件名中剥离版本/日期后缀，返回硬件标识前缀。
+
+    mfi_recomputer-mini-agx-orin-32g-j501-6.2.1-36.4.-2026-02-11.tar.gz
+    → mfi_recomputer-mini-agx-orin-32g-j501
+    """
+    name = re.sub(r'\.tar(\.gz)?$', '', image_name)
+    parts = name.split('-')
+    prefix_parts = []
+    for part in parts:
+        if re.match(r'^\d+\.\d+', part):   # 版本号如 6.2.1 / 36.4
+            break
+        if re.match(r'^\d{4}$', part):     # 年份如 2026
+            break
+        prefix_parts.append(part)
+    return '-'.join(prefix_parts)
+
+def _format_product_name(prefix: str) -> str:
+    """将硬件前缀格式化为可读型号名。
+
+    mfi_recomputer-mini-agx-orin-32g-j501 → reComputer J501 Mini AGX Orin 32G
+    mfi_reserver-agx-orin-64g-j501        → reServer J501 AGX Orin 64G
+    mfi_reserver-agx-orin-64g-j501-gmsl   → reServer J501 AGX Orin 64G GMSL
+    """
+    p = re.sub(r'^mfi_', '', prefix)
+    parts = p.split('-')
+    series = ''
+    carrier = ''
+    rest: list[str] = []
+    for part in parts:
+        lp = part.lower()
+        if lp in ('recomputer', 'reserver'):
+            series = _PART_MAP[lp]
+        elif re.match(r'^j\d+[a-z]?$', lp):       # 载板号：j401 j501 j201 j30 j40
+            carrier = part.upper()
+        elif re.match(r'^\d+[gq]$', lp):            # 内存容量：32g 16g 64g 16q
+            rest.append(part.upper())
+        else:
+            rest.append(_PART_MAP.get(lp, part.capitalize()))
+    out = [series]
+    if carrier:
+        out.append(carrier)
+    out.extend(rest)
+    return ' '.join(out)
+
+def _identify_recomputer_model(nv_tegra_content: str) -> str | None:
+    """从 /etc/nv_tegra_release 内容识别具体 reComputer 型号。"""
+    m = re.search(r'Seeed Image Name\s+(\S+)', nv_tegra_content)
+    if not m:
+        return None
+    image_name = m.group(1)
+    prefix = _extract_image_prefix(image_name)
+    if not prefix or not re.search(r're(computer|server)', prefix, re.I):
+        return None
+    return _format_product_name(prefix)
 
 
 @dataclass
@@ -98,12 +173,10 @@ PERIPH_ITEMS: list[DiagItem] = [
 # ── 设备基本信息 ────────────────────────────────────────────────────────────
 INFO_CMDS: dict[str, str] = {
     "model": (
-        r"""python3 -c "import pathlib,re;"""
+        r"""python3 -c "import pathlib;"""
         r"""p=['/proc/device-tree/model','/sys/firmware/devicetree/base/model'];"""
         r"""m=next((pathlib.Path(x).read_bytes().rstrip(b'\x00').decode(errors='replace').strip() for x in p if pathlib.Path(x).exists()),'Unknown');"""
-        r"""mem=int(re.search('MemTotal:\s+(\d+)',open('/proc/meminfo').read()).group(1))//1048576;"""
-        r"""ram='64GB' if mem>=56 else '32GB' if mem>=28 else '16GB' if mem>=14 else '8GB' if mem>=6 else '4GB' if mem>=3 else str(mem)+'GB';"""
-        r"""print(m+' ['+ram+']')" 2>/dev/null || cat /proc/device-tree/model 2>/dev/null | tr -d '\0' || echo Unknown"""
+        r"""print(m)" 2>/dev/null || cat /proc/device-tree/model 2>/dev/null | tr -d '\0' || echo Unknown"""
     ),
     "l4t":     "head -1 /etc/nv_tegra_release 2>/dev/null | awk '{gsub(\",\",\"\",$5); print $2\".\"$5}'",
     "memory":  "free -h | awk 'NR==2{print $3\"/\"$2}'",
@@ -117,7 +190,7 @@ def run_all(runner: Runner, on_result: Callable[[str, str, str], None]):
     """逐项执行快速诊断，每项完成后回调 on_result(item_id, status_text, color_key)。"""
     for item in DIAG_ITEMS:
         rc, out = runner.run(item.cmd, timeout=10)
-        status, color = item.parse(rc, out)
+        status, color = item.parse(rc, _strip_prompts(out))
         on_result(item.id, status, color)
 
 
@@ -125,7 +198,7 @@ def run_periph(runner: Runner, on_result: Callable[[str, str, str], None]):
     """逐项执行外设检测，回调同 run_all。"""
     for item in PERIPH_ITEMS:
         rc, out = runner.run(item.cmd, timeout=8)
-        status, color = item.parse(rc, out)
+        status, color = item.parse(rc, _strip_prompts(out))
         on_result(item.id, status, color)
 
 
@@ -134,5 +207,14 @@ def collect_info(runner: Runner) -> dict[str, str]:
     result = {}
     for key, cmd in INFO_CMDS.items():
         rc, out = runner.run(cmd, timeout=5)
-        result[key] = out.strip() if rc == 0 and out.strip() else "—"
+        val = _strip_prompts(out)
+        result[key] = val if rc == 0 and val else "—"
+
+    # 尝试从 /etc/nv_tegra_release 的 Seeed Image Name 识别具体型号
+    rc, out = runner.run("cat /etc/nv_tegra_release 2>/dev/null", timeout=5)
+    if rc == 0:
+        seeed_model = _identify_recomputer_model(_strip_prompts(out))
+        if seeed_model:
+            result['model'] = seeed_model
+
     return result

@@ -1,6 +1,7 @@
 """Reusable AI chat panel and floating assistant entry."""
 
 import os
+import re
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QObject, QEvent, QPoint, QRect
 from PyQt5.QtWidgets import (
@@ -21,6 +22,7 @@ from seeed_jetson_develop.gui.theme import (
     C_CARD_LIGHT,
     C_GREEN,
     C_BLUE,
+    C_ORANGE,
     C_TEXT,
     C_TEXT2,
     C_TEXT3,
@@ -34,14 +36,49 @@ _DEFAULT_SYSTEM = (
     "你是 Seeed Jetson Develop Tool 的 AI 助手，专注于 NVIDIA Jetson 开发板的开发、配置和问题排查。"
     "你了解 Jetson Nano、Orin Nano、Orin NX 等型号，熟悉 JetPack、L4T、CUDA、TensorRT、ROS 等技术。"
     "回答尽量简洁，需要给命令时使用代码块格式。默认使用中文回答。"
+    "当用户遇到错误时，如果已连接设备，你可以调用 run_ssh_command 工具在 Jetson 上执行只读诊断命令"
+    "（docker logs、journalctl、df、free、cat 日志文件等），根据真实输出给出解决方案。"
 )
+
+# 安全命令黑名单：只拦截真正破坏性的操作
+_DANGEROUS_PATTERNS = re.compile(
+    r"\brm\s+-[rf]+\s+/|\bdd\b.*of=|\bmkfs\b|>\s*/dev/[sh]d",
+    re.IGNORECASE,
+)
+
+_TOOL_DEF = {
+    "name": "run_ssh_command",
+    "description": (
+        "在已连接的 Jetson 设备上通过 SSH 执行命令，帮助用户诊断和解决问题。"
+        "可以运行安装、配置、查询、启停服务等各类命令。"
+        "禁止执行会破坏系统的命令（如 rm -rf /、dd 写磁盘、mkfs 格式化等）。"
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "command": {
+                "type": "string",
+                "description": "要在 Jetson 上执行的 shell 命令",
+            },
+            "reason": {
+                "type": "string",
+                "description": "执行此命令的目的（简短说明，显示给用户）",
+            },
+        },
+        "required": ["command", "reason"],
+    },
+}
+
+
+def _is_safe_cmd(cmd: str) -> bool:
+    return not _DANGEROUS_PATTERNS.search(cmd)
 
 
 def build_ai_system_prompt(limit: int = 30) -> str:
     system = _DEFAULT_SYSTEM
     try:
-        from seeed_jetson_develop.modules.skills.engine import load_skills
-        skills = load_skills()
+        from seeed_jetson_develop.modules.skills.engine import load_builtin_skills
+        skills = load_builtin_skills()
         skills_text = "\n".join(
             f"- {s.name}（{s.category}）：{s.desc}"
             for s in skills[:limit]
@@ -51,6 +88,17 @@ def build_ai_system_prompt(limit: int = 30) -> str:
                 "\n\n可用 Skills 列表（供参考，用户可在 Skills 页面一键运行）：\n"
                 f"{skills_text}"
             )
+    except Exception:
+        pass
+    try:
+        from seeed_jetson_develop.modules.apps.registry import load_apps
+        apps = load_apps()
+        apps_text = "\n".join(
+            f"- {a['name']}（{a['category']}）：{a['desc']}"
+            for a in apps[:20]
+        )
+        if apps_text:
+            system += "\n\n可用 Demo 应用列表（用户可在 App Market 安装/运行）：\n" + apps_text
     except Exception:
         pass
     return system
@@ -70,48 +118,110 @@ def _get_base_url() -> str:
     return url
 
 
-class _AiThread(QThread):
-    token = pyqtSignal(str)
-    done = pyqtSignal()
-    error = pyqtSignal(str)
+# ── AI 线程（支持 tool_use 循环） ─────────────────────────────────────────────
 
-    def __init__(self, messages: list, system: str, api_key: str, base_url: str = ""):
+class _AiToolThread(QThread):
+    token      = pyqtSignal(str)       # 文本 token（模拟流式）
+    tool_call  = pyqtSignal(str, str)  # command, reason
+    tool_result = pyqtSignal(str, str) # command, output
+    done       = pyqtSignal()
+    error      = pyqtSignal(str)
+
+    def __init__(self, messages: list, system: str, api_key: str,
+                 base_url: str = "", runner=None):
         super().__init__()
-        self._messages = messages
-        self._system = system
-        self._api_key = api_key
-        self._base_url = base_url
-        self._cancel = False
+        self._messages  = messages
+        self._system    = system
+        self._api_key   = api_key
+        self._base_url  = base_url
+        self._runner    = runner
+        self._cancel    = False
 
     def cancel(self):
         self._cancel = True
 
+    def _emit_text(self, text: str):
+        """逐词模拟流式输出。"""
+        words = text.split(" ")
+        for i, word in enumerate(words):
+            if self._cancel:
+                return
+            self.token.emit(word if i == len(words) - 1 else word + " ")
+
     def run(self):
+        base_url = self._base_url or "https://api.anthropic.com"
         try:
             import anthropic
-            base_url = self._base_url or "https://api.anthropic.com"
             client = anthropic.Anthropic(api_key=self._api_key, base_url=base_url)
-            with client.messages.stream(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=2048,
-                system=self._system,
-                messages=self._messages,
-            ) as stream:
-                for text in stream.text_stream:
+            tools  = [_TOOL_DEF] if self._runner is not None else []
+            messages = list(self._messages)
+
+            while True:
+                if self._cancel:
+                    return
+
+                resp = client.messages.create(
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=2048,
+                    system=self._system,
+                    messages=messages,
+                    tools=tools,
+                )
+
+                # 分离文本块和工具调用块
+                text_parts: list[str] = []
+                tool_uses: list = []
+                for block in resp.content:
+                    if block.type == "text":
+                        text_parts.append(block.text)
+                    elif block.type == "tool_use":
+                        tool_uses.append(block)
+
+                full_text = " ".join(text_parts)
+                if full_text:
+                    self._emit_text(full_text)
+
+                if resp.stop_reason == "end_turn" or not tool_uses:
+                    break
+
+                # ── 执行工具调用 ──
+                messages.append({"role": "assistant", "content": resp.content})
+                tool_results = []
+                for tu in tool_uses:
                     if self._cancel:
-                        break
-                    self.token.emit(text)
+                        return
+                    cmd    = tu.input.get("command", "")
+                    reason = tu.input.get("reason", "")
+                    self.tool_call.emit(cmd, reason)
+
+                    if _is_safe_cmd(cmd) and self._runner is not None:
+                        _, output = self._runner.run(cmd, timeout=300)
+                        if not output:
+                            output = "(无输出)"
+                    else:
+                        output = "[命令被拒绝：仅允许只读诊断命令，不允许写入/删除操作]"
+
+                    self.tool_result.emit(cmd, output)
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tu.id,
+                        "content": output[:4000],
+                    })
+
+                messages.append({"role": "user", "content": tool_results})
+
         except Exception as exc:
-            base_url = self._base_url or "https://api.anthropic.com"
             self.error.emit(f"{exc}\n[base_url: {base_url}]")
         finally:
             self.done.emit()
 
 
+# ── 消息气泡 ──────────────────────────────────────────────────────────────────
+
 class _MsgBubble(QFrame):
     def __init__(self, text: str, is_user: bool, parent=None):
         super().__init__(parent)
-        bg = "rgba(122,179,23,0.12)" if is_user else C_CARD
+        bg    = "rgba(122,179,23,0.12)" if is_user else C_CARD
         color = C_TEXT if is_user else C_TEXT2
         self.setStyleSheet(f"background:{bg}; border:none; border-radius:10px;")
 
@@ -131,14 +241,72 @@ class _MsgBubble(QFrame):
         self._label.setText(text)
 
 
-class AIChatPanel(QWidget):
-    def __init__(self, system_prompt: str = "", title: str = "AI 助手", parent=None):
+class _ToolCallBubble(QFrame):
+    """展示 AI 工具调用：命令 + 执行结果。"""
+
+    def __init__(self, cmd: str, reason: str, parent=None):
         super().__init__(parent)
-        self._system = system_prompt or _DEFAULT_SYSTEM
-        self._history = []
-        self._thread = None
+        self._cmd = cmd
+        self.setStyleSheet(
+            f"background: rgba(255,165,0,0.08); border: 1px solid rgba(255,165,0,0.20);"
+            f"border-radius:10px;"
+        )
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setSpacing(4)
+
+        # 标题行
+        hdr = QHBoxLayout()
+        hdr.setSpacing(6)
+        icon = QLabel("⚡")
+        icon.setStyleSheet(f"color:{C_ORANGE}; font-size:{_pt(10)}pt; background:transparent;")
+        hdr.addWidget(icon)
+        hdr.addWidget(_lbl(f"执行诊断：{reason}", 10, C_ORANGE))
+        hdr.addStretch()
+        lay.addLayout(hdr)
+
+        # 命令行
+        cmd_lbl = QLabel(f"$ {cmd}")
+        cmd_lbl.setWordWrap(True)
+        cmd_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        cmd_lbl.setStyleSheet(
+            f"color:{C_TEXT3}; font-size:{_pt(10)}pt; font-family:monospace;"
+            f"background:rgba(0,0,0,0.25); border:none; border-radius:4px; padding:4px 8px;"
+        )
+        lay.addWidget(cmd_lbl)
+
+        # 输出区（初始显示"执行中..."）
+        self._output_lbl = QLabel("执行中…")
+        self._output_lbl.setWordWrap(True)
+        self._output_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self._output_lbl.setStyleSheet(
+            f"color:{C_TEXT2}; font-size:{_pt(10)}pt; font-family:monospace;"
+            f"background:transparent; border:none;"
+        )
+        lay.addWidget(self._output_lbl)
+
+    def set_output(self, output: str):
+        lines = output.splitlines()
+        preview = "\n".join(lines[:20])
+        if len(lines) > 20:
+            preview += f"\n… 共 {len(lines)} 行"
+        self._output_lbl.setText(preview or "(无输出)")
+
+
+# ── 聊天面板 ──────────────────────────────────────────────────────────────────
+
+class AIChatPanel(QWidget):
+    def __init__(self, system_prompt: str = "", title: str = "AI 助手",
+                 runner=None, parent=None):
+        super().__init__(parent)
+        self._system     = system_prompt or _DEFAULT_SYSTEM
+        self._runner     = runner
+        self._history    = []
+        self._thread     = None
         self._cur_bubble = None
-        self._cur_text = ""
+        self._cur_text   = ""
+        self._pending_tool_bubble: _ToolCallBubble | None = None
         self._setup_ui(title)
 
     def _setup_ui(self, title: str):
@@ -147,6 +315,7 @@ class AIChatPanel(QWidget):
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
+        # ── 标题栏 ──
         title_row = QHBoxLayout()
         dot = QLabel("●")
         dot.setStyleSheet(f"color:{C_GREEN}; font-size:{_pt(8)}pt; background:transparent;")
@@ -154,6 +323,15 @@ class AIChatPanel(QWidget):
         title_row.addSpacing(6)
         title_row.addWidget(_lbl(title, 13, C_TEXT, bold=True))
         title_row.addStretch()
+
+        # SSH 状态 badge
+        self._ssh_badge = QLabel("无设备")
+        self._ssh_badge.setStyleSheet(
+            f"color:{C_TEXT3}; font-size:{_pt(9)}pt; background:rgba(255,255,255,0.06);"
+            f"border:none; border-radius:6px; padding:2px 8px;"
+        )
+        title_row.addWidget(self._ssh_badge)
+        self._update_ssh_badge()
 
         has_key = bool(_get_api_key())
         if not has_key:
@@ -174,6 +352,7 @@ class AIChatPanel(QWidget):
             title_row.addWidget(key_btn)
         layout.addLayout(title_row)
 
+        # ── 消息区 ──
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -188,6 +367,7 @@ class AIChatPanel(QWidget):
         self._scroll.setWidget(self._msg_widget)
         layout.addWidget(self._scroll, 1)
 
+        # ── API Key 配置框 ──
         self._key_frame = QFrame()
         self._key_frame.setStyleSheet(f"background:{C_CARD}; border:none; border-radius:8px;")
         key_layout = QHBoxLayout(self._key_frame)
@@ -217,6 +397,7 @@ class AIChatPanel(QWidget):
         self._key_frame.setVisible(False)
         layout.addWidget(self._key_frame)
 
+        # ── 输入框 ──
         input_row = QHBoxLayout()
         input_row.setSpacing(8)
 
@@ -237,7 +418,7 @@ class AIChatPanel(QWidget):
         self._input.returnPressed.connect(self._on_send)
 
         self._send_btn = _btn("发送", primary=True, small=True)
-        self._send_btn.setFixedWidth(_pt(60))
+        self._send_btn.setMinimumWidth(_pt(52))
         self._send_btn.clicked.connect(self._on_send)
 
         input_row.addWidget(self._input, 1)
@@ -249,8 +430,14 @@ class AIChatPanel(QWidget):
         else:
             self._add_ai_bubble("你好，我是 Jetson 开发助手。你可以直接问我 Jetson、Skills、环境配置和排障问题。")
 
+    # ── 公开接口 ─────────────────────────────────────────────────────────────
+
     def set_system(self, prompt: str):
         self._system = prompt
+
+    def set_runner(self, runner):
+        self._runner = runner
+        self._update_ssh_badge()
 
     def inject_context(self, skill_name: str, skill_desc: str, commands: list):
         commands_text = ""
@@ -260,6 +447,44 @@ class AIChatPanel(QWidget):
         text = f"帮我介绍一下这个 Skill：**{skill_name}**\n\n描述：{skill_desc}{commands_text}"
         self._add_user_bubble(text)
         self._fire_ai()
+
+    def inject_topic(self, title: str, summary: str, details=None):
+        detail_text = ""
+        if details:
+            preview = "\n".join(details[:8])
+            detail_text = f"\n\n补充信息：\n{preview}"
+        text = f"帮我介绍一下这个条目：{title}\n\n简介：{summary}{detail_text}"
+        self._add_user_bubble(text)
+        self._fire_ai()
+
+    def inject_error(self, title: str, log_text: str):
+        """注入执行失败日志，让 AI 分析原因并给出解决方案。"""
+        snippet = log_text[-3000:].strip()
+        text = (
+            f"运行「{title}」时出错了，以下是错误日志，请分析原因并给出解决方案：\n\n"
+            f"```\n{snippet}\n```"
+        )
+        self._add_user_bubble(text)
+        self._fire_ai()
+
+    # ── 内部方法 ─────────────────────────────────────────────────────────────
+
+    def _update_ssh_badge(self):
+        from seeed_jetson_develop.core.runner import SSHRunner
+        if isinstance(self._runner, SSHRunner):
+            self._ssh_badge.setText("SSH ✓")
+            self._ssh_badge.setStyleSheet(
+                f"color:{C_GREEN}; font-size:{_pt(9)}pt;"
+                f"background:rgba(141,194,31,0.12);"
+                f"border:none; border-radius:6px; padding:2px 8px;"
+            )
+        else:
+            self._ssh_badge.setText("无设备")
+            self._ssh_badge.setStyleSheet(
+                f"color:{C_TEXT3}; font-size:{_pt(9)}pt;"
+                f"background:rgba(255,255,255,0.06);"
+                f"border:none; border-radius:6px; padding:2px 8px;"
+            )
 
     def _toggle_key_frame(self):
         self._key_frame.setVisible(not self._key_frame.isVisible())
@@ -296,6 +521,12 @@ class AIChatPanel(QWidget):
         QTimer.singleShot(30, self._scroll_to_bottom)
         return bubble
 
+    def _insert_tool_bubble(self, cmd: str, reason: str) -> _ToolCallBubble:
+        bubble = _ToolCallBubble(cmd, reason, self._msg_widget)
+        self._msg_layout.insertWidget(self._msg_layout.count() - 1, bubble)
+        QTimer.singleShot(30, self._scroll_to_bottom)
+        return bubble
+
     def _scroll_to_bottom(self):
         bar = self._scroll.verticalScrollBar()
         bar.setValue(bar.maximum())
@@ -308,26 +539,52 @@ class AIChatPanel(QWidget):
         if self._thread and self._thread.isRunning():
             return
 
+        # 每次请求前同步全局 runner，避免 badge 与实际连接状态不一致
+        from seeed_jetson_develop.core.runner import get_runner, SSHRunner
+        runner = get_runner()
+        if isinstance(runner, SSHRunner):
+            self.set_runner(runner)
+
         self._cur_bubble = self._add_ai_bubble("")
-        self._cur_text = ""
+        self._cur_text   = ""
         self._send_btn.setEnabled(False)
         self._input.setEnabled(False)
 
-        self._thread = _AiThread(
+        self._thread = _AiToolThread(
             messages=list(self._history),
             system=self._system,
             api_key=api_key,
             base_url=_get_base_url(),
+            runner=self._runner,
         )
         self._thread.token.connect(self._on_token)
+        self._thread.tool_call.connect(self._on_tool_call)
+        self._thread.tool_result.connect(self._on_tool_result)
         self._thread.done.connect(self._on_done)
         self._thread.error.connect(self._on_error)
         self._thread.start()
 
     def _on_token(self, token: str):
+        # 新的文本 token → 如果上一段是工具气泡，新建一个 AI 气泡
+        if self._cur_bubble is None:
+            self._cur_bubble = self._add_ai_bubble("")
+            self._cur_text   = ""
         self._cur_text += token
-        if self._cur_bubble:
-            self._cur_bubble.set_text(self._cur_text)
+        self._cur_bubble.set_text(self._cur_text)
+        self._scroll_to_bottom()
+
+    def _on_tool_call(self, cmd: str, reason: str):
+        # 先把当前未完成的文本气泡入库
+        if self._cur_text:
+            self._history.append({"role": "assistant", "content": self._cur_text})
+        self._cur_bubble = None
+        self._cur_text   = ""
+        self._pending_tool_bubble = self._insert_tool_bubble(cmd, reason)
+
+    def _on_tool_result(self, cmd: str, output: str):
+        if self._pending_tool_bubble is not None:
+            self._pending_tool_bubble.set_output(output)
+            self._pending_tool_bubble = None
         self._scroll_to_bottom()
 
     def _on_done(self):
@@ -336,7 +593,7 @@ class AIChatPanel(QWidget):
         if self._cur_text:
             self._history.append({"role": "assistant", "content": self._cur_text})
         self._cur_bubble = None
-        self._cur_text = ""
+        self._cur_text   = ""
 
     def _on_error(self, msg: str):
         if self._cur_bubble:
@@ -345,30 +602,40 @@ class AIChatPanel(QWidget):
         self._input.setEnabled(True)
 
 
+# ── 浮动 AI 球 ────────────────────────────────────────────────────────────────
+
 class FloatingAIAssistant(QObject):
     def __init__(self, host: QWidget, system_prompt: str = "", title: str = "AI 助手"):
         super().__init__(host)
-        self._host = host
-        self._title = title
-        self._system = system_prompt or build_ai_system_prompt()
+        self._host      = host
+        self._title     = title
+        self._system    = system_prompt or build_ai_system_prompt()
         self._ball_size = _pt(60)
-        self._panel_w = _pt(420)
-        self._panel_h = _pt(560)
-        self._margin = _pt(24)
-        self._gap = _pt(14)
-        self._top_safe = _pt(84)
-        self._dragging = False
+        self._panel_w   = _pt(420)
+        self._panel_h   = _pt(560)
+        self._margin    = _pt(24)
+        self._gap       = _pt(14)
+        self._top_safe  = _pt(84)
+        self._dragging  = False
         self._drag_moved = False
         self._drag_offset = QPoint()
-        self._ball_pos = QPoint()
-        self._expanded = False
+        self._ball_pos  = QPoint()
+        self._expanded  = False
         self._build_ui()
         self._host.installEventFilter(self)
         self._ball.installEventFilter(self)
         self._snap_to_corner()
         self._update_positions()
+        self._connect_bus()
 
     def _build_ui(self):
+        from seeed_jetson_develop.core.runner import get_runner
+        init_runner = get_runner()
+        # 本地 Runner 不算"已连接设备"
+        from seeed_jetson_develop.core.runner import SSHRunner
+        if not isinstance(init_runner, SSHRunner):
+            init_runner = None
+
         self._panel = QFrame(self._host)
         self._panel.setObjectName("FloatingAIPanel")
         self._panel.setStyleSheet(f"""
@@ -415,7 +682,12 @@ class FloatingAIAssistant(QObject):
         header_layout.addWidget(close_btn)
         panel_layout.addWidget(header)
 
-        self._chat = AIChatPanel(system_prompt=self._system, title=self._title, parent=self._panel)
+        self._chat = AIChatPanel(
+            system_prompt=self._system,
+            title=self._title,
+            runner=init_runner,
+            parent=self._panel,
+        )
         panel_layout.addWidget(self._chat, 1)
         self._panel.resize(self._panel_w, self._panel_h)
         self._panel.hide()
@@ -446,13 +718,28 @@ class FloatingAIAssistant(QObject):
         """)
         self._ball.raise_()
 
+    def _connect_bus(self):
+        try:
+            from seeed_jetson_develop.core.events import bus
+            bus.device_connected.connect(self._on_device_connected)
+            bus.device_disconnected.connect(self._on_device_disconnected)
+        except Exception:
+            pass
+
+    def _on_device_connected(self, _info: dict):
+        from seeed_jetson_develop.core.runner import get_runner
+        self._chat.set_runner(get_runner())
+
+    def _on_device_disconnected(self, _ip: str):
+        self._chat.set_runner(None)
+
     def eventFilter(self, obj, event):
         if obj is self._host and event.type() in {QEvent.Resize, QEvent.Show}:
             self._constrain_ball()
             self._update_positions()
         elif obj is self._ball:
             if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-                self._dragging = True
+                self._dragging  = True
                 self._drag_moved = False
                 self._drag_offset = event.pos()
                 return True
@@ -478,11 +765,27 @@ class FloatingAIAssistant(QObject):
             self.show_panel()
 
     def show_panel(self):
+        # 每次打开时同步全局 runner 状态，避免事件时序问题
+        from seeed_jetson_develop.core.runner import get_runner, SSHRunner
+        runner = get_runner()
+        self._chat.set_runner(runner if isinstance(runner, SSHRunner) else None)
         self._expanded = True
         self._panel.show()
         self._update_positions()
         self._panel.raise_()
         self._ball.raise_()
+
+    def inject_context(self, skill_name: str, skill_desc: str, commands: list):
+        self.show_panel()
+        self._chat.inject_context(skill_name, skill_desc, commands)
+
+    def inject_topic(self, title: str, summary: str, details=None):
+        self.show_panel()
+        self._chat.inject_topic(title, summary, details)
+
+    def inject_error(self, title: str, log_text: str):
+        self.show_panel()
+        self._chat.inject_error(title, log_text)
 
     def hide_panel(self):
         self._expanded = False
@@ -514,10 +817,10 @@ class FloatingAIAssistant(QObject):
         self._set_ball_pos(self._ball_pos)
 
     def _safe_ball_rect(self) -> QRect:
-        left = self._margin
-        top = self._top_safe
-        right = max(left, self._host.width() - self._margin - self._ball_size)
-        bottom = max(top, self._host.height() - self._margin - self._ball_size)
+        left  = self._margin
+        top   = self._top_safe
+        right  = max(left, self._host.width()  - self._margin - self._ball_size)
+        bottom = max(top,  self._host.height() - self._margin - self._ball_size)
         return QRect(left, top, max(1, right - left + 1), max(1, bottom - top + 1))
 
     def _update_positions(self):
@@ -531,15 +834,22 @@ class FloatingAIAssistant(QObject):
         host_w = self._host.width()
         host_h = self._host.height()
 
+        # 动态计算面板尺寸，适应小窗口
+        avail_w = host_w - 2 * self._margin
+        avail_h = host_h - self._top_safe - self._ball_size - self._gap - self._margin
+        pw = max(_pt(280), min(self._panel_w, avail_w))
+        ph = max(_pt(300), min(self._panel_h, avail_h))
+        self._panel.resize(pw, ph)
+
         if ball_x + (self._ball_size // 2) >= host_w / 2:
-            panel_x = ball_x + self._ball_size - self._panel_w
+            panel_x = ball_x + self._ball_size - pw
         else:
             panel_x = ball_x
-        panel_y = ball_y - self._panel_h - self._gap
+        panel_y = ball_y - ph - self._gap
 
-        panel_x = max(self._margin, min(panel_x, host_w - self._panel_w - self._margin))
-        min_y = self._top_safe
-        max_y = max(min_y, host_h - self._panel_h - self._ball_size - self._gap - self._margin)
+        panel_x = max(self._margin, min(panel_x, host_w - pw - self._margin))
+        min_y   = self._top_safe
+        max_y   = max(min_y, host_h - ph - self._ball_size - self._gap - self._margin)
         panel_y = max(min_y, min(panel_y, max_y))
 
         self._panel.move(panel_x, panel_y)

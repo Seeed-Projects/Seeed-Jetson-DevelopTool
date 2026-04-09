@@ -1,97 +1,45 @@
 [
   {
-    "id": "yolov8",
-    "icon": "🎯",
-    "name": "YOLOv8 目标检测",
-    "category": "CV / 视觉",
-    "desc": "实时目标检测，支持摄像头 / MIPI 输入，适合边缘推理场景",
-    "skill_id": null,
-    "check_cmd": "python3 -c 'import ultralytics' 2>/dev/null",
-    "install_cmds": [
-      "pip3 install ultralytics",
-      "python3 -c 'import ultralytics; print(\"YOLOv8:\", ultralytics.__version__)'"
-    ],
-    "uninstall_cmds": [
-      "pip3 uninstall -y ultralytics"
-    ]
-  },
-  {
-    "id": "qwen2",
-    "icon": "🤖",
-    "name": "Qwen2 本地推理",
-    "category": "大语言模型",
-    "desc": "阿里 Qwen2 模型，支持中文对话，针对 Jetson 内存占用优化",
-    "skill_id": "qwen_demo",
-    "check_cmd": "python3 -c 'import transformers' 2>/dev/null",
+    "id": "jtop",
+    "example_name": null,
+    "icon": "📼",
+    "name": "jtop 监控",
+    "category": "开发工具",
+    "desc": "jetson-stats 系统监控工具，实时查看 GPU / CPU / 内存使用率",
+    "skill_id": "install_jtop",
+    "check_cmd": "which jtop 2>/dev/null",
     "install_cmds": null,
+    "run_cmds": null,
+    "clean_cmds": null,
     "uninstall_cmds": [
-      "pip3 uninstall -y transformers"
-    ]
-  },
-  {
-    "id": "lerobot",
-    "icon": "🦾",
-    "name": "LeRobot 机器人",
-    "category": "机器人",
-    "desc": "Hugging Face LeRobot 开发套件，支持机械臂控制与模仿学习",
-    "skill_id": "lerobot",
-    "check_cmd": "python3 -c 'import lerobot' 2>/dev/null",
-    "install_cmds": null,
-    "uninstall_cmds": [
-      "pip3 uninstall -y lerobot"
-    ]
-  },
-  {
-    "id": "kokoro",
-    "icon": "🗣",
-    "name": "Kokoro TTS",
-    "category": "TTS 语音",
-    "desc": "高质量文字转语音，支持多语言，本地推理无需网络",
-    "skill_id": null,
-    "check_cmd": "python3 -c 'import kokoro' 2>/dev/null",
-    "install_cmds": [
-      "pip3 install kokoro>=0.9.4 soundfile",
-      "python3 -c 'import kokoro; print(\"Kokoro ready\")'"
-    ],
-    "uninstall_cmds": [
-      "pip3 uninstall -y kokoro soundfile"
-    ]
-  },
-  {
-    "id": "sd",
-    "icon": "🌊",
-    "name": "Stable Diffusion",
-    "category": "CV / 视觉",
-    "desc": "本地图像生成，SDXL-Turbo 优化版，支持 GPU 加速推理",
-    "skill_id": null,
-    "check_cmd": "python3 -c 'import diffusers' 2>/dev/null",
-    "install_cmds": [
-      "pip3 install diffusers transformers accelerate",
-      "python3 -c 'import diffusers; print(\"diffusers:\", diffusers.__version__)'"
-    ],
-    "uninstall_cmds": [
-      "pip3 uninstall -y diffusers accelerate"
+      "sudo pip3 uninstall -y jetson-stats"
     ]
   },
   {
     "id": "jupyter",
-    "icon": "📊",
+    "example_name": null,
+    "icon": "📓",
     "name": "Jupyter Lab",
     "category": "开发工具",
     "desc": "交互式 Python 开发环境，支持 GPU 监控插件",
     "skill_id": null,
-    "check_cmd": "which jupyter 2>/dev/null",
+    "check_cmd": "python3 -m jupyter --version 2>/dev/null",
     "install_cmds": [
       "pip3 install jupyterlab",
-      "jupyter --version"
+      "python3 -m jupyter --version"
     ],
+    "run_cmds": [
+      "jupyter lab --ip=0.0.0.0 --no-browser"
+    ],
+    "clean_cmds": null,
     "uninstall_cmds": [
       "pip3 uninstall -y jupyterlab"
     ]
   },
   {
     "id": "nodered",
-    "icon": "🔴",
+    "example_name": null,
+    "icon": "🔶",
     "name": "Node-RED",
     "category": "开发工具",
     "desc": "可视化流程编排工具，IoT 与边缘计算场景适用",
@@ -102,54 +50,53 @@
       "sudo npm install -g --unsafe-perm node-red",
       "node-red --version"
     ],
+    "run_cmds": [
+      "node-red"
+    ],
+    "clean_cmds": null,
     "uninstall_cmds": [
       "sudo npm uninstall -g node-red"
     ]
   },
   {
-    "id": "ollama",
-    "icon": "🦙",
-    "name": "Ollama",
-    "category": "大语言模型",
-    "desc": "本地 LLM 运行框架，支持 Llama、Qwen、Mistral 等多种模型",
+    "id": "yolov26-dual-gmsl",
+    "example_name": null,
+    "icon": "CV",
+    "name": "YOLOv26 Dual GMSL",
+    "category": "CV / Vision",
+    "desc": "基于双路 GMSL 相机的 YOLOv26 TensorRT 视觉系统，运行检测、姿态和分割三路推理。",
     "skill_id": null,
-    "check_cmd": "which ollama 2>/dev/null",
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && test -x /home/seeed/yolov26_jetson/run_dual_gmsl_local.sh && test -f /home/seeed/ultralytics_data/yolov26n.engine && python3 -c \"import ultralytics, torch, torchvision, onnxruntime\" 2>/dev/null'",
     "install_cmds": [
-      "curl -fsSL https://ollama.com/install.sh | sh",
-      "ollama --version"
+      "sudo apt-get update",
+      "sudo apt-get install -y git python3-pip v4l-utils libcusparselt0",
+      "python3 -m pip install --user -U pip",
+      "cd /home/seeed && [ -d yolov26_jetson ] || git clone https://github.com/bleaaach/yolov26_jetson.git",
+      "python3 -m pip install --user \"ultralytics[export]\"",
+      "python3 -m pip uninstall -y torch torchvision || true",
+      "python3 -m pip install --user https://github.com/ultralytics/assets/releases/download/v0.0.0/torch-2.5.0a0+872d972e41.nv24.08-cp310-cp310-linux_aarch64.whl",
+      "python3 -m pip install --user https://github.com/ultralytics/assets/releases/download/v0.0.0/torchvision-0.20.0a0+afc54f7-cp310-cp310-linux_aarch64.whl",
+      "python3 -m pip install --user https://github.com/ultralytics/assets/releases/download/v0.0.0/onnxruntime_gpu-1.23.0-cp310-cp310-linux_aarch64.whl",
+      "grep -qxF 'export PATH=$PATH:~/.local/bin' ~/.bashrc || echo 'export PATH=$PATH:~/.local/bin' >> ~/.bashrc",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && python3 -c \"import ultralytics, torch, torchvision, onnxruntime; print(ultralytics.__version__); print(torch.__version__); print(torchvision.__version__); print(onnxruntime.__version__)\"'",
+      "mkdir -p /home/seeed/ultralytics_data",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && cd /home/seeed/ultralytics_data && [ -f yolov26n.engine ] || yolo export model=yolov26n.pt format=engine device=0 half=True'",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && cd /home/seeed/ultralytics_data && [ -f yolov26n-pose.engine ] || yolo export model=yolov26n-pose.pt format=engine device=0 half=True'",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && cd /home/seeed/ultralytics_data && [ -f yolov26n-seg.engine ] || yolo export model=yolov26n-seg.pt format=engine device=0 half=True'"
     ],
-    "uninstall_cmds": [
-      "sudo rm -f /usr/local/bin/ollama",
-      "sudo rm -rf /usr/local/lib/ollama"
-    ]
-  },
-  {
-    "id": "whisper",
-    "icon": "🎙",
-    "name": "Whisper 语音识别",
-    "category": "TTS 语音",
-    "desc": "OpenAI Whisper，离线语音转文字，支持中文，GPU 加速",
-    "skill_id": null,
-    "check_cmd": "python3 -c 'import faster_whisper' 2>/dev/null",
-    "install_cmds": [
-      "pip3 install faster-whisper",
-      "python3 -c 'import faster_whisper; print(\"Whisper ready\")'"
+    "run_cmds": [
+      "cd /home/seeed/yolov26_jetson && chmod +x run_dual_gmsl_local.sh && ./run_dual_gmsl_local.sh"
     ],
-    "uninstall_cmds": [
-      "pip3 uninstall -y faster-whisper"
-    ]
-  },
-  {
-    "id": "jtop",
-    "icon": "🖥",
-    "name": "jtop 监控",
-    "category": "开发工具",
-    "desc": "jetson-stats 系统监控工具，实时查看 GPU / CPU / 内存使用率",
-    "skill_id": "install_jtop",
-    "check_cmd": "which jtop 2>/dev/null",
-    "install_cmds": null,
-    "uninstall_cmds": [
-      "sudo pip3 uninstall -y jetson-stats"
-    ]
+    "clean_cmds": [
+      "rm -f /home/seeed/ultralytics_data/yolov26n.engine /home/seeed/ultralytics_data/yolov26n-pose.engine /home/seeed/ultralytics_data/yolov26n-seg.engine"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "36.x"
+      ],
+      "required_disk_gb": 20,
+      "required_mem_gb": 8
+    }
   }
 ]
