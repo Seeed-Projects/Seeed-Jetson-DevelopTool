@@ -1,38 +1,49 @@
 # Seeed Jetson Develop Tool
 
-面向 Seeed Studio Jetson 全系列产品的 AI 开发工作台，覆盖从刷机到应用部署的完整流程。
+An all-in-one AI development workbench for Seeed Studio Jetson products — covering everything from firmware flashing to app deployment.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg)]()
 
-![UI Preview](assets/reference-UI.png)
+[中文文档](README_zh.md)
 
----
-
-## 功能概览
-
-| 模块 | 状态 | 说明 |
-|------|------|------|
-| 烧录 | ✅ | 全系列 Jetson 固件下载、SHA256 校验、一键刷写 |
-| 设备管理 | ✅ | 快速诊断、外设检测、设备信息采集 |
-| Skills | ✅ | 50+ 内置技能 + OpenClaw 社区技能，覆盖驱动、AI 部署、系统优化 |
-| 环境配置 | 🚧 | 一键配置 PyTorch、Docker、jtop 等开发环境 |
-| 应用市场 | 🚧 | AI 应用一键安装（YOLOv8、Ollama、DeepSeek 等） |
-| 远程开发 | 🚧 | SSH 连接管理、VS Code Remote 集成 |
+![UI Preview](assets/Reference-UI.png)
 
 ---
 
-## 安装
+## Features
 
-**系统要求**：Ubuntu 20.04 / 22.04，Python 3.8+，PyQt5
+| Module | Status | Description |
+|--------|--------|-------------|
+| Flash Center | ✅ | Download, verify (SHA256), and flash firmware for all Jetson series with one click |
+| Device Management | ✅ | Quick diagnostics, peripheral detection, real-time device info |
+| App Market | ✅ | Browse and install AI apps — YOLOv8, Ollama, DeepSeek, Node-RED, and more |
+| Skills | ✅ | 50+ built-in automation skills covering drivers, AI deployment, and system tuning |
+| Remote Dev | ✅ | SSH connection, VS Code Server, Jupyter Lab, VNC remote desktop, AI agent install |
+| PC Network Sharing | ✅ | Share PC internet to Jetson over Ethernet, with automatic proxy forwarding |
+| Jetson Init | ✅ | First-boot serial terminal wizard for username, network, and system setup |
+| Community | ✅ | Quick links to Wiki, forum, Discord, and video tutorials |
+
+---
+
+## Requirements
+
+- **Host OS**: Ubuntu 20.04 / 22.04 / 24.04 (Linux recommended for flashing)
+- **Python**: 3.10+
+- **Dependencies**: PyQt5, paramiko, requests
+
+---
+
+## Installation
 
 ```bash
-git clone https://github.com/Seeed-Studio/seeed-jetson-develop.git
-cd seeed-jetson-develop
+git clone https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool.git
+cd Seeed-Jetson-DevelopTool
 pip install -r requirements.txt
 ```
 
-启动 GUI：
+Launch the GUI:
 
 ```bash
 python3 run_v2.py
@@ -40,76 +51,120 @@ python3 run_v2.py
 
 ---
 
-## 支持设备
+## Supported Devices
 
-### reComputer Super
-J4012s / J4011s / J3011s / J3010s — L4T 36.4.3
+### reComputer Super (Orin NX / Nano)
+| Model | L4T |
+|-------|-----|
+| J4012s (16GB) / J4011s (8GB) | 36.4.3 |
+| J3011s (8GB) / J3010s (4GB) | 36.4.3 |
 
-### reComputer Mini
-J4012mini / J4011mini — L4T 36.3.0, 35.5.0
-J3011mini / J3010mini — L4T 36.4.3, 36.3.0, 35.5.0
+### reComputer Mini (Orin NX / Nano)
+| Model | L4T |
+|-------|-----|
+| J4012mini / J4011mini | 36.3.0, 35.5.0 |
+| J3011mini / J3010mini | 36.4.3, 36.3.0, 35.5.0 |
 
-### reComputer Robotics
-J4012robotics / J4011robotics / J3011robotics / J3010robotics — L4T 36.4.3
+### reComputer Robotics (GMSL, Orin NX / Nano)
+| Model | L4T |
+|-------|-----|
+| J4012robotics / J4011robotics | 36.4.3 |
+| J3011robotics / J3010robotics | 36.4.3 |
 
-### reComputer Classic
-J4012classic / J4011classic / J3011classic / J3010classic — L4T 36.4.3, 36.4.0, 36.3.0, 35.5.0
+### reComputer Classic (Orin NX / Nano)
+| Model | L4T |
+|-------|-----|
+| J4012classic / J4011classic | 36.4.3, 36.4.0, 36.3.0, 35.5.0 |
+| J3011classic / J3010classic | 36.4.3, 36.4.0, 36.3.0, 35.5.0 |
 
-### reComputer Industrial
-J4012industrial / J4011industrial / J3011industrial / J3010industrial — L4T 36.4.3, 36.4.0, 36.3.0, 35.5.0, 35.3.1
-J2012industrial / J2011industrial (Xavier NX) — L4T 35.5.0, 35.3.1
+### reComputer Industrial (Orin NX / Nano)
+| Model | L4T |
+|-------|-----|
+| J4012industrial / J4011industrial | 36.4.3, 36.4.4, 36.4.0, 36.3.0, 35.5.0, 35.3.1 |
+| J3011industrial / J3010industrial | 36.4.3, 36.4.0, 36.3.0, 35.5.0, 35.3.1 |
+| J2012industrial / J2011industrial (Xavier NX) | 35.5.0, 35.3.1 |
 
-### reServer Industrial
-J4012reserver / J4011reserver / J3011reserver / J3010reserver — L4T 36.4.3, 36.4.0, 36.3.0
+### reServer Industrial (Orin NX / Nano)
+| Model | L4T |
+|-------|-----|
+| J4012reserver / J4011reserver | 36.4.3, 36.4.0, 36.3.0 |
+| J3011reserver / J3010reserver | 36.4.3, 36.4.0, 36.3.0 |
 
-### J501 系列（AGX Orin）
-64GB / 32GB，含 GMSL 版本 — L4T 36.4.3, 36.3.0, 35.5.0
+### J501 Carrier Board (AGX Orin)
+| Model | L4T |
+|-------|-----|
+| 64GB / 32GB (standard + GMSL) | 36.4.3, 36.3.0, 35.5.0 |
+
+---
+
+## Flash Workflow
+
+1. Select your device model and L4T version
+2. Click **Download / Extract BSP** — firmware is downloaded with SHA256 verification and resume support
+3. Put the device into Recovery mode (hold Recovery button while powering on)
+4. Click **Detect Device** to confirm USB connection
+5. Click **Start Flash** — takes 2–10 minutes
+
+> Flashing requires a Linux host. Windows users can use WSL2 with USB passthrough.
+
+---
+
+## Remote Development
+
+Connect to Jetson over SSH and access:
+
+- **VS Code Server** — browser-based IDE running on Jetson
+- **Jupyter Lab** — interactive Python notebooks
+- **VNC Remote Desktop** — full graphical desktop via browser (noVNC) or VNC client
+- **AI Agent Install** — install Claude Code, Codex, or OpenClaw CLI on Jetson
+- **PC Network Sharing** — share PC internet to Jetson, with automatic proxy detection and forwarding
+
+---
+
+## Skills
+
+50+ built-in skills across these categories:
+
+- **Drivers & Fixes** — USB-WiFi (88x2bu), 5G modules, Bluetooth conflicts, NVMe boot, Docker cleanup
+- **AI / LLM** — PyTorch, Ollama, DeepSeek, Qwen2, LeRobot, vLLM
+- **Vision / YOLO** — YOLOv8, DeepStream, NVBLOX, depth estimation
+- **Network & Remote** — VS Code Server, VNC, SSH keys, proxy setup
+- **System Tuning** — max performance mode, swap config, fan control, cache cleanup
+
+Community skills in [OpenClaw](https://github.com/Seeed-Studio/openclaw) format are auto-loaded from the `skills/openclaw/` directory.
 
 ---
 
 ## CLI
 
 ```bash
-# 列出支持的产品
+# List supported products
 python3 -m seeed_jetson_develop.cli list-products
 
-# 查看 Recovery 教程
+# Show Recovery guide for a device
 python3 -m seeed_jetson_develop.cli recovery -p j4012mini
 
-# 刷写固件
+# Flash firmware
 python3 -m seeed_jetson_develop.cli flash -p j4012mini -l 36.3.0
 ```
 
 ---
 
-## Skills
+## Documentation
 
-内置 50+ 技能，覆盖以下方向：
-
-- **驱动 & 系统修复**：USB-WiFi、5G 模块、蓝牙冲突、NVMe 启动、Docker 清理
-- **AI & 大模型**：PyTorch、Ollama、DeepSeek、Qwen2、LeRobot、vLLM
-- **视觉 / YOLO**：YOLOv8、DeepStream、NVBLOX、深度估计
-- **网络 & 远程**：VS Code Server、VNC、SSH 密钥、代理配置
-- **系统优化**：最大性能模式、Swap 配置、风扇控制、缓存清理
-
-同时支持 [OpenClaw](https://github.com/Seeed-Studio/openclaw) 格式的社区技能，放入 `skills/openclaw/` 目录后自动加载。
+- [docs/QUICKSTART.md](docs/QUICKSTART.md) — Quick start guide
+- [docs/USAGE.md](docs/USAGE.md) — CLI reference
+- [docs/GUI_GUIDE.md](docs/GUI_GUIDE.md) — GUI user guide
 
 ---
 
-## 文档
+## Support
 
-- [QUICKSTART.md](docs/QUICKSTART.md) — 快速上手
-- [USAGE.md](docs/USAGE.md) — CLI 详细用法
-- [GUI_GUIDE.md](docs/GUI_GUIDE.md) — GUI 使用指南
-- [CONTEXT.md](CONTEXT.md) — 工程架构说明
+- Wiki: https://wiki.seeedstudio.com/
+- Forum: https://forum.seeedstudio.com/
+- Discord: https://discord.gg/eWkprNDMU7
 
 ---
-
-## 技术支持
-
-- Wiki：https://wiki.seeedstudio.com/
-- 论坛：https://forum.seeedstudio.com/
-- Discord：https://discord.gg/eWkprNDMU7
 
 ## License
 
