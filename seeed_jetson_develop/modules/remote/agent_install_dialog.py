@@ -104,7 +104,7 @@ class AgentInstallDialog(QDialog):
         self._i18n = I18nBinding()
 
         self.setWindowTitle(t("remote.agent_install.window_title", lang=self._lang))
-        self.setMinimumSize(660, 540)
+        self.setMinimumSize(pt(660), pt(540))
         self.setSizeGripEnabled(True)
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
 
@@ -182,7 +182,7 @@ class AgentInstallDialog(QDialog):
         ll.addWidget(self._log_title)
         self._log = QTextEdit()
         self._log.setReadOnly(True)
-        self._log.setMinimumHeight(120)
+        self._log.setMinimumHeight(pt(120))
         self._log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._log.setStyleSheet(f"""
             QTextEdit {{
@@ -209,6 +209,21 @@ class AgentInstallDialog(QDialog):
         self._bind_i18n()
         self.retranslate_ui(self._lang)
         self._do_detect()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _tr(self, key: str, **kwargs) -> str:
         return t(key, lang=self._lang, **kwargs)

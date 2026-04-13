@@ -157,7 +157,7 @@ class NetShareDialog(QDialog):
         self._ip_label: QLabel | None = None
 
         self.setWindowTitle("PC 网络共享")
-        self.setMinimumSize(640, 520)
+        self.setMinimumSize(pt(640), pt(520))
         self.setSizeGripEnabled(True)
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
 
@@ -192,7 +192,7 @@ class NetShareDialog(QDialog):
         wan_row.setSpacing(8)
         wan_row.addWidget(make_label("PC 上网网卡 (WAN)", 12, C_TEXT2))
         self._wan_combo = QComboBox()
-        self._wan_combo.setMinimumWidth(200)
+        self._wan_combo.setMinimumWidth(pt(200))
         wan_row.addWidget(self._wan_combo)
         wan_row.addStretch()
         cl.addLayout(wan_row)
@@ -202,7 +202,7 @@ class NetShareDialog(QDialog):
         lan_row.setSpacing(8)
         lan_row.addWidget(make_label("PC 连接 Jetson 的网卡 (LAN)", 12, C_TEXT2))
         self._lan_combo = QComboBox()
-        self._lan_combo.setMinimumWidth(200)
+        self._lan_combo.setMinimumWidth(pt(200))
         lan_row.addWidget(self._lan_combo)
         lan_row.addStretch()
         cl.addLayout(lan_row)
@@ -215,7 +215,7 @@ class NetShareDialog(QDialog):
             self._sudo_edit = QLineEdit()
             self._sudo_edit.setEchoMode(QLineEdit.Password)
             self._sudo_edit.setPlaceholderText("本机管理员密码")
-            self._sudo_edit.setFixedWidth(180)
+            self._sudo_edit.setFixedWidth(pt(180))
             self._sudo_edit.setStyleSheet(
                 f"QLineEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:8px;"
                 f" padding:6px 10px; color:{C_TEXT}; font-size:{pt(11)}px; }}"
@@ -261,7 +261,7 @@ class NetShareDialog(QDialog):
         log_lay.addWidget(make_label("执行日志", 12, C_TEXT, bold=True))
         self._log = QTextEdit()
         self._log.setReadOnly(True)
-        self._log.setMinimumHeight(140)
+        self._log.setMinimumHeight(pt(140))
         self._log.setLineWrapMode(QTextEdit.WidgetWidth)
         self._log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._log.setStyleSheet(f"""
@@ -286,10 +286,25 @@ class NetShareDialog(QDialog):
         self._disable_btn.clicked.connect(self._do_disable)
 
         self._refresh_ifaces()
-        
+
         # 应用语言翻译
         if self._lang == "en":
             apply_language(self, "en")
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _refresh_ifaces(self):
         self._refresh_btn.setEnabled(False)

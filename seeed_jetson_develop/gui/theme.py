@@ -8,11 +8,29 @@
 """
 from __future__ import annotations
 
+import sys
+from dataclasses import dataclass
+
 from PyQt5.QtCore import Qt, QRect
 from PyQt5.QtGui import QColor, QFont, QFontDatabase
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QFrame, QGraphicsDropShadowEffect,
     QHBoxLayout, QLabel, QMessageBox, QPushButton, QWidget, QVBoxLayout,
+)
+
+
+@dataclass(frozen=True)
+class _PlatformConfig:
+    """Compatibility platform config consumed by legacy pages."""
+    is_windows: bool
+    win_min_w: int
+    win_min_h: int
+
+
+PLATFORM = _PlatformConfig(
+    is_windows=(sys.platform == "win32"),
+    win_min_w=1120,
+    win_min_h=720,
 )
 
 # ── 颜色系统 ──────────────────────────────────────────────────────────────────
@@ -78,7 +96,6 @@ def pt(px: int) -> int:
     Windows 上 Qt stylesheet 的 pt 单位会被系统 DPI 二次放大，
     所以 Windows 下按 0.80 缩放避免字号偏大。
     """
-    import sys
     scale = 0.80 if sys.platform == "win32" else 1.0
     return max(8, int(px * scale))
 
@@ -217,8 +234,9 @@ def make_button(text: str, primary: bool = False,
 def make_card(radius: int = 12, with_shadow: bool = True) -> QFrame:
     """创建卡片 - 带高光顶边和立体阴影"""
     f = QFrame()
+    f.setObjectName("SeeedCard")
     f.setStyleSheet(f"""
-        QFrame {{
+        QFrame#SeeedCard {{
             background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                 stop:0 #1E2D40, stop:1 {C_CARD});
             border: 1px solid {C_BORDER_CARD};
@@ -229,13 +247,22 @@ def make_card(radius: int = 12, with_shadow: bool = True) -> QFrame:
     if with_shadow:
         apply_shadow(f, blur=28, y=6, alpha=80)
     return f
+    if with_shadow:
+        apply_shadow(f, blur=28, y=6, alpha=80)
+    return f
+
+
+def make_list_card() -> QFrame:
+    """Backward-compatible alias for list-style cards."""
+    return make_card()
 
 
 def make_input_card(radius: int = 10) -> QFrame:
     """创建输入框容器 - 内凹感"""
     f = QFrame()
+    f.setObjectName("SeeedInputCard")
     f.setStyleSheet(f"""
-        QFrame {{
+        QFrame#SeeedInputCard {{
             background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                 stop:0 #141E2C, stop:1 {C_CARD_LIGHT});
             border: 1px solid rgba(255,255,255,0.06);
@@ -298,10 +325,11 @@ def make_tab_button(text: str, active: bool = False) -> "QPushButton":
             color: {color};
             border: none;
             border-radius: 0px;
-            padding: {pt(6)}px {pt(18)}px;
+            padding: 0px {pt(18)}px;
             font-size: {pt(11)}px;
             font-weight: {weight};
             min-height: {pt(36)}px;
+            text-align: center;
         }}
         QPushButton:hover {{ background: rgba(255,255,255,0.06); color:{C_TEXT}; }}
     """)

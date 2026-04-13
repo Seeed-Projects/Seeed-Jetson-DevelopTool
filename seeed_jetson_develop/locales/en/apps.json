@@ -1,6 +1,8 @@
 {
   "apps.page.title": "App Marketplace",
   "apps.page.subtitle": "Browse, install, run, and manage Jetson apps and examples",
+  "apps.banner.title": "APP MARKET for one-click Jetson demos",
+  "apps.banner.summary": "{total} apps, {installed} installed, {checking} checking status",
   "apps.category.all": "All",
   "apps.category.installed": "Installed",
   "apps.status.installed": "Installed",

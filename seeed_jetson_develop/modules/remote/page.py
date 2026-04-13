@@ -62,7 +62,7 @@ def _show_need_connection_dialog(parent: QWidget, tool_name: str):
     dlg = QDialog(parent)
     dlg.setWindowTitle(_tt("remote.need_conn.title"))
     dlg.setModal(True)
-    dlg.setMinimumWidth(460)
+    dlg.setMinimumWidth(_pt(460))
     dlg.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
     lay = QVBoxLayout(dlg)
     lay.setContentsMargins(24, 22, 24, 20)
@@ -146,7 +146,7 @@ class _ApiKeyDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(_tt("remote.api_key.title"))
-        self.setMinimumSize(560, 400)
+        self.setMinimumSize(_pt(560), _pt(400))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
@@ -277,7 +277,7 @@ class _VscodeWebDialog(QDialog):
         self._ip = ip
         self._thread = None
         self.setWindowTitle(_tt("remote.vscode_web.window_title"))
-        self.setMinimumSize(640, 500)
+        self.setMinimumSize(_pt(640), _pt(500))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
@@ -306,6 +306,21 @@ class _VscodeWebDialog(QDialog):
         lay.addLayout(row)
         self._run_btn.clicked.connect(self._start)
         close_btn.clicked.connect(self.close)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _append(self, line):
         self._log.append(line)
@@ -358,7 +373,7 @@ class _JupyterLaunchDialog(QDialog):
         self._ip = ip
         self._thread = None
         self.setWindowTitle(_tt("remote.jupyter_launch.window_title"))
-        self.setMinimumSize(640, 500)
+        self.setMinimumSize(_pt(640), _pt(500))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
@@ -387,6 +402,21 @@ class _JupyterLaunchDialog(QDialog):
         lay.addLayout(row)
         self._run_btn.clicked.connect(self._start)
         close_btn.clicked.connect(self.close)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _append(self, line):
         self._log.append(line)
@@ -448,7 +478,7 @@ class _VscodeSSHDialog(QDialog):
     def __init__(self, ip: str = "", parent=None):
         super().__init__(parent)
         self.setWindowTitle(_tt("remote.vscode_ssh.window_title"))
-        self.setMinimumSize(620, 480)
+        self.setMinimumSize(_pt(620), _pt(480))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
@@ -466,6 +496,21 @@ class _VscodeSSHDialog(QDialog):
         close_btn.clicked.connect(self.close)
         row.addWidget(close_btn)
         lay.addLayout(row)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
 
 def build_page() -> QWidget:
@@ -586,7 +631,7 @@ def build_page() -> QWidget:
     subnet_label = _lbl(_tt("remote.conn.subnet"), 11, C_TEXT2)
     subnet_input = QLineEdit(conn_cfg.get("remote_last_subnet", "192.168.1") or "192.168.1")
     subnet_input.setPlaceholderText("192.168.x")
-    subnet_input.setFixedWidth(160)
+    subnet_input.setFixedWidth(_pt(160))
     subnet_input.setFixedHeight(_pt(40))
     subnet_input.setStyleSheet(user_input.styleSheet())
     subnet_row = QHBoxLayout()

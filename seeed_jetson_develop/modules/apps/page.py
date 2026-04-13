@@ -146,12 +146,27 @@ class _InstallDialog(QDialog):
         }
         title = title_map.get(mode, _at("apps.action.execute"))
         self.setWindowTitle(f"{title}  {app['name']}")
-        self.setMinimumSize(640, 520)
+        self.setMinimumSize(_pt(640), _pt(480))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
 
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(24, 20, 24, 20)
+        root_lay = QVBoxLayout(self)
+        root_lay.setContentsMargins(0, 0, 0, 0)
+        root_lay.setSpacing(0)
+
+        # ── 可滚动主体 ──
+        from PyQt5.QtWidgets import QScrollArea
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setStyleSheet("background:transparent; border:none;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        inner = QWidget()
+        inner.setStyleSheet("background:transparent;")
+        lay = QVBoxLayout(inner)
+        lay.setContentsMargins(24, 20, 24, 12)
         lay.setSpacing(16)
+        scroll.setWidget(inner)
+        root_lay.addWidget(scroll, 1)
 
         # App info row
         info_row = QHBoxLayout()
@@ -171,14 +186,14 @@ class _InstallDialog(QDialog):
         lay.addWidget(_lbl(step_label, 12, C_TEXT3))
         preview = QTextEdit()
         preview.setReadOnly(True)
-        preview.setFixedHeight(120)
+        preview.setFixedHeight(_pt(120))
         preview.setStyleSheet(f"""
             background:{C_CARD_LIGHT};
             border:none;
             border-radius:10px;
             color:{C_TEXT2};
             font-family:'JetBrains Mono','Consolas',monospace;
-            font-size:11px;
+            font-size:{_pt(11)}px;
             padding:12px;
         """)
         preview.setPlainText("\n".join(f"$ {c}" for c in cmds))
@@ -196,15 +211,23 @@ class _InstallDialog(QDialog):
             border-radius:10px;
             color:{log_color};
             font-family:'JetBrains Mono','Consolas',monospace;
-            font-size:11px;
+            font-size:{_pt(11)}px;
             padding:12px;
         """)
+        self._log_edit.setMinimumHeight(_pt(160))
         lay.addWidget(self._log_edit, 1)
+        lay.addStretch()
+
+        # ── 底部按钮栏（固定，不随滚动） ──
+        btn_frame = QWidget()
+        btn_frame.setStyleSheet(f"background:{C_BG}; border-top:1px solid rgba(255,255,255,0.06);")
+        btn_frame_lay = QHBoxLayout(btn_frame)
+        btn_frame_lay.setContentsMargins(24, 12, 24, 16)
+        btn_frame_lay.setSpacing(12)
+        root_lay.addWidget(btn_frame)
 
         # Action row
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
-        start_label = f"▶  Start {title}"
+        btn_row = btn_frame_lay
         start_label = _at("apps.dialog.start_action", action=title)
         self._start_btn = _btn(start_label, primary=(mode in {"install", "run"}))
         if mode == "uninstall":
@@ -234,11 +257,25 @@ class _InstallDialog(QDialog):
         btn_row.addWidget(self._ai_btn)
         btn_row.addSpacing(8)
         btn_row.addWidget(close_btn)
-        lay.addLayout(btn_row)
 
         self._start_btn.clicked.connect(self._start)
         self._stop_btn.clicked.connect(self._stop)
         close_btn.clicked.connect(self.close)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _append(self, text: str):
         from PyQt5.QtGui import QTextCursor
@@ -294,6 +331,8 @@ class AppsPage(ListPageBase):
         self._device_meta: dict = {"l4t": None}
         self._check_thread = None
         self._status_labels: dict[str, QLabel] = {}  # app_id -> status QLabel for in-place updates
+        self._banner_title_lbl: QLabel | None = None
+        self._banner_sub_lbl: QLabel | None = None
         super().__init__()
         # Device connection event
         bus.device_connected.connect(lambda _: (self._device_meta.update({"l4t": None}), self._start_check()))
@@ -301,8 +340,43 @@ class AppsPage(ListPageBase):
 
     def retranslate_ui(self, _lang_code: str | None = None):
         super().retranslate_ui(_lang_code)
+        if self._banner_title_lbl is not None:
+            self._banner_title_lbl.setText(_at("apps.banner.title"))
+        self._update_banner_summary()
         for app_id, status in self._statuses.items():
             self._update_status_lbl(app_id, status)
+
+    def _insert_intro_banner(self):
+        content = self.get_content_layout()
+        banner = _card(12)
+        banner.setStyleSheet(
+            "background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
+            "stop:0 rgba(122,179,23,0.10), stop:1 rgba(44,123,229,0.06));"
+            "border: 1px solid rgba(255,255,255,0.05); border-radius:12px;"
+        )
+        row = QHBoxLayout(banner)
+        row.setContentsMargins(20, 16, 20, 16)
+        row.addWidget(_lbl("📦", 24))
+        row.addSpacing(12)
+
+        col = QVBoxLayout()
+        col.setSpacing(4)
+        self._banner_title_lbl = _lbl(_at("apps.banner.title"), 14, C_TEXT, bold=True)
+        self._banner_sub_lbl = _lbl("", 11, C_TEXT3)
+        col.addWidget(self._banner_title_lbl)
+        col.addWidget(self._banner_sub_lbl)
+        row.addLayout(col, 1)
+        content.insertWidget(0, banner)
+
+    def _update_banner_summary(self):
+        if self._banner_sub_lbl is None:
+            return
+        total = len(self.items_data)
+        installed = sum(1 for s in self._statuses.values() if s == "installed")
+        checking = sum(1 for s in self._statuses.values() if s == "checking")
+        self._banner_sub_lbl.setText(
+            _at("apps.banner.summary", total=total, installed=installed, checking=checking)
+        )
 
     # ListPageBase abstract methods
 
@@ -360,11 +434,13 @@ class AppsPage(ListPageBase):
             for a in self.items_data:
                 self._statuses[a["id"]] = "available"
             self._rebuild_list()
+            self._update_banner_summary()
             return
         for a in self.items_data:
             if a.get("check_cmd"):
                 self._statuses[a["id"]] = "checking"
         self._rebuild_list()
+        self._update_banner_summary()
         t = _StatusCheckThread(self.items_data)
         t.single_result.connect(self._on_single_check)
         t.all_done.connect(self._on_check_done)
@@ -374,11 +450,13 @@ class AppsPage(ListPageBase):
     def _on_single_check(self, app_id: str, status: str):
         self._statuses[app_id] = status
         self._update_status_lbl(app_id, status)  # In-place update without rebuilding list
+        self._update_banner_summary()
 
     def _on_check_done(self, results: dict):
         for app_id, status in results.items():
             self._statuses[app_id] = status
         self._rebuild_list()
+        self._update_banner_summary()
 
     # Command helpers
 
@@ -547,19 +625,23 @@ class AppsPage(ListPageBase):
         if success:
             self._statuses[app_id] = "installed"
             self._rebuild_list()
+            self._update_banner_summary()
 
     def _on_run_done(self, app_id: str, success: bool):
         if success:
             self._statuses[app_id] = "installed"
         self._rebuild_list()
+        self._update_banner_summary()
 
     def _on_clean_done(self, app_id: str, success: bool):
         self._rebuild_list()
+        self._update_banner_summary()
 
     def _on_uninstall_done(self, app_id: str, success: bool):
         if success:
             self._statuses[app_id] = "available"
             self._rebuild_list()
+        self._update_banner_summary()
 
     # List row builder
 
@@ -582,7 +664,7 @@ class AppsPage(ListPageBase):
         lbl.setText(text)
         lbl.setStyleSheet(f"""
             background:{bg}; color:{color};
-            border-radius:6px; padding:4px 12px;
+            border:none; border-radius:6px; padding:4px 12px;
             font-size:{_pt(10)}pt; font-weight:600;
         """)
 
@@ -596,7 +678,7 @@ class AppsPage(ListPageBase):
         lbl = QLabel(text)
         lbl.setStyleSheet(f"""
             background:{bg}; color:{color};
-            border-radius:6px; padding:4px 12px;
+            border:none; border-radius:6px; padding:4px 12px;
             font-size:{_pt(10)}pt; font-weight:600;
         """)
         return lbl
@@ -606,7 +688,12 @@ class AppsPage(ListPageBase):
         from seeed_jetson_develop.gui.runtime_i18n import get_current_lang, translate_text as _tr
         status = self._statuses.get(app["id"], "available")
         row = QFrame()
-        row.setStyleSheet(f"background:{C_CARD}; border:none; border-radius:10px;")
+        row.setStyleSheet(
+            "background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+            "stop:0 #1E2D40, stop:1 #192333);"
+            "border: 1px solid rgba(255,255,255,0.05);"
+            "border-top-color: rgba(255,255,255,0.07); border-radius:10px;"
+        )
         outer = QVBoxLayout(row)
         outer.setContentsMargins(16, 14, 16, 14)
         outer.setSpacing(12)
@@ -636,7 +723,7 @@ class AppsPage(ListPageBase):
         cat_lbl = QLabel(_tr(app.get("category", "App"), _lang))
         cat_lbl.setStyleSheet(f"""
             background:rgba(44,123,229,0.10); color:{C_BLUE};
-            border-radius:4px; padding:2px 10px; font-size:{_pt(9)}pt;
+            border:none; border-radius:4px; padding:2px 10px; font-size:{_pt(9)}pt;
         """)
         name_row.addWidget(cat_lbl)
         info.addLayout(name_row)

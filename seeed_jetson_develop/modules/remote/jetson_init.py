@@ -363,7 +363,7 @@ class JetsonInitDialog(QDialog):
         self._auto_open_terminal_pending = auto_open_terminal
 
         self.setWindowTitle(_tr("remote.jetson_init.window_title", "Jetson Init", self._lang))
-        self.setMinimumSize(980, 680)
+        self.setMinimumSize(pt(980), pt(680))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
         root = QVBoxLayout(self)
         root.setContentsMargins(24, 22, 24, 22)
@@ -435,7 +435,7 @@ class JetsonInitDialog(QDialog):
         top_row.addWidget(self.terminal_status)
         right.addLayout(top_row)
         self.terminal_view = NativeTerminalWidget()
-        self.terminal_view.setMinimumHeight(280)
+        self.terminal_view.setMinimumHeight(pt(280))
         self.terminal_view.setStyleSheet(f"QPlainTextEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:10px; color:{C_TEXT}; padding:12px; font-size:{pt(10)}pt; font-family:'Consolas','JetBrains Mono',monospace; }}")
         right.addWidget(self.terminal_view, 1)
         btn_row = QHBoxLayout()
@@ -471,6 +471,22 @@ class JetsonInitDialog(QDialog):
         self.refresh_ports(preferred_port)
         if self._auto_open_terminal_pending and self._current_port():
             QTimer.singleShot(0, self.open_terminal)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        # 先把 minimumSize 约束到屏幕范围，否则 resize 无效
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _bind_i18n(self):
         self._i18n.bind_callable(lambda: self.setWindowTitle(_tr("remote.jetson_init.window_title", "Jetson Init", self._lang)))
@@ -676,7 +692,7 @@ class JetsonNetConfigDialog(QDialog):
         self._cmd_thread: _SerialCmdThread | None = None
         self._lock_info: dict | None = None
         self.setWindowTitle(_tr("remote.jetson_net_config.window_title", "Jetson Network Config (Serial)", self._lang))
-        self.setMinimumSize(760, 660)
+        self.setMinimumSize(pt(760), pt(660))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
 
         root = QVBoxLayout(self)
@@ -719,7 +735,7 @@ class JetsonNetConfigDialog(QDialog):
         self._username_lbl = make_label(_tr("common.username", "Username", self._lang), 11, C_TEXT2)
         self._username_lbl.setFixedWidth(field_label_w)
         self._user_edit = QLineEdit("seeed")
-        self._user_edit.setMinimumWidth(100)
+        self._user_edit.setMinimumWidth(pt(100))
         self._user_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._user_edit.setMaximumWidth(pt(760))
         self._user_edit.setStyleSheet(self._input_style())
@@ -735,7 +751,7 @@ class JetsonNetConfigDialog(QDialog):
         self._password_lbl.setFixedWidth(field_label_w)
         self._pass_edit = QLineEdit()
         self._pass_edit.setEchoMode(QLineEdit.Password)
-        self._pass_edit.setMinimumWidth(260)
+        self._pass_edit.setMinimumWidth(pt(260))
         self._pass_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._pass_edit.setMaximumWidth(pt(760))
         self._pass_edit.setMinimumHeight(pt(34))
@@ -796,7 +812,7 @@ class JetsonNetConfigDialog(QDialog):
         self._ip_address_lbl.setFixedWidth(field_label_w)
         self._ip_edit = QLineEdit()
         self._ip_edit.setPlaceholderText("192.168.1.100")
-        self._ip_edit.setMinimumWidth(110)
+        self._ip_edit.setMinimumWidth(pt(110))
         self._ip_edit.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._ip_edit.setMaximumWidth(pt(760))
         self._ip_edit.setMinimumHeight(pt(34))
@@ -812,7 +828,7 @@ class JetsonNetConfigDialog(QDialog):
         self._mask_lbl.setFixedWidth(field_label_w)
         self._mask_edit = QLineEdit("24")
         self._mask_edit.setPlaceholderText(_tr("remote.jetson_net_config.mask_placeholder", "24 or 255.255.255.0", self._lang))
-        self._mask_edit.setMinimumWidth(100)
+        self._mask_edit.setMinimumWidth(pt(100))
         self._mask_edit.setMaximumWidth(pt(220))
         self._mask_edit.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self._mask_edit.setMinimumHeight(pt(34))
@@ -822,7 +838,7 @@ class JetsonNetConfigDialog(QDialog):
         self._gateway_lbl.setFixedWidth(pt(86))
         self._gw_edit = QLineEdit()
         self._gw_edit.setPlaceholderText(_tr("remote.jetson_net_config.gateway_placeholder", "192.168.1.1 (optional)", self._lang))
-        self._gw_edit.setMinimumWidth(110)
+        self._gw_edit.setMinimumWidth(pt(110))
         self._gw_edit.setMaximumWidth(pt(340))
         self._gw_edit.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self._gw_edit.setMinimumHeight(pt(34))
@@ -854,7 +870,7 @@ class JetsonNetConfigDialog(QDialog):
         log_l.addWidget(self._log_title_lbl)
         self._log = QTextEdit()
         self._log.setReadOnly(True)
-        self._log.setMinimumHeight(160)
+        self._log.setMinimumHeight(pt(160))
         self._log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._log.setStyleSheet(f"QTextEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:8px; color:{C_TEXT2}; padding:10px; font-size:{pt(10)}pt; font-family:'JetBrains Mono','Consolas',monospace; }}")
         log_l.addWidget(self._log)
@@ -872,6 +888,22 @@ class JetsonNetConfigDialog(QDialog):
         self._apply_btn.clicked.connect(self._do_apply)
         self._bind_i18n()
         self._refresh_ports(preferred_port)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        # 先把 minimumSize 约束到屏幕范围，否则 resize 无效
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _bind_i18n(self):
         self._i18n.bind_callable(lambda: self.setWindowTitle(_tr("remote.jetson_net_config.window_title", "Jetson Network Config (Serial)", self._lang)))
@@ -944,6 +976,20 @@ class JetsonNetConfigDialog(QDialog):
             self._lock_hint.hide()
             self._release_btn.hide()
 
+    def _stop_cmd_thread(self, wait_ms: int = 1800):
+        th = self._cmd_thread
+        if not th:
+            return
+        try:
+            th.stop()
+        except Exception:
+            pass
+        if not th.wait(wait_ms):
+            th.terminate()
+            th.wait(500)
+        if self._cmd_thread is th:
+            self._cmd_thread = None
+
     def _release_port_lock(self):
         if not self._lock_info:
             return
@@ -977,6 +1023,7 @@ class JetsonNetConfigDialog(QDialog):
         self._iface_combo.setEnabled(False)
         self._apply_btn.setEnabled(False)
         self._log.clear()
+        self._stop_cmd_thread(wait_ms=300)
         self._cmd_thread = _SerialCmdThread(port, user, pwd, "ip link show")
         self._cmd_thread.output.connect(self._log_append)
         self._cmd_thread.done.connect(self._on_scan_done)
@@ -984,6 +1031,7 @@ class JetsonNetConfigDialog(QDialog):
         self._cmd_thread.start()
 
     def _on_scan_done(self, output: str):
+        self._cmd_thread = None
         self._scan_btn.setEnabled(True)
         self._scan_btn.setText(_tr("remote.jetson_net_config.scan_ifaces", "Login and Detect Interfaces", self._lang))
         ifaces = _parse_interfaces(output)
@@ -999,6 +1047,7 @@ class JetsonNetConfigDialog(QDialog):
         self._login_status.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(11)}pt; background:transparent; font-weight:700;")
 
     def _on_scan_failed(self, err: str):
+        self._cmd_thread = None
         self._scan_btn.setEnabled(True)
         self._scan_btn.setText(_tr("remote.jetson_net_config.scan_ifaces", "Login and Detect Interfaces", self._lang))
         self._login_status.setText(_tr("remote.jetson_net_config.failed_with_error", "Failed: {err}", self._lang, err=err))
@@ -1039,6 +1088,7 @@ class JetsonNetConfigDialog(QDialog):
         self._apply_btn.setText(_tr("remote.jetson_net_config.applying", "Applying...", self._lang))
         self._apply_status.setText("")
         self._log.append(_tr("remote.jetson_net_config.apply_log", "\n[apply] {iface} -> {ip_cidr}{gw_part}\n", self._lang, iface=iface, ip_cidr=ip_cidr, gw_part=(f" gw {gw}" if gw else "")))
+        self._stop_cmd_thread(wait_ms=300)
         self._cmd_thread = _SerialCmdThread(port, user, pwd, command)
         self._cmd_thread.output.connect(self._log_append)
         self._cmd_thread.done.connect(self._on_apply_done)
@@ -1046,6 +1096,7 @@ class JetsonNetConfigDialog(QDialog):
         self._cmd_thread.start()
 
     def _on_apply_done(self, output: str):
+        self._cmd_thread = None
         self._apply_btn.setEnabled(True)
         self._apply_btn.setText(_tr("remote.jetson_net_config.apply", "Apply Config", self._lang))
         ip = self._ip_edit.text().strip()
@@ -1057,11 +1108,16 @@ class JetsonNetConfigDialog(QDialog):
             self._apply_status.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(11)}pt; background:transparent; font-weight:700;")
 
     def _on_apply_failed(self, err: str):
+        self._cmd_thread = None
         self._apply_btn.setEnabled(True)
         self._apply_btn.setText(_tr("remote.jetson_net_config.apply", "Apply Config", self._lang))
         self._apply_status.setText(_tr("remote.jetson_net_config.failed_with_error", "Failed: {err}", self._lang, err=err))
         self._apply_status.setStyleSheet(f"color:{C_RED}; font-size:{pt(11)}pt; background:transparent;")
         self._set_lock_info(inspect_serial_port_lock(self._port_combo.currentText().strip(), err))
+
+    def closeEvent(self, event):
+        self._stop_cmd_thread()
+        super().closeEvent(event)
 
 
 def open_jetson_net_config_dialog(parent=None, preferred_port: str = ""):

@@ -91,7 +91,7 @@ class DesktopRemoteDialog(QDialog):
         self._last_status: dict | None = None
 
         self.setWindowTitle(_tt("remote.desktop.title"))
-        self.setMinimumSize(680, 560)
+        self.setMinimumSize(pt(680), pt(560))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
 
         root = QVBoxLayout(self)
@@ -148,7 +148,7 @@ class DesktopRemoteDialog(QDialog):
         self._vnc_pwd = QLineEdit()
         self._vnc_pwd.setPlaceholderText(_tt("remote.desktop.vnc_password_placeholder"))
         self._vnc_pwd.setEchoMode(QLineEdit.Password)
-        self._vnc_pwd.setMinimumWidth(220)
+        self._vnc_pwd.setMinimumWidth(pt(220))
         self._vnc_pwd.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._vnc_pwd.setStyleSheet(
             f"QLineEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:8px;"
@@ -187,7 +187,7 @@ class DesktopRemoteDialog(QDialog):
         ll.addWidget(self._log_title_lbl)
         self._log = QTextEdit()
         self._log.setReadOnly(True)
-        self._log.setMinimumHeight(120)
+        self._log.setMinimumHeight(pt(120))
         self._log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._log.setStyleSheet(
             f"QTextEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:8px;"
@@ -210,6 +210,21 @@ class DesktopRemoteDialog(QDialog):
         self._open_browser_btn.clicked.connect(self._do_open_browser)
         self._bind_i18n()
         self._do_refresh()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _bind_i18n(self):
         self._i18n.bind_text(self._header_lbl, "remote.desktop.header")
