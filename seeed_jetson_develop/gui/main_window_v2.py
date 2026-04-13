@@ -430,7 +430,6 @@ class MainWindowV2(QMainWindow):
                 background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                     stop:0 #0E1620, stop:1 {C_BG_DEEP});
                 border: none;
-                border-bottom: 1px solid rgba(255,255,255,0.06);
             }}
         """)
         bar.installEventFilter(self)
@@ -683,7 +682,7 @@ class MainWindowV2(QMainWindow):
         brand_lay.addWidget(self._brand_label)
         lay.addWidget(brand_container)
 
-        lay.addSpacing(8)
+        lay.addSpacing(0)
 
         # 导航按钮
         for idx, (key, label_key) in enumerate(NAV_ITEMS):

@@ -21,7 +21,7 @@ from seeed_jetson_develop.gui.i18n_binding import I18nBinding
 from seeed_jetson_develop.gui.i18n import get_language, t
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_BLUE, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
-    C_TEXT, C_TEXT2, C_TEXT3, make_button, make_card, make_label, pt,
+    C_TEXT, C_TEXT2, C_TEXT3, make_button, make_card, make_label, pt, PLATFORM,
 )
 
 log = logging.getLogger(__name__)
@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 # Data directories
 _DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
+FLASH_FORCE_TWO_COLUMNS = True
 
 
 # ── helpers ──────────────────────────────────────────────────────
@@ -37,17 +38,23 @@ def _page_header(title: str, subtitle: str) -> tuple[QWidget, QLabel, QLabel]:
     header.setFixedHeight(pt(64))
     header.setStyleSheet(f"background: {C_BG_DEEP};")
     lay = QHBoxLayout(header)
-    lay.setContentsMargins(pt(32), pt(10), pt(32), pt(10))
+    lay.setContentsMargins(pt(28), pt(10), pt(28), pt(10))
     lay.setSpacing(0)
 
     text_col = QVBoxLayout()
     text_col.setSpacing(4)
     text_col.setContentsMargins(0, 0, 0, 0)
     title_lbl = QLabel(title)
-    title_lbl.setStyleSheet(f"color:{C_TEXT}; font-size:{pt(18)}px; font-weight:700; background:transparent;")
+    title_lbl.setStyleSheet(
+        f"color:{C_TEXT}; font-size:{pt(18)}px; font-weight:700;"
+        " background:transparent; border:none; text-decoration:none;"
+    )
     text_col.addWidget(title_lbl)
     sub_lbl = QLabel(subtitle)
-    sub_lbl.setStyleSheet(f"color:{C_TEXT3}; font-size:{pt(12)}px; background:transparent;")
+    sub_lbl.setStyleSheet(
+        f"color:{C_TEXT3}; font-size:{pt(12)}px;"
+        " background:transparent; border:none; text-decoration:none;"
+    )
     text_col.addWidget(sub_lbl)
     lay.addLayout(text_col)
     lay.addStretch()
@@ -146,13 +153,13 @@ def build_page() -> QWidget:
     inner = QWidget()
     inner.setStyleSheet(f"background:{C_BG};")
     inner_lay = QVBoxLayout(inner)
-    inner_lay.setContentsMargins(pt(32), pt(28), pt(32), pt(28))
+    inner_lay.setContentsMargins(pt(28), pt(24), pt(28), pt(24))
     inner_lay.setSpacing(pt(24))
 
     # Step wizard
     wizard_card = make_card(12)
     wizard_outer = QVBoxLayout(wizard_card)
-    wizard_outer.setContentsMargins(pt(32), pt(20), pt(32), pt(20))
+    wizard_outer.setContentsMargins(pt(24), pt(20), pt(24), pt(20))
     wizard_outer.setSpacing(0)
 
     step_key_order = [
@@ -163,53 +170,101 @@ def build_page() -> QWidget:
     ]
     step_configs = [(str(i + 1), _ft(k)) for i, k in enumerate(step_key_order)]
     step_layout = QHBoxLayout()
-    step_layout.setSpacing(0)
+    step_layout.setSpacing(pt(10))
 
     _step_circles = []
     _step_labels = []
+    _step_arrows = []
+
+    def _apply_step_style(circle: QLabel, lbl: QLabel, state: str):
+        if state == "active":
+            circle.setStyleSheet(f"""
+                background: {C_GREEN};
+                color: #071200;
+                border: none;
+                border-radius: {pt(18)}px;
+                font-weight: 700;
+                font-size: {pt(13)}pt;
+            """)
+            lbl.setStyleSheet(
+                f"color:{C_GREEN}; font-size:{pt(12)}pt; font-weight:700;"
+                " background:transparent; border:none;"
+            )
+        elif state == "done":
+            circle.setStyleSheet(f"""
+                background: rgba(122,179,23,0.24);
+                color: {C_GREEN};
+                border: 1px solid rgba(122,179,23,0.28);
+                border-radius: {pt(18)}px;
+                font-weight: 700;
+                font-size: {pt(13)}pt;
+            """)
+            lbl.setStyleSheet(
+                f"color:{C_TEXT2}; font-size:{pt(12)}pt; font-weight:500;"
+                " background:transparent; border:none;"
+            )
+        else:
+            circle.setStyleSheet(f"""
+                background: transparent;
+                color: {C_TEXT3};
+                border: 1px solid rgba(255,255,255,0.10);
+                border-radius: {pt(18)}px;
+                font-weight: 700;
+                font-size: {pt(13)}pt;
+            """)
+            lbl.setStyleSheet(
+                f"color:{C_TEXT3}; font-size:{pt(12)}pt; font-weight:500;"
+                " background:transparent; border:none;"
+            )
 
     for i, (num, txt) in enumerate(step_configs):
-        is_active = (i == 0)
+        step_item = QWidget()
+        step_item.setStyleSheet("background:transparent; border:none;")
+        step_item.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        step_item_lay = QHBoxLayout(step_item)
+        step_item_lay.setContentsMargins(0, 0, 0, 0)
+        step_item_lay.setSpacing(pt(12))
+
         circle = QLabel(num)
         circle.setFixedSize(pt(36), pt(36))
         circle.setAlignment(Qt.AlignCenter)
-        circle.setStyleSheet(f"""
-            background: {C_GREEN if is_active else C_CARD_LIGHT};
-            color: {'#071200' if is_active else C_TEXT3};
-            border-radius: {pt(18)}px;
-            font-weight: 700;
-            font-size: {pt(13)}pt;
-        """)
-        step_layout.addWidget(circle)
+        step_item_lay.addWidget(circle)
         _step_circles.append(circle)
 
         lbl = QLabel(txt)
-        lbl.setStyleSheet(f"""
-            color: {C_GREEN if is_active else C_TEXT3};
-            font-size: {pt(11)}pt;
-            font-weight: {'600' if is_active else '400'};
-            background: transparent;
-            padding-left: 8px;
-        """)
-        step_layout.addWidget(lbl)
+        lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        lbl.setMinimumWidth(0)
+        lbl.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        step_item_lay.addWidget(lbl, 1)
         _step_labels.append(lbl)
+        _apply_step_style(circle, lbl, "active" if i == 0 else "pending")
+        step_layout.addWidget(step_item, 1)
 
         if i < 3:
             arrow = QLabel("\u203a")
-            arrow.setStyleSheet(f"color:{C_TEXT3}; font-size:24px; background:transparent; padding:0 16px;")
+            arrow.setAlignment(Qt.AlignCenter)
+            arrow.setFixedSize(pt(28), pt(36))
+            arrow.setStyleSheet(
+                f"color:{C_TEXT3}; font-size:{pt(21)}px; font-weight:600;"
+                " background:transparent; border:none; padding:0;"
+            )
             step_layout.addWidget(arrow)
+            _step_arrows.append(arrow)
 
-    step_layout.addStretch()
     wizard_outer.addLayout(step_layout)
     inner_lay.addWidget(wizard_card)
 
     # Two-column layout
     flash_cols = QBoxLayout(QBoxLayout.LeftToRight)
-    flash_cols.setSpacing(pt(24))
+    flash_cols.setContentsMargins(0, 0, 0, 0)
+    flash_cols.setSpacing(pt(20))
 
     # Left stacked panel
     flash_left_stack = QStackedWidget()
-    flash_left_stack.setStyleSheet("background:transparent;")
+    flash_left_stack.setContentsMargins(0, 0, 0, 0)
+    flash_left_stack.setFrameShape(QFrame.NoFrame)
+    flash_left_stack.setLineWidth(0)
+    flash_left_stack.setStyleSheet("QStackedWidget { background:transparent; border:none; margin:0; padding:0; }")
 
     # Left page 0: device selection
     left_page0 = QWidget()
@@ -232,8 +287,19 @@ def build_page() -> QWidget:
     prod_name_lbl = make_label(_ft("flash.device.product"), 12, C_TEXT2)
     prod_row.addWidget(prod_name_lbl)
     prod_row.addStretch()
+    combo_style = f"""
+        QComboBox {{
+            color: {C_TEXT};
+            font-size: {pt(12)}pt;
+        }}
+        QComboBox QAbstractItemView {{
+            color: {C_TEXT};
+            font-size: {pt(12)}pt;
+        }}
+    """
     flash_product_combo = QComboBox()
-    flash_product_combo.setMinimumWidth(260)
+    flash_product_combo.setMinimumWidth(pt(260))
+    flash_product_combo.setStyleSheet(combo_style)
     flash_product_combo.addItems(sorted(products.keys()))
     prod_row.addWidget(flash_product_combo)
     dev_lay.addLayout(prod_row)
@@ -243,13 +309,14 @@ def build_page() -> QWidget:
     l4t_row.addWidget(l4t_name_lbl)
     l4t_row.addStretch()
     flash_l4t_combo = QComboBox()
-    flash_l4t_combo.setMinimumWidth(260)
+    flash_l4t_combo.setMinimumWidth(pt(260))
+    flash_l4t_combo.setStyleSheet(combo_style)
     l4t_row.addWidget(flash_l4t_combo)
     dev_lay.addLayout(l4t_row)
 
     # Device image
     flash_device_img = QLabel()
-    flash_device_img.setFixedSize(320, 200)
+    flash_device_img.setFixedSize(320 if PLATFORM.win_min_w > 1024 else 280, 200 if PLATFORM.win_min_w > 1024 else 160)
     flash_device_img.setAlignment(Qt.AlignCenter)
     flash_device_img.setStyleSheet(f"""
         background: {C_CARD_LIGHT};
@@ -437,10 +504,14 @@ def build_page() -> QWidget:
     flash_right_panel.setStyleSheet("background:transparent;")
     flash_right_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
     right_col = QVBoxLayout(flash_right_panel)
+    right_col.setContentsMargins(0, 0, 0, 0)
     right_col.setSpacing(pt(20))
 
     flash_step_stack = QStackedWidget()
-    flash_step_stack.setStyleSheet("background:transparent;")
+    flash_step_stack.setContentsMargins(0, 0, 0, 0)
+    flash_step_stack.setFrameShape(QFrame.NoFrame)
+    flash_step_stack.setLineWidth(0)
+    flash_step_stack.setStyleSheet("QStackedWidget { background:transparent; border:none; margin:0; padding:0; }")
 
     # Step 1: prepare firmware
     step1_card = make_card(12)
@@ -727,14 +798,14 @@ def build_page() -> QWidget:
 
     def _update_adaptive_layout():
         width = flash_cols_host.width() or page.width()
-        compact = width < 1180
-        direction = QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight
-        flash_cols.setDirection(direction)
-        if compact:
-            flash_device_img.setFixedSize(280, 176)
+        if FLASH_FORCE_TWO_COLUMNS:
+            flash_cols.setDirection(QBoxLayout.LeftToRight)
+        compact_visual = width < 1100
+        if compact_visual:
+            flash_device_img.setFixedSize(pt(200), pt(126))
         else:
-            flash_device_img.setFixedSize(320, 200)
-        flash_log.setMinimumHeight(160 if compact else 200)
+            flash_device_img.setFixedSize(pt(320), pt(200))
+        flash_log.setMinimumHeight(pt(120) if compact_visual else pt(200))
 
     def _set_flash_doc_button(button, url: str, tooltip: str):
         url = (url or "").strip()
@@ -984,23 +1055,17 @@ def build_page() -> QWidget:
             done = i < active_idx
             active = i == active_idx
             if active:
-                circle.setStyleSheet(f"""
-                    background: {C_GREEN}; color: #071200;
-                    border-radius: {pt(18)}px; font-weight: 700; font-size: {pt(13)}pt;
-                """)
-                lbl.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(11)}pt; font-weight:600; background:transparent; padding-left:8px;")
+                _apply_step_style(circle, lbl, "active")
             elif done:
-                circle.setStyleSheet(f"""
-                    background: rgba(122,179,23,0.3); color: {C_GREEN};
-                    border-radius: {pt(18)}px; font-weight: 700; font-size: {pt(13)}pt;
-                """)
-                lbl.setStyleSheet(f"color:{C_TEXT2}; font-size:{pt(11)}pt; font-weight:400; background:transparent; padding-left:8px;")
+                _apply_step_style(circle, lbl, "done")
             else:
-                circle.setStyleSheet(f"""
-                    background: {C_CARD_LIGHT}; color: {C_TEXT3};
-                    border-radius: {pt(18)}px; font-weight: 700; font-size: {pt(13)}pt;
-                """)
-                lbl.setStyleSheet(f"color:{C_TEXT3}; font-size:{pt(11)}pt; font-weight:400; background:transparent; padding-left:8px;")
+                _apply_step_style(circle, lbl, "pending")
+
+        for i, arrow in enumerate(_step_arrows):
+            arrow.setStyleSheet(
+                f"color:{C_GREEN if i < active_idx else C_TEXT3}; font-size:{pt(21)}px; font-weight:600;"
+                " background:transparent; border:none; padding:0;"
+            )
 
     def _flash_go_next_step():
         _set_wizard_step(1)
