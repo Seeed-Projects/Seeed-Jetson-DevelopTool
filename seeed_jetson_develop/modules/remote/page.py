@@ -1,5 +1,7 @@
 """Remote development page."""
 
+import re
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QDialog,
@@ -56,6 +58,15 @@ from seeed_jetson_develop.modules.remote.net_share_dialog import open_net_share_
 
 def _tt(key: str, **kwargs) -> str:
     return t(key, lang=get_language(), **kwargs)
+
+
+def _sanitize_command_for_log(cmd: str) -> str:
+    text = str(cmd or "")
+    # Redact "echo 'password' | sudo -S ..." style payloads if present.
+    text = re.sub(r"echo\s+(['\"]).*?\1\s*\|\s*sudo\s+-S", "echo '***' | sudo -S", text, flags=re.IGNORECASE)
+    # Redact common explicit password arguments.
+    text = re.sub(r"(--password\s+)(\S+)", r"\1***", text, flags=re.IGNORECASE)
+    return text
 
 
 def _show_need_connection_dialog(parent: QWidget, tool_name: str):
@@ -261,7 +272,7 @@ class _SshCmdThread(QThread):
 
     def run(self):
         for cmd, timeout in self._commands:
-            self.line_out.emit(f"$ {cmd}")
+            self.line_out.emit(f"$ {_sanitize_command_for_log(cmd)}")
             rc, out = self._runner.run(cmd, timeout=timeout, on_output=lambda l: self.line_out.emit(l))
             self._last_out = out
             if rc != 0:
@@ -341,7 +352,7 @@ class _VscodeWebDialog(QDialog):
             "echo 'Failed, trying next...' && rm -f ${CACHE}/${DEB}; done && "
             "[ -f ${CACHE}/${DEB} ] && [ $(stat -c%s ${CACHE}/${DEB}) -gt 52428800 ] || { echo 'Download failed'; exit 1; } && "
             "echo 'Installing...' && "
-            f"echo {self._runner.sudo_password!r} | sudo -S dpkg -i ${{CACHE}}/${{DEB}} 2>&1"
+            "sudo dpkg -i ${CACHE}/${DEB} 2>&1"
         )
         cmds = [
             (install_cmd, 600),

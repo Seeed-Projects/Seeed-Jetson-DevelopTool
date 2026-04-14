@@ -3,7 +3,41 @@ import os
 import re
 import shlex
 import subprocess
+import logging
+import threading
 from typing import Callable, Optional
+
+log = logging.getLogger("seeed.core.runner")
+
+
+_SHELL_META_RE = re.compile(r"[|&;<>()$`\\n]")
+
+
+def _sanitize_cmd_for_log(cmd: str | list[str]) -> str:
+    if isinstance(cmd, (list, tuple)):
+        text = " ".join(shlex.quote(str(part)) for part in cmd)
+    else:
+        text = str(cmd or "")
+    text = re.sub(r"echo\s+(['\"]).*?\1\s*\|\s*sudo\s+-S", "echo '***' | sudo -S", text, flags=re.IGNORECASE)
+    text = re.sub(r"(--password\s+)(\S+)", r"\1***", text, flags=re.IGNORECASE)
+    return text
+
+
+def _prepare_local_command(cmd: str | list[str]) -> tuple[str | list[str], bool]:
+    if isinstance(cmd, (list, tuple)):
+        return [str(part) for part in cmd], False
+    text = str(cmd or "").strip()
+    if not text:
+        return text, True
+    if _SHELL_META_RE.search(text):
+        return text, True
+    try:
+        parts = shlex.split(text, posix=True)
+    except ValueError:
+        return text, True
+    if not parts:
+        return text, True
+    return parts, False
 
 
 class Runner:
@@ -14,7 +48,7 @@ class Runner:
 
     def run(
         self,
-        cmd: str,
+        cmd: str | list[str],
         timeout: int = 30,
         on_output: Optional[Callable[[str], None]] = None,
     ) -> tuple[int, str]:
@@ -24,9 +58,12 @@ class Runner:
         同时处理 \\n 和 \\r 分隔（支持 pip 进度条等 \\r 刷新场景）。
         """
         env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+        popen_cmd, use_shell = _prepare_local_command(cmd)
+        proc = None
         try:
             proc = subprocess.Popen(
-                cmd, shell=True,
+                popen_cmd,
+                shell=use_shell,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 env=env,
@@ -63,9 +100,12 @@ class Runner:
             proc.wait(timeout=timeout)
             return proc.returncode, "\n".join(lines)
         except subprocess.TimeoutExpired:
-            proc.kill()
+            if proc is not None:
+                proc.kill()
+            log.warning("Command timed out after %ss: %s", timeout, _sanitize_cmd_for_log(cmd))
             return -1, "timeout"
         except Exception as e:
+            log.exception("Runner command failed: %s", _sanitize_cmd_for_log(cmd))
             return -1, str(e)
 
 
@@ -83,14 +123,13 @@ class SSHRunner(Runner):
         self.sudo_password = sudo_password or password
         self.port     = port
 
-    def _wrap_with_sudo_password(self, cmd: str) -> str:
+    def _build_remote_shell_command(self, cmd: str) -> str:
         wrapper_parts = ["export TERM=${TERM:-xterm-256color};"]
-        if self.sudo_password:
-            wrapper_parts.extend([
-                f"export SEEED_SUDO_PASSWORD={shlex.quote(self.sudo_password)};",
-                "sudo() { printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S \"$@\"; };",
-                "export -f sudo;",
-            ])
+        wrapper_parts.extend([
+            "if [ -n \"${SEEED_SUDO_PASSWORD:-}\" ]; then "
+            "sudo() { printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S \"$@\"; }; "
+            "export -f sudo; fi;",
+        ])
         wrapper_parts.append(cmd)
         wrapper = " ".join(wrapper_parts)
         return f"bash -lc {shlex.quote(wrapper)}"
@@ -119,6 +158,8 @@ class SSHRunner(Runner):
         timeout: int = 30,
         on_output: Optional[Callable[[str], None]] = None,
     ) -> tuple[int, str]:
+        safe_cmd = self._build_remote_shell_command(cmd)
+        env = {"SEEED_SUDO_PASSWORD": self.sudo_password} if self.sudo_password else None
         try:
             import paramiko
             client = paramiko.SSHClient()
@@ -134,10 +175,18 @@ class SSHRunner(Runner):
             )
             client.get_transport().set_keepalive(30)
             try:
-                _, stdout, stderr = client.exec_command(
-                    self._wrap_with_sudo_password(cmd),
-                    timeout=timeout,
-                )
+                try:
+                    _, stdout, stderr = client.exec_command(
+                        safe_cmd,
+                        timeout=timeout,
+                        environment=env,
+                    )
+                except TypeError:
+                    log.error("Paramiko does not support exec_command(environment=...). Refusing insecure sudo-password fallback.")
+                    return -1, (
+                        "Paramiko version is too old for secure environment passthrough. "
+                        "Please upgrade Paramiko to a version that supports exec_command(environment=...)."
+                    )
                 lines = []
                 for raw in stdout:
                     line = raw.rstrip("\n")
@@ -164,6 +213,7 @@ class SSHRunner(Runner):
             finally:
                 client.close()
         except Exception as e:
+            log.exception("SSHRunner command failed on %s: %s", self.host, _sanitize_cmd_for_log(cmd))
             return -1, str(e)
 
 
@@ -205,6 +255,7 @@ class SerialRunner(Runner):
                 stopbits=serial.STOPBITS_ONE,
             )
         except Exception as exc:
+            log.exception("Serial open failed on %s", self.port)
             return -1, str(exc)
 
         def _read_until(patterns: list[str], wait: float) -> str:
@@ -269,6 +320,7 @@ class SerialRunner(Runner):
                         on_output(stripped)
             return 0, "\n".join(out_lines)
         except Exception as exc:
+            log.exception("Serial command failed on %s: %s", self.port, _sanitize_cmd_for_log(cmd))
             return -1, str(exc)
         finally:
             try:
@@ -279,14 +331,18 @@ class SerialRunner(Runner):
 
 # ── 全局活跃 Runner 单例 ────────────────────────────────────────────────────
 _active_runner: Optional[Runner] = None
+_runner_lock = threading.RLock()
+_default_runner = Runner()
 
 
 def get_runner() -> Runner:
     """返回全局活跃 Runner（SSH 已连接则为 SSHRunner，否则为本地 Runner）。"""
-    return _active_runner if _active_runner is not None else Runner()
+    with _runner_lock:
+        return _active_runner if _active_runner is not None else _default_runner
 
 
 def set_runner(runner: Optional[Runner]) -> None:
     """切换全局 Runner。传 None 恢复本地模式。"""
     global _active_runner
-    _active_runner = runner
+    with _runner_lock:
+        _active_runner = runner

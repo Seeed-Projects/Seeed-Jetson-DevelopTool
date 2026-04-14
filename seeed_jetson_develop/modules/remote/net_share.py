@@ -14,6 +14,8 @@ import shlex
 import subprocess
 import sys
 
+_IFACE_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
+
 
 def _run(cmd: str, sudo_password: str = "") -> tuple[int, str]:
     """执行 shell 命令，Linux 下可用 sudo -S。"""
@@ -165,7 +167,7 @@ def enable_nat(wan: str, lan: str, sudo_password: str = "") -> tuple[bool, str]:
     """开启 NAT 转发：wan 是上网网卡，lan 是连 Jetson 的网卡。"""
     if sys.platform == "win32":
         return _enable_nat_windows(wan, lan)
-    return _enable_nat_linux(wan, lan, sudo_password)
+    return _enable_nat_linux_safe(wan, lan, sudo_password)
 
 
 def _enable_nat_linux(wan: str, lan: str, sudo_password: str) -> tuple[bool, str]:
@@ -222,7 +224,7 @@ def disable_nat(wan: str, lan: str, sudo_password: str = "") -> tuple[bool, str]
     """关闭 NAT 转发。"""
     if sys.platform == "win32":
         return _disable_nat_windows(wan, lan)
-    return _disable_nat_linux(wan, lan, sudo_password)
+    return _disable_nat_linux_safe(wan, lan, sudo_password)
 
 
 def _disable_nat_linux(wan: str, lan: str, sudo_password: str) -> tuple[bool, str]:
@@ -253,6 +255,149 @@ def _disable_nat_windows(wan: str, lan: str) -> tuple[bool, str]:
     if rc == 0:
         return True, f"ICS 已关闭\n{out}"
     return False, f"ICS 关闭失败：{out}"
+
+
+def _validate_iface_name(name: str, field: str) -> str:
+    value = (name or "").strip()
+    if not value or not _IFACE_RE.fullmatch(value):
+        raise ValueError(f"invalid interface name for {field}: {name!r}")
+    return value
+
+
+def _run_argv(args: list[str], sudo_password: str = "", timeout: int = 30) -> tuple[int, str]:
+    if sudo_password:
+        proc = subprocess.Popen(
+            ["sudo", "-S", *args],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        out, err = proc.communicate(input=sudo_password + "\n", timeout=timeout)
+        return proc.returncode, ((out or "") + (err or "")).strip()
+    r = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    return r.returncode, (r.stdout + r.stderr).strip()
+
+
+def _ensure_iptables_rule(
+    check_args: list[str], add_args: list[str], sudo_password: str, logs: list[str]
+) -> tuple[bool, int]:
+    rc, out = _run_argv(["iptables", *check_args], sudo_password)
+    logs.append(f"$ iptables {' '.join(check_args)}")
+    if out:
+        logs.append(out)
+    if rc == 0:
+        return True, 0
+    rc2, out2 = _run_argv(["iptables", *add_args], sudo_password)
+    logs.append(f"$ iptables {' '.join(add_args)}")
+    if out2:
+        logs.append(out2)
+    return rc2 == 0, rc2
+
+
+def _remove_iptables_rule_if_exists(
+    check_args: list[str], del_args: list[str], sudo_password: str, logs: list[str]
+) -> tuple[bool, int]:
+    rc, out = _run_argv(["iptables", *check_args], sudo_password)
+    logs.append(f"$ iptables {' '.join(check_args)}")
+    if out:
+        logs.append(out)
+    if rc != 0:
+        logs.append("rule not present, skip delete")
+        return True, 0
+    rc2, out2 = _run_argv(["iptables", *del_args], sudo_password)
+    logs.append(f"$ iptables {' '.join(del_args)}")
+    if out2:
+        logs.append(out2)
+    return rc2 == 0, rc2
+
+
+def _enable_nat_linux_safe(wan: str, lan: str, sudo_password: str) -> tuple[bool, str]:
+    try:
+        wan = _validate_iface_name(wan, "wan")
+        lan = _validate_iface_name(lan, "lan")
+    except ValueError as exc:
+        return False, str(exc)
+
+    logs: list[str] = []
+    rc, out = _run(
+        "grep -q 'net.ipv4.ip_forward=1' /etc/sysctl.conf 2>/dev/null || "
+        "echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf; "
+        "sysctl -w net.ipv4.ip_forward=1",
+        sudo_password,
+    )
+    logs.append("$ ensure ip_forward")
+    if out:
+        logs.append(out)
+    if rc != 0:
+        return False, "\n".join(logs) + f"\n\ncommand failed (rc={rc})"
+
+    ok, rc = _ensure_iptables_rule(
+        ["-t", "nat", "-C", "POSTROUTING", "-o", wan, "-j", "MASQUERADE"],
+        ["-t", "nat", "-A", "POSTROUTING", "-o", wan, "-j", "MASQUERADE"],
+        sudo_password,
+        logs,
+    )
+    if not ok:
+        return False, "\n".join(logs) + f"\n\nfailed to ensure NAT rule (rc={rc})"
+
+    ok, rc = _ensure_iptables_rule(
+        ["-C", "FORWARD", "-i", lan, "-o", wan, "-j", "ACCEPT"],
+        ["-A", "FORWARD", "-i", lan, "-o", wan, "-j", "ACCEPT"],
+        sudo_password,
+        logs,
+    )
+    if not ok:
+        return False, "\n".join(logs) + f"\n\nfailed to ensure FORWARD LAN->WAN rule (rc={rc})"
+
+    ok, rc = _ensure_iptables_rule(
+        ["-C", "FORWARD", "-i", wan, "-o", lan, "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
+        ["-A", "FORWARD", "-i", wan, "-o", lan, "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
+        sudo_password,
+        logs,
+    )
+    if not ok:
+        return False, "\n".join(logs) + f"\n\nfailed to ensure FORWARD WAN->LAN rule (rc={rc})"
+
+    return True, "\n".join(logs)
+
+
+def _disable_nat_linux_safe(wan: str, lan: str, sudo_password: str) -> tuple[bool, str]:
+    try:
+        wan = _validate_iface_name(wan, "wan")
+        lan = _validate_iface_name(lan, "lan")
+    except ValueError as exc:
+        return False, str(exc)
+
+    logs: list[str] = []
+    ok, rc = _remove_iptables_rule_if_exists(
+        ["-t", "nat", "-C", "POSTROUTING", "-o", wan, "-j", "MASQUERADE"],
+        ["-t", "nat", "-D", "POSTROUTING", "-o", wan, "-j", "MASQUERADE"],
+        sudo_password,
+        logs,
+    )
+    if not ok:
+        return False, "\n".join(logs) + f"\n\nfailed to delete NAT rule (rc={rc})"
+
+    ok, rc = _remove_iptables_rule_if_exists(
+        ["-C", "FORWARD", "-i", lan, "-o", wan, "-j", "ACCEPT"],
+        ["-D", "FORWARD", "-i", lan, "-o", wan, "-j", "ACCEPT"],
+        sudo_password,
+        logs,
+    )
+    if not ok:
+        return False, "\n".join(logs) + f"\n\nfailed to delete FORWARD LAN->WAN rule (rc={rc})"
+
+    ok, rc = _remove_iptables_rule_if_exists(
+        ["-C", "FORWARD", "-i", wan, "-o", lan, "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
+        ["-D", "FORWARD", "-i", wan, "-o", lan, "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
+        sudo_password,
+        logs,
+    )
+    if not ok:
+        return False, "\n".join(logs) + f"\n\nfailed to delete FORWARD WAN->LAN rule (rc={rc})"
+
+    return True, "\n".join(logs)
 
 
 def configure_jetson_dns_via_serial(
