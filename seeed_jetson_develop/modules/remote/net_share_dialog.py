@@ -193,6 +193,9 @@ class NetShareDialog(QDialog):
         wan_row.addWidget(make_label("PC 上网网卡 (WAN)", 12, C_TEXT2))
         self._wan_combo = QComboBox()
         self._wan_combo.setMinimumWidth(pt(200))
+        self._wan_combo.setMaximumWidth(pt(520))
+        self._wan_combo.setMinimumHeight(pt(38))
+        self._wan_combo.setStyleSheet(self._combo_style())
         wan_row.addWidget(self._wan_combo)
         wan_row.addStretch()
         cl.addLayout(wan_row)
@@ -203,6 +206,9 @@ class NetShareDialog(QDialog):
         lan_row.addWidget(make_label("PC 连接 Jetson 的网卡 (LAN)", 12, C_TEXT2))
         self._lan_combo = QComboBox()
         self._lan_combo.setMinimumWidth(pt(200))
+        self._lan_combo.setMaximumWidth(pt(520))
+        self._lan_combo.setMinimumHeight(pt(38))
+        self._lan_combo.setStyleSheet(self._combo_style())
         lan_row.addWidget(self._lan_combo)
         lan_row.addStretch()
         cl.addLayout(lan_row)
@@ -290,6 +296,39 @@ class NetShareDialog(QDialog):
         # 应用语言翻译
         if self._lang == "en":
             apply_language(self, "en")
+
+    def _combo_style(self) -> str:
+        return (
+            f"QComboBox {{"
+            f" background:{C_BG};"
+            f" border:1px solid rgba(255,255,255,0.14);"
+            f" border-radius:10px;"
+            f" padding:0 {pt(36)}px 0 {pt(12)}px;"
+            f" color:{C_TEXT};"
+            f" font-size:{pt(11)}px;"
+            f" min-height:{pt(22)}px;"
+            f"}}"
+            f" QComboBox:hover {{ border-color:rgba(255,255,255,0.22); }}"
+            f" QComboBox:focus {{ border-color:{C_GREEN}; }}"
+            f" QComboBox::drop-down {{ border:none; width:{pt(30)}px; }}"
+            f" QComboBox::down-arrow {{"
+            f" width:{pt(8)}px; height:{pt(8)}px;"
+            f" border-left:2px solid {C_TEXT3};"
+            f" border-bottom:2px solid {C_TEXT3};"
+            f" margin-right:{pt(10)}px;"
+            f"}}"
+            f" QComboBox QAbstractItemView {{"
+            f" background:{C_CARD_LIGHT};"
+            f" border:1px solid rgba(255,255,255,0.10);"
+            f" border-radius:8px;"
+            f" color:{C_TEXT};"
+            f" font-size:{pt(11)}px;"
+            f" selection-background-color:rgba(141,194,31,0.18);"
+            f" selection-color:{C_GREEN};"
+            f" outline:none;"
+            f" padding:{pt(4)}px;"
+            f"}}"
+        )
 
     def showEvent(self, event):
         super().showEvent(event)

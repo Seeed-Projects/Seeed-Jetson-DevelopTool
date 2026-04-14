@@ -642,13 +642,6 @@ def build_page() -> QWidget:
 
     scan_result = _lbl("", 11, C_TEXT2, wrap=True)
     conn_lay.addWidget(scan_result)
-    net_btn = _btn(_tt("remote.conn.btn.net_share"), small=True)
-    net_status = _lbl(_tt("remote.conn.net_share.off"), 10, C_TEXT2)
-    net_row = QHBoxLayout()
-    net_row.addWidget(net_btn)
-    net_row.addWidget(net_status)
-    net_row.addStretch()
-    conn_lay.addLayout(net_row)
     _shadow(conn_card)
     lay.addWidget(conn_card)
 
@@ -663,14 +656,6 @@ def build_page() -> QWidget:
 
     for w in (ip_input, user_input, pass_input, subnet_input):
         w.editingFinished.connect(_save_conn)
-
-    net_btn.clicked.connect(
-        lambda: open_net_share_dialog(
-            parent=page,
-            jetson_ip=ip_input.text().strip(),
-            on_state_change=lambda s: _set_net_state(net_status, s),
-        )
-    )
 
     scan_holder = [None]
     ssh_holder = [None]
@@ -754,12 +739,10 @@ def build_page() -> QWidget:
     init_lay.addWidget(init_hint)
     init_port_holder = [""]
     init_terminal_btn = _btn(_tt("remote.init.btn.terminal"), primary=True, small=True)
-    init_open_btn = _btn(_tt("remote.init.btn.panel"), small=True)
     init_net_btn = _btn(_tt("remote.init.btn.net_config"), small=True)
     init_share_btn = _btn(_tt("remote.init.btn.net_share"), small=True)
     init_btn_row = QHBoxLayout()
     init_btn_row.addWidget(init_terminal_btn)
-    init_btn_row.addWidget(init_open_btn)
     init_btn_row.addWidget(init_net_btn)
     init_btn_row.addWidget(init_share_btn)
     init_btn_row.addStretch()
@@ -786,7 +769,6 @@ def build_page() -> QWidget:
 
     _refresh_init()
     init_terminal_btn.clicked.connect(lambda: open_jetson_init_dialog(parent=page, preferred_port=init_port_holder[0], auto_open_terminal=True))
-    init_open_btn.clicked.connect(lambda: open_jetson_init_dialog(parent=page, preferred_port=init_port_holder[0]))
     init_net_btn.clicked.connect(lambda: open_jetson_net_config_dialog(parent=page))
     init_share_btn.clicked.connect(lambda: open_net_share_dialog(parent=page, jetson_ip=ip_input.text().strip()))
 
@@ -900,11 +882,9 @@ def build_page() -> QWidget:
     page.i18n.bind_placeholder(sudo_input, "remote.conn.sudo_placeholder")
     page.i18n.bind_text(sudo_hint, "remote.conn.sudo_hint")
     page.i18n.bind_text(subnet_label, "remote.conn.subnet")
-    page.i18n.bind_text(net_btn, "remote.conn.btn.net_share")
     page.i18n.bind_text(init_title, "remote.init.title")
     page.i18n.bind_text(init_desc, "remote.init.desc")
     page.i18n.bind_text(init_terminal_btn, "remote.init.btn.terminal")
-    page.i18n.bind_text(init_open_btn, "remote.init.btn.panel")
     page.i18n.bind_text(init_net_btn, "remote.init.btn.net_config")
     page.i18n.bind_text(init_share_btn, "remote.init.btn.net_share")
     page.i18n.bind_text(tools_title, "remote.tools.title")
@@ -919,15 +899,6 @@ def build_page() -> QWidget:
 
     page.retranslate_ui = _retranslate_ui
     return page
-
-
-def _set_net_state(label: QLabel, sharing: bool):
-    if sharing:
-        label.setText(_tt("remote.conn.net_share.on"))
-        label.setStyleSheet(f"color:{C_GREEN}; font-size:{_pt(10)}px; background:transparent; font-weight:700;")
-    else:
-        label.setText(_tt("remote.conn.net_share.off"))
-        label.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(10)}px; background:transparent;")
 
 
 def _open_api_dialog(page: QWidget, on_saved):

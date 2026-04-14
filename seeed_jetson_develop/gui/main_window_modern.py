@@ -24,6 +24,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .styles import MAIN_STYLE
+from .theme import show_info_message, show_warning_message, show_error_message, ask_question_message
 from ..flash import JetsonFlasher
 
 
@@ -97,7 +98,7 @@ class MainWindow(QMainWindow):
 
         if self.data_error:
             self.append_log(self.data_error, "ERROR")
-            QMessageBox.warning(self, "数据加载警告", self.data_error)
+            show_warning_message(self, "数据加载警告", self.data_error)
 
     def load_data(self):
         """Load JSON data used by the UI."""
@@ -625,24 +626,24 @@ class MainWindow(QMainWindow):
     def start_flash(self):
         """Start flashing workflow."""
         if self.flash_thread and self.flash_thread.isRunning():
-            QMessageBox.information(self, "提示", "任务正在执行，请等待当前流程结束")
+            show_info_message(self, "提示", "任务正在执行，请等待当前流程结束")
             return
 
         product = self.product_combo.currentText()
         l4t = self.l4t_combo.currentText()
 
         if not product or not l4t:
-            QMessageBox.warning(self, "警告", "请选择产品和 L4T 版本")
+            show_warning_message(self, "警告", "请选择产品和 L4T 版本")
             return
 
         mode_desc = "仅下载" if self.download_only_check.isChecked() else "下载 + 刷写"
         verify_desc = "跳过校验" if self.skip_verify_check.isChecked() else "执行校验"
 
-        reply = QMessageBox.question(
+        reply = ask_question_message(
             self,
             "确认执行",
             f"目标: {product}\n版本: {l4t}\n模式: {mode_desc}\n校验: {verify_desc}\n\n确认继续吗？",
-            QMessageBox.Yes | QMessageBox.No,
+            buttons=QMessageBox.Yes | QMessageBox.No,
         )
         if reply != QMessageBox.Yes:
             return
@@ -686,12 +687,12 @@ class MainWindow(QMainWindow):
             self.set_status("完成", "success")
             self.progress_label.setText(f"完成: {message}")
             self.append_log(message, "SUCCESS")
-            QMessageBox.information(self, "完成", message)
+            show_info_message(self, "完成", message)
         else:
             self.set_status("失败", "error")
             self.progress_label.setText(f"失败: {message}")
             self.append_log(message, "ERROR")
-            QMessageBox.critical(self, "错误", message)
+            show_error_message(self, "错误", message)
 
         self.statusBar().showMessage("就绪")
         self.flash_thread = None

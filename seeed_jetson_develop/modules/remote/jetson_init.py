@@ -22,9 +22,11 @@ from PyQt5.QtWidgets import (
     QLabel,
     QLineEdit,
     QMessageBox,
+    QScrollArea,
     QSizePolicy,
     QTextEdit,
     QVBoxLayout,
+    QWidget,
 )
 
 from seeed_jetson_develop.gui.i18n import get_language, t
@@ -366,6 +368,20 @@ class JetsonInitDialog(QDialog):
         self.setMinimumSize(pt(980), pt(680))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
         root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QScrollArea.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        root.addWidget(self._scroll)
+
+        body = QWidget()
+        self._scroll.setWidget(body)
+
+        root = QVBoxLayout(body)
         root.setContentsMargins(24, 22, 24, 22)
         root.setSpacing(16)
 
@@ -696,6 +712,20 @@ class JetsonNetConfigDialog(QDialog):
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
 
         root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QScrollArea.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
+        root.addWidget(self._scroll)
+
+        body = QWidget()
+        self._scroll.setWidget(body)
+
+        root = QVBoxLayout(body)
         root.setContentsMargins(24, 22, 24, 22)
         root.setSpacing(16)
         self._title_lbl = make_label(_tr("remote.jetson_net_config.title", "Jetson Network Config", self._lang), 16, C_TEXT, bold=True)
