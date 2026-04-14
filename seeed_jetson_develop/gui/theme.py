@@ -8,11 +8,29 @@
 """
 from __future__ import annotations
 
+import sys
+from dataclasses import dataclass
+
 from PyQt5.QtCore import Qt, QRect
 from PyQt5.QtGui import QColor, QFont, QFontDatabase
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QFrame, QGraphicsDropShadowEffect,
-    QHBoxLayout, QLabel, QMessageBox, QPushButton, QWidget, QVBoxLayout,
+    QHBoxLayout, QLabel, QMessageBox, QPushButton, QScrollArea, QWidget, QVBoxLayout,
+)
+
+
+@dataclass(frozen=True)
+class _PlatformConfig:
+    """Compatibility platform config consumed by legacy pages."""
+    is_windows: bool
+    win_min_w: int
+    win_min_h: int
+
+
+PLATFORM = _PlatformConfig(
+    is_windows=(sys.platform == "win32"),
+    win_min_w=1120,
+    win_min_h=720,
 )
 
 # ── 颜色系统 ──────────────────────────────────────────────────────────────────
@@ -78,7 +96,6 @@ def pt(px: int) -> int:
     Windows 上 Qt stylesheet 的 pt 单位会被系统 DPI 二次放大，
     所以 Windows 下按 0.80 缩放避免字号偏大。
     """
-    import sys
     scale = 0.80 if sys.platform == "win32" else 1.0
     return max(8, int(px * scale))
 
@@ -217,8 +234,9 @@ def make_button(text: str, primary: bool = False,
 def make_card(radius: int = 12, with_shadow: bool = True) -> QFrame:
     """创建卡片 - 带高光顶边和立体阴影"""
     f = QFrame()
+    f.setObjectName("SeeedCard")
     f.setStyleSheet(f"""
-        QFrame {{
+        QFrame#SeeedCard {{
             background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                 stop:0 #1E2D40, stop:1 {C_CARD});
             border: 1px solid {C_BORDER_CARD};
@@ -231,11 +249,17 @@ def make_card(radius: int = 12, with_shadow: bool = True) -> QFrame:
     return f
 
 
+def make_list_card() -> QFrame:
+    """Backward-compatible alias for list-style cards."""
+    return make_card()
+
+
 def make_input_card(radius: int = 10) -> QFrame:
     """创建输入框容器 - 内凹感"""
     f = QFrame()
+    f.setObjectName("SeeedInputCard")
     f.setStyleSheet(f"""
-        QFrame {{
+        QFrame#SeeedInputCard {{
             background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                 stop:0 #141E2C, stop:1 {C_CARD_LIGHT});
             border: 1px solid rgba(255,255,255,0.06);
@@ -298,10 +322,11 @@ def make_tab_button(text: str, active: bool = False) -> "QPushButton":
             color: {color};
             border: none;
             border-radius: 0px;
-            padding: {pt(6)}px {pt(18)}px;
+            padding: 0px {pt(18)}px;
             font-size: {pt(11)}px;
             font-weight: {weight};
             min-height: {pt(36)}px;
+            text-align: center;
         }}
         QPushButton:hover {{ background: rgba(255,255,255,0.06); color:{C_TEXT}; }}
     """)
@@ -623,14 +648,14 @@ class ThemedMessageBox(QDialog):
     _ICON_TEXT = {
         QMessageBox.Information: "i",
         QMessageBox.Warning: "!",
-        QMessageBox.Critical: "×",
+        QMessageBox.Critical: "✕",
         QMessageBox.Question: "?",
     }
     _ICON_STYLE = {
-        QMessageBox.Information: (C_BLUE, "rgba(44,123,229,0.18)"),
-        QMessageBox.Warning: (C_ORANGE, "rgba(245,166,35,0.18)"),
-        QMessageBox.Critical: (C_RED, "rgba(229,62,62,0.18)"),
-        QMessageBox.Question: (C_GREEN, "rgba(122,179,23,0.18)"),
+        QMessageBox.Information: (C_BLUE,   "rgba(61,142,240,0.14)"),
+        QMessageBox.Warning:     (C_ORANGE, "rgba(245,166,35,0.14)"),
+        QMessageBox.Critical:    (C_RED,    "rgba(229,62,62,0.14)"),
+        QMessageBox.Question:    (C_GREEN,  "rgba(141,194,31,0.14)"),
     }
     _STANDARD_BUTTONS = (
         QMessageBox.Ok,
@@ -639,16 +664,16 @@ class ThemedMessageBox(QDialog):
         QMessageBox.Cancel,
     )
     _STANDARD_TEXT = {
-        QMessageBox.Ok: "OK",
-        QMessageBox.Yes: "是",
-        QMessageBox.No: "否",
+        QMessageBox.Ok:     "OK",
+        QMessageBox.Yes:    "是",
+        QMessageBox.No:     "否",
         QMessageBox.Cancel: "取消",
     }
     _ROLE_RESULT = {
-        QMessageBox.AcceptRole: QDialog.Accepted,
-        QMessageBox.YesRole: QMessageBox.Yes,
-        QMessageBox.NoRole: QMessageBox.No,
-        QMessageBox.RejectRole: QDialog.Rejected,
+        QMessageBox.AcceptRole:     QDialog.Accepted,
+        QMessageBox.YesRole:        QMessageBox.Yes,
+        QMessageBox.NoRole:         QMessageBox.No,
+        QMessageBox.RejectRole:     QDialog.Rejected,
         QMessageBox.DestructiveRole: QDialog.Accepted,
     }
 
@@ -663,112 +688,114 @@ class ThemedMessageBox(QDialog):
         self.setModal(True)
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, True)
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(pt(460))
+        self.setMaximumWidth(pt(600))
         self._build_ui()
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setContentsMargins(16, 16, 16, 16)   # 留出阴影空间
         outer.setSpacing(0)
 
+        # ── 主卡片 ──────────────────────────────────────────────────
         self._card = QFrame(self)
+        self._card.setObjectName("MsgCard")
         self._card.setStyleSheet(f"""
-            QFrame {{
-                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-                    stop:0 #1A2840, stop:1 {C_BG});
-                border: 1px solid rgba(255,255,255,0.10);
-                border-top-color: rgba(255,255,255,0.18);
-                border-radius: 18px;
+            QFrame#MsgCard {{
+                background: {C_CARD};
+                border: 1px solid rgba(255,255,255,0.09);
+                border-top-color: rgba(255,255,255,0.15);
+                border-radius: 12px;
             }}
         """)
-        apply_shadow(self._card, blur=40, y=16, alpha=120)
+        apply_shadow(self._card, blur=32, y=10, alpha=120)
         outer.addWidget(self._card)
 
-        layout = QVBoxLayout(self._card)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        root = QVBoxLayout(self._card)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        header = QFrame(self._card)
-        header.setStyleSheet(f"""
-            QFrame {{
-                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-                    stop:0 #111E30, stop:1 {C_BG_DEEP});
-                border: none;
-                border-top-left-radius: 18px;
-                border-top-right-radius: 18px;
-                border-bottom: 1px solid rgba(255,255,255,0.06);
-            }}
-        """)
-        header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(18, 14, 12, 12)
-        header_layout.setSpacing(10)
-        dot = QLabel("●")
-        dot.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(8)}px; background:transparent;")
-        header_layout.addWidget(dot)
-        self._title_label = QLabel("")
-        self._title_label.setStyleSheet(
-            f"color:{C_TEXT}; font-size:{pt(13)}px; font-weight:700; background:transparent;"
-        )
-        header_layout.addWidget(self._title_label)
-        header_layout.addStretch()
-        close_btn = QPushButton("×")
-        close_btn.setCursor(Qt.PointingHandCursor)
-        close_btn.setFixedSize(28, 28)
-        close_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: rgba(255,255,255,0.05);
-                border: none;
-                border-radius: 14px;
-                color: {C_TEXT2};
-                font-size: {pt(14)}px;
-                font-weight: 600;
-            }}
-            QPushButton:hover {{
-                background: rgba(255,255,255,0.10);
-                color: {C_TEXT};
-            }}
-        """)
-        close_btn.clicked.connect(self.reject)
-        header_layout.addWidget(close_btn)
-        layout.addWidget(header)
+        # ── Body：图标 + 标题 + 正文 ────────────────────────────────
+        body = QFrame()
+        body.setObjectName("MsgBody")
+        body.setStyleSheet("QFrame#MsgBody { background:transparent; border:none; }")
+        b_lay = QHBoxLayout(body)
+        b_lay.setContentsMargins(pt(24), pt(22), pt(20), pt(18))
+        b_lay.setSpacing(pt(16))
 
-        body = QFrame(self._card)
-        body.setStyleSheet("background:transparent; border:none;")
-        body_layout = QHBoxLayout(body)
-        body_layout.setContentsMargins(18, 18, 18, 12)
-        body_layout.setSpacing(14)
-
-        self._icon_label = QLabel("i")
+        # 图标圆圈
+        self._icon_label = QLabel("!")
         self._icon_label.setAlignment(Qt.AlignCenter)
-        self._icon_label.setFixedSize(36, 36)
-        body_layout.addWidget(self._icon_label, 0, Qt.AlignTop)
+        sz = pt(40)
+        self._icon_label.setFixedSize(sz, sz)
+        self._icon_label.setStyleSheet(f"""
+            background: rgba(245,166,35,0.14);
+            color: {C_ORANGE};
+            border: none;
+            border-radius: {sz // 2}px;
+            font-size: {pt(18)}px;
+            font-weight: 800;
+        """)
+        b_lay.addWidget(self._icon_label, 0, Qt.AlignTop)
 
-        content_col = QVBoxLayout()
-        content_col.setSpacing(8)
+        # 文字区
+        text_col = QVBoxLayout()
+        text_col.setSpacing(pt(6))
+        text_col.setContentsMargins(0, pt(2), 0, 0)
+
+        self._title_label = QLabel("")
+        self._title_label.setWordWrap(True)
+        self._title_label.setStyleSheet(
+            f"color:{C_TEXT}; font-size:{pt(13)}px; font-weight:700; "
+            f"background:transparent; border:none;"
+        )
+        text_col.addWidget(self._title_label)
+
         self._text_label = QLabel("")
         self._text_label.setWordWrap(True)
         self._text_label.setStyleSheet(
-            f"color:{C_TEXT}; font-size:{pt(13)}px; font-weight:600; background:transparent;"
+            f"color:{C_TEXT2}; font-size:{pt(12)}px; font-weight:400; "
+            f"background:transparent; border:none;"
         )
+        text_col.addWidget(self._text_label)
+
+        # 详情框（次要补充信息，无边框，仅换色区分）
+        self._info_wrap = QFrame()
+        self._info_wrap.setObjectName("InfoWrap")
+        self._info_wrap.setStyleSheet(
+            "QFrame#InfoWrap { background:transparent; border:none; }"
+        )
+        iw_lay = QVBoxLayout(self._info_wrap)
+        iw_lay.setContentsMargins(0, pt(2), 0, 0)
+        iw_lay.setSpacing(0)
         self._info_label = QLabel("")
         self._info_label.setWordWrap(True)
         self._info_label.setStyleSheet(
-            f"color:{C_TEXT2}; font-size:{pt(11)}px; background:transparent; line-height:1.45;"
+            f"color:{C_TEXT3}; font-size:{pt(11)}px; background:transparent; border:none;"
         )
-        self._info_label.hide()
-        content_col.addWidget(self._text_label)
-        content_col.addWidget(self._info_label)
-        body_layout.addLayout(content_col, 1)
-        layout.addWidget(body)
+        iw_lay.addWidget(self._info_label)
+        self._info_wrap.hide()
+        text_col.addWidget(self._info_wrap)
 
-        footer = QFrame(self._card)
-        footer.setStyleSheet("background:transparent; border:none;")
-        footer_layout = QHBoxLayout(footer)
-        footer_layout.setContentsMargins(18, 0, 18, 18)
-        footer_layout.setSpacing(10)
-        footer_layout.addStretch()
-        self._button_layout = footer_layout
-        layout.addWidget(footer)
+        b_lay.addLayout(text_col, 1)
+        root.addWidget(body)
+
+        # ── Footer：按钮行 ──────────────────────────────────────────
+        footer = QFrame()
+        footer.setObjectName("MsgFooter")
+        footer.setStyleSheet(f"""
+            QFrame#MsgFooter {{
+                background: transparent;
+                border: none;
+                border-top: 1px solid rgba(255,255,255,0.06);
+            }}
+        """)
+        f_lay = QHBoxLayout(footer)
+        f_lay.setContentsMargins(pt(20), pt(12), pt(20), pt(14))
+        f_lay.setSpacing(pt(10))
+        f_lay.addStretch()
+        self._button_layout = f_lay
+        root.addWidget(footer)
 
     def setWindowTitle(self, title: str):
         self._title = title
@@ -780,19 +807,20 @@ class ThemedMessageBox(QDialog):
 
     def setInformativeText(self, text: str):
         self._info_label.setText(text)
-        self._info_label.setVisible(bool(text))
+        self._info_wrap.setVisible(bool(text))
 
     def setIcon(self, icon):
         self._icon = icon
         fg, bg = self._ICON_STYLE.get(icon, self._ICON_STYLE[QMessageBox.Information])
+        sz = pt(40)
         self._icon_label.setText(self._ICON_TEXT.get(icon, "i"))
         self._icon_label.setStyleSheet(f"""
             background: {bg};
             color: {fg};
             border: none;
-            border-radius: 18px;
+            border-radius: {sz // 2}px;
             font-size: {pt(18)}px;
-            font-weight: 700;
+            font-weight: 800;
         """)
 
     def _clear_buttons(self):
@@ -925,17 +953,24 @@ class ThemedMessageBox(QDialog):
 
     def _reposition(self):
         self.adjustSize()
+        screen = QApplication.primaryScreen()
+        geo = screen.availableGeometry() if screen else QRect(0, 0, 1280, 720)
+        max_w = int(geo.width() * 0.90)
+        max_h = int(geo.height() * 0.85)
+        if self.width() > max_w or self.height() > max_h:
+            self.resize(min(self.width(), max_w), min(self.height(), max_h))
+        # 用 mapToGlobal 获取父窗口在屏幕上的真实中心坐标
         if self.parentWidget() is not None:
-            parent = self.parentWidget()
-            center = parent.geometry().center()
+            p = self.parentWidget()
+            center = p.mapToGlobal(p.rect().center())
             x = center.x() - self.width() // 2
             y = center.y() - self.height() // 2
         else:
-            screen = QApplication.primaryScreen()
-            geo = screen.availableGeometry() if screen else QRect(0, 0, 1280, 720)
             x = geo.center().x() - self.width() // 2
             y = geo.center().y() - self.height() // 2
-        self.move(max(24, x), max(24, y))
+        x = max(geo.x() + 12, min(x, geo.right()  - self.width()  - 12))
+        y = max(geo.y() + 12, min(y, geo.bottom() - self.height() - 12))
+        self.move(x, y)
 
     def reject(self):
         self._result_value = QMessageBox.Cancel

@@ -28,6 +28,7 @@ from PyQt5.QtWidgets import (
 )
 
 from .styles import MAIN_STYLE
+from .theme import show_info_message, show_warning_message, show_error_message, ask_question_message
 from ..flash import JetsonFlasher
 from ..core.platform_detect import is_jetson
 from ..core.events import bus
@@ -381,7 +382,7 @@ class MainWindow(QMainWindow):
 
         if self.data_error:
             self.append_log(self.data_error, "ERROR")
-            QMessageBox.warning(self, self.tr("warn_data_title"), self.data_error)
+            show_warning_message(self, self.tr("warn_data_title"), self.data_error)
 
     def tr(self, key, **kwargs):
         text = I18N[self.lang].get(key, key)
@@ -979,7 +980,7 @@ class MainWindow(QMainWindow):
     def set_nav_index(self, index):
         # 非 Jetson 且未建立远程连接时，门控 devices/apps/skills（索引 3/4/5）
         if index in (3, 4, 5) and not self._is_jetson and not self._remote_connected:
-            QMessageBox.information(
+            show_info_message(
                 self,
                 self.tr("msg_info_title"),
                 self.tr("hint_need_remote"),
@@ -1210,24 +1211,24 @@ class MainWindow(QMainWindow):
 
     def start_flash(self):
         if self.flash_thread and self.flash_thread.isRunning():
-            QMessageBox.information(self, self.tr("msg_info_title"), self.tr("hint_running"))
+            show_info_message(self, self.tr("msg_info_title"), self.tr("hint_running"))
             return
 
         product = self.product_combo.currentText()
         l4t = self.l4t_combo.currentText()
         if not product or not l4t:
-            QMessageBox.warning(self, self.tr("msg_error_title"), self.tr("warn_select"))
+            show_warning_message(self, self.tr("msg_error_title"), self.tr("warn_select"))
             return
 
         mode = self.tr("mode_download_short" if self.download_only_check.isChecked() else "mode_flash_short")
         verify = self.tr("verify_skip_short" if self.skip_verify_check.isChecked() else "verify_do_short")
         confirm = self.tr("confirm_tpl", product=product, l4t=l4t, mode=mode, verify=verify)
 
-        reply = QMessageBox.question(
+        reply = ask_question_message(
             self,
             self.tr("confirm_title"),
             confirm,
-            QMessageBox.Yes | QMessageBox.No,
+            buttons=QMessageBox.Yes | QMessageBox.No,
         )
         if reply != QMessageBox.Yes:
             return
@@ -1285,18 +1286,18 @@ class MainWindow(QMainWindow):
             self.set_status("status_done", "success")
             self.progress_label.setText(self.tr("result_done_prefix", message=message))
             self.append_log(message, "SUCCESS")
-            QMessageBox.information(self, self.tr("msg_done_title"), message)
+            show_info_message(self, self.tr("msg_done_title"), message)
         else:
             if message == self.tr("result_cancelled"):
                 self.set_status("status_ready", "info")
                 self.progress_label.setText(message)
                 self.append_log(message, "INFO")
-                QMessageBox.information(self, self.tr("msg_info_title"), message)
+                show_info_message(self, self.tr("msg_info_title"), message)
             else:
                 self.set_status("status_error", "error")
                 self.progress_label.setText(self.tr("result_error_prefix", message=message))
                 self.append_log(message, "ERROR")
-                QMessageBox.critical(self, self.tr("msg_error_title"), message)
+                show_error_message(self, self.tr("msg_error_title"), message)
 
         self.statusBar().showMessage(self.tr("statusbar_ready"))
         self.flash_thread = None

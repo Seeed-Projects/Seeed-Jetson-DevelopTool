@@ -1,14 +1,16 @@
-"""
-GUI 模块
-"""
-# 延迟导入，避免在导入时就加载 PyQt5
-__all__ = ['MainWindow', 'main']
+"""GUI module exports."""
+
+# Lazy imports to avoid importing PyQt5 at module import time.
+__all__ = ["MainWindow", "main"]
+
 
 def __getattr__(name):
-    if name == 'MainWindow':
-        from .main_window import MainWindow
-        return MainWindow
-    elif name == 'main':
-        from .main_window import main
+    if name == "MainWindow":
+        from .main_window_v2 import MainWindowV2
+
+        return MainWindowV2
+    if name == "main":
+        from .main_window_v2 import main
+
         return main
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

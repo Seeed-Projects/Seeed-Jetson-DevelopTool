@@ -1,9 +1,11 @@
 """全局配置持久化"""
 import json
 import os
+import logging
 from pathlib import Path
 
 _CONFIG_PATH = Path.home() / ".config" / "seeed-jetson-tool" / "config.json"
+log = logging.getLogger("seeed.core.config")
 DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
 DEFAULT_LANGUAGE = "zh-CN"
 LANGUAGE_ALIASES = {
@@ -17,7 +19,13 @@ LANGUAGE_ALIASES = {
 def load() -> dict:
     try:
         return json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
-    except Exception:
+    except FileNotFoundError:
+        return {}
+    except json.JSONDecodeError as exc:
+        log.warning("Invalid config JSON at %s: %s", _CONFIG_PATH, exc)
+        return {}
+    except OSError as exc:
+        log.warning("Failed to read config %s: %s", _CONFIG_PATH, exc)
         return {}
 
 

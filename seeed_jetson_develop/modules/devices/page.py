@@ -91,7 +91,7 @@ class _SerialCredDialog(QDialog):
         super().__init__(parent)
         lang = get_language()
         self.setWindowTitle(t("devices.serial_cred.title", lang=lang))
-        self.setMinimumWidth(380)
+        self.setMinimumWidth(_pt(380))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT};")
 
         lay = QVBoxLayout(self)
@@ -264,12 +264,28 @@ class _TorchInstallDialog(QDialog):
         self._thread = None
         lang = get_language()
         self.setWindowTitle(t("devices.torch_install.title", lang=lang))
-        self.setMinimumSize(640, 520)
+        self.setMinimumSize(_pt(640), _pt(480))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
 
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(24, 20, 24, 20)
+        root_lay = QVBoxLayout(self)
+        root_lay.setContentsMargins(0, 0, 0, 0)
+        root_lay.setSpacing(0)
+
+        # ── 可滚动主体 ──
+        from PyQt5.QtWidgets import QScrollArea
+        from PyQt5.QtCore import Qt
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setStyleSheet("background:transparent; border:none;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        inner = QWidget()
+        inner.setStyleSheet("background:transparent;")
+        lay = QVBoxLayout(inner)
+        lay.setContentsMargins(24, 20, 24, 12)
         lay.setSpacing(16)
+        scroll.setWidget(inner)
+        root_lay.addWidget(scroll, 1)
 
         # Version hint.
         jp = "JetPack 6.x (R36)" if "R36" in l4t else "JetPack 5.x (R35)"
@@ -282,14 +298,14 @@ class _TorchInstallDialog(QDialog):
         cmds = _InstallThread._CMDS_JP6 if "R36" in l4t else _InstallThread._CMDS_JP5
         preview = QTextEdit()
         preview.setReadOnly(True)
-        preview.setFixedHeight(120)
+        preview.setFixedHeight(_pt(120))
         preview.setStyleSheet(f"""
             background:{C_CARD_LIGHT};
             border:none;
             border-radius:10px;
             color:{C_TEXT2};
             font-family:'JetBrains Mono','Consolas',monospace;
-            font-size:11px;
+            font-size:{_pt(11)}px;
             padding:12px;
         """)
         preview.setPlainText("\n".join(f"$ {c}" for c in cmds))
@@ -305,14 +321,22 @@ class _TorchInstallDialog(QDialog):
             border-radius:10px;
             color:{C_GREEN};
             font-family:'JetBrains Mono','Consolas',monospace;
-            font-size:11px;
+            font-size:{_pt(11)}px;
             padding:12px;
         """)
+        self._log.setMinimumHeight(_pt(160))
         lay.addWidget(self._log, 1)
+        lay.addStretch()
+
+        # ── 底部按钮栏（固定，不随滚动） ──
+        btn_frame = QWidget()
+        btn_frame.setStyleSheet(f"background:{C_BG}; border-top:1px solid rgba(255,255,255,0.06);")
+        btn_row = QHBoxLayout(btn_frame)
+        btn_row.setContentsMargins(24, 12, 24, 16)
+        btn_row.setSpacing(12)
+        root_lay.addWidget(btn_frame)
 
         # Button row.
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
         self._start_btn = _btn(t("devices.torch_install.start_btn", lang=lang), primary=True)
         self._stop_btn  = _btn(t("devices.torch_install.stop_btn", lang=lang))
         self._stop_btn.setEnabled(False)
@@ -321,11 +345,25 @@ class _TorchInstallDialog(QDialog):
         btn_row.addWidget(self._stop_btn)
         btn_row.addStretch()
         btn_row.addWidget(close_btn)
-        lay.addLayout(btn_row)
 
         self._start_btn.clicked.connect(self._start)
         self._stop_btn.clicked.connect(self._stop)
         close_btn.clicked.connect(self.close)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _append(self, text: str):
         from PyQt5.QtGui import QTextCursor
@@ -532,12 +570,12 @@ class DevicesPage(PageBase):
             self._diag_only_btn.setEnabled(False)
             for t in self._diag_tags.values():
                 t.setText(_checking)
-                t.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:6px; padding:4px 12px; font-size:11px;")
+                t.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:6px; padding:4px 12px; font-size:{_pt(11)}px;")
         if mode in ("full", "periph"):
             self._periph_only_btn.setEnabled(False)
             for t in self._periph_tags.values():
                 t.setText(_checking)
-                t.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:6px; padding:4px 12px; font-size:11px;")
+                t.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:6px; padding:4px 12px; font-size:{_pt(11)}px;")
 
     def _reset_buttons(self):
         self._run_btn.setEnabled(True)
@@ -554,7 +592,7 @@ class DevicesPage(PageBase):
             tag.setStyleSheet(f"""
                 background: {C_CARD_LIGHT}; color: {color};
                 border-radius: 6px; padding: 4px 12px;
-                font-size: 11px; font-weight: 500;
+                font-size: {_pt(11)}px; font-weight: 500;
             """)
         if item_id == "torch" and self._torch_install_btn:
             if color_key in ("error", "warn"):
@@ -565,7 +603,7 @@ class DevicesPage(PageBase):
     def _on_info(self, info: dict):
         for key, lbl in self._info_cards.items():
             lbl.setText(info.get(key, "—"))
-            lbl.setStyleSheet(f"color:{C_TEXT}; font-size:14px; background:transparent; font-weight:600;")
+            lbl.setStyleSheet(f"color:{C_TEXT}; font-size:{_pt(14)}px; background:transparent; font-weight:600;")
         for key, lbl in self._sys_labels.items():
             lbl.setText(info.get(key, "—"))
         self._l4t_ver = info.get("l4t", "R36")
@@ -647,7 +685,7 @@ class DevicesPage(PageBase):
                 tag.setStyleSheet(
                     f"background: {C_CARD_LIGHT}; color: {color};"
                     " border-radius: 6px; padding: 4px 12px;"
-                    " font-size: 11px; font-weight: 500;"
+                    f" font-size: {_pt(11)}px; font-weight: 500;"
                 )
             else:
                 tag.setText(_tt("devices.status.pending"))

@@ -1,6 +1,8 @@
 {
   "apps.page.title": "应用市场",
   "apps.page.subtitle": "浏览、安装、运行和管理 Jetson 应用与示例",
+  "apps.banner.title": "APP MARKET 一键部署 Jetson 应用",
+  "apps.banner.summary": "共 {total} 个应用，已安装 {installed} 个，状态检测中 {checking} 个",
   "apps.category.all": "全部",
   "apps.category.installed": "已安装",
   "apps.status.installed": "已安装",

@@ -1,5 +1,7 @@
 """Remote development page."""
 
+import re
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QDialog,
@@ -58,11 +60,20 @@ def _tt(key: str, **kwargs) -> str:
     return t(key, lang=get_language(), **kwargs)
 
 
+def _sanitize_command_for_log(cmd: str) -> str:
+    text = str(cmd or "")
+    # Redact "echo 'password' | sudo -S ..." style payloads if present.
+    text = re.sub(r"echo\s+(['\"]).*?\1\s*\|\s*sudo\s+-S", "echo '***' | sudo -S", text, flags=re.IGNORECASE)
+    # Redact common explicit password arguments.
+    text = re.sub(r"(--password\s+)(\S+)", r"\1***", text, flags=re.IGNORECASE)
+    return text
+
+
 def _show_need_connection_dialog(parent: QWidget, tool_name: str):
     dlg = QDialog(parent)
     dlg.setWindowTitle(_tt("remote.need_conn.title"))
     dlg.setModal(True)
-    dlg.setMinimumWidth(460)
+    dlg.setMinimumWidth(_pt(460))
     dlg.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
     lay = QVBoxLayout(dlg)
     lay.setContentsMargins(24, 22, 24, 20)
@@ -146,7 +157,7 @@ class _ApiKeyDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle(_tt("remote.api_key.title"))
-        self.setMinimumSize(560, 400)
+        self.setMinimumSize(_pt(560), _pt(400))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
@@ -261,7 +272,7 @@ class _SshCmdThread(QThread):
 
     def run(self):
         for cmd, timeout in self._commands:
-            self.line_out.emit(f"$ {cmd}")
+            self.line_out.emit(f"$ {_sanitize_command_for_log(cmd)}")
             rc, out = self._runner.run(cmd, timeout=timeout, on_output=lambda l: self.line_out.emit(l))
             self._last_out = out
             if rc != 0:
@@ -277,7 +288,7 @@ class _VscodeWebDialog(QDialog):
         self._ip = ip
         self._thread = None
         self.setWindowTitle(_tt("remote.vscode_web.window_title"))
-        self.setMinimumSize(640, 500)
+        self.setMinimumSize(_pt(640), _pt(500))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
@@ -307,6 +318,21 @@ class _VscodeWebDialog(QDialog):
         self._run_btn.clicked.connect(self._start)
         close_btn.clicked.connect(self.close)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
+
     def _append(self, line):
         self._log.append(line)
         self._log.verticalScrollBar().setValue(self._log.verticalScrollBar().maximum())
@@ -326,7 +352,7 @@ class _VscodeWebDialog(QDialog):
             "echo 'Failed, trying next...' && rm -f ${CACHE}/${DEB}; done && "
             "[ -f ${CACHE}/${DEB} ] && [ $(stat -c%s ${CACHE}/${DEB}) -gt 52428800 ] || { echo 'Download failed'; exit 1; } && "
             "echo 'Installing...' && "
-            f"echo {self._runner.sudo_password!r} | sudo -S dpkg -i ${{CACHE}}/${{DEB}} 2>&1"
+            "sudo dpkg -i ${CACHE}/${DEB} 2>&1"
         )
         cmds = [
             (install_cmd, 600),
@@ -358,7 +384,7 @@ class _JupyterLaunchDialog(QDialog):
         self._ip = ip
         self._thread = None
         self.setWindowTitle(_tt("remote.jupyter_launch.window_title"))
-        self.setMinimumSize(640, 500)
+        self.setMinimumSize(_pt(640), _pt(500))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
@@ -387,6 +413,21 @@ class _JupyterLaunchDialog(QDialog):
         lay.addLayout(row)
         self._run_btn.clicked.connect(self._start)
         close_btn.clicked.connect(self.close)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _append(self, line):
         self._log.append(line)
@@ -448,7 +489,7 @@ class _VscodeSSHDialog(QDialog):
     def __init__(self, ip: str = "", parent=None):
         super().__init__(parent)
         self.setWindowTitle(_tt("remote.vscode_ssh.window_title"))
-        self.setMinimumSize(620, 480)
+        self.setMinimumSize(_pt(620), _pt(480))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(28, 24, 28, 24)
@@ -466,6 +507,21 @@ class _VscodeSSHDialog(QDialog):
         close_btn.clicked.connect(self.close)
         row.addWidget(close_btn)
         lay.addLayout(row)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
 
 def build_page() -> QWidget:
@@ -586,7 +642,7 @@ def build_page() -> QWidget:
     subnet_label = _lbl(_tt("remote.conn.subnet"), 11, C_TEXT2)
     subnet_input = QLineEdit(conn_cfg.get("remote_last_subnet", "192.168.1") or "192.168.1")
     subnet_input.setPlaceholderText("192.168.x")
-    subnet_input.setFixedWidth(160)
+    subnet_input.setFixedWidth(_pt(160))
     subnet_input.setFixedHeight(_pt(40))
     subnet_input.setStyleSheet(user_input.styleSheet())
     subnet_row = QHBoxLayout()
@@ -597,13 +653,6 @@ def build_page() -> QWidget:
 
     scan_result = _lbl("", 11, C_TEXT2, wrap=True)
     conn_lay.addWidget(scan_result)
-    net_btn = _btn(_tt("remote.conn.btn.net_share"), small=True)
-    net_status = _lbl(_tt("remote.conn.net_share.off"), 10, C_TEXT2)
-    net_row = QHBoxLayout()
-    net_row.addWidget(net_btn)
-    net_row.addWidget(net_status)
-    net_row.addStretch()
-    conn_lay.addLayout(net_row)
     _shadow(conn_card)
     lay.addWidget(conn_card)
 
@@ -618,14 +667,6 @@ def build_page() -> QWidget:
 
     for w in (ip_input, user_input, pass_input, subnet_input):
         w.editingFinished.connect(_save_conn)
-
-    net_btn.clicked.connect(
-        lambda: open_net_share_dialog(
-            parent=page,
-            jetson_ip=ip_input.text().strip(),
-            on_state_change=lambda s: _set_net_state(net_status, s),
-        )
-    )
 
     scan_holder = [None]
     ssh_holder = [None]
@@ -709,12 +750,10 @@ def build_page() -> QWidget:
     init_lay.addWidget(init_hint)
     init_port_holder = [""]
     init_terminal_btn = _btn(_tt("remote.init.btn.terminal"), primary=True, small=True)
-    init_open_btn = _btn(_tt("remote.init.btn.panel"), small=True)
     init_net_btn = _btn(_tt("remote.init.btn.net_config"), small=True)
     init_share_btn = _btn(_tt("remote.init.btn.net_share"), small=True)
     init_btn_row = QHBoxLayout()
     init_btn_row.addWidget(init_terminal_btn)
-    init_btn_row.addWidget(init_open_btn)
     init_btn_row.addWidget(init_net_btn)
     init_btn_row.addWidget(init_share_btn)
     init_btn_row.addStretch()
@@ -741,7 +780,6 @@ def build_page() -> QWidget:
 
     _refresh_init()
     init_terminal_btn.clicked.connect(lambda: open_jetson_init_dialog(parent=page, preferred_port=init_port_holder[0], auto_open_terminal=True))
-    init_open_btn.clicked.connect(lambda: open_jetson_init_dialog(parent=page, preferred_port=init_port_holder[0]))
     init_net_btn.clicked.connect(lambda: open_jetson_net_config_dialog(parent=page))
     init_share_btn.clicked.connect(lambda: open_net_share_dialog(parent=page, jetson_ip=ip_input.text().strip()))
 
@@ -855,11 +893,9 @@ def build_page() -> QWidget:
     page.i18n.bind_placeholder(sudo_input, "remote.conn.sudo_placeholder")
     page.i18n.bind_text(sudo_hint, "remote.conn.sudo_hint")
     page.i18n.bind_text(subnet_label, "remote.conn.subnet")
-    page.i18n.bind_text(net_btn, "remote.conn.btn.net_share")
     page.i18n.bind_text(init_title, "remote.init.title")
     page.i18n.bind_text(init_desc, "remote.init.desc")
     page.i18n.bind_text(init_terminal_btn, "remote.init.btn.terminal")
-    page.i18n.bind_text(init_open_btn, "remote.init.btn.panel")
     page.i18n.bind_text(init_net_btn, "remote.init.btn.net_config")
     page.i18n.bind_text(init_share_btn, "remote.init.btn.net_share")
     page.i18n.bind_text(tools_title, "remote.tools.title")
@@ -874,15 +910,6 @@ def build_page() -> QWidget:
 
     page.retranslate_ui = _retranslate_ui
     return page
-
-
-def _set_net_state(label: QLabel, sharing: bool):
-    if sharing:
-        label.setText(_tt("remote.conn.net_share.on"))
-        label.setStyleSheet(f"color:{C_GREEN}; font-size:{_pt(10)}px; background:transparent; font-weight:700;")
-    else:
-        label.setText(_tt("remote.conn.net_share.off"))
-        label.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(10)}px; background:transparent;")
 
 
 def _open_api_dialog(page: QWidget, on_saved):

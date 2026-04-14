@@ -1,6 +1,9 @@
 """运行环境检测 — 判断是否在 Jetson 设备本地运行"""
 import os
 import platform
+import logging
+
+log = logging.getLogger("seeed.core.platform_detect")
 
 
 def is_jetson() -> bool:
@@ -22,6 +25,6 @@ def is_jetson() -> bool:
             with open(model_file, "rb") as f:
                 model = f.read().decode("utf-8", errors="ignore").lower()
                 return "jetson" in model or "tegra" in model
-        except Exception:
-            pass
+        except OSError as exc:
+            log.debug("Failed reading %s: %s", model_file, exc)
     return False

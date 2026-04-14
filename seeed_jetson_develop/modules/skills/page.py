@@ -224,12 +224,27 @@ class _InstallDialog(QDialog):
         self._thread = None
 
         self.setWindowTitle(_t("skills.install.dialog.title", name=skill.name))
-        self.setMinimumSize(680, 580)
+        self.setMinimumSize(_pt(680), _pt(480))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
 
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(24, 20, 24, 20)
+        root_lay = QVBoxLayout(self)
+        root_lay.setContentsMargins(0, 0, 0, 0)
+        root_lay.setSpacing(0)
+
+        # ── 可滚动主体 ──
+        from PyQt5.QtWidgets import QScrollArea
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setStyleSheet("background:transparent; border:none;")
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        inner = QWidget()
+        inner.setStyleSheet("background:transparent;")
+        lay = QVBoxLayout(inner)
+        lay.setContentsMargins(24, 20, 24, 12)
         lay.setSpacing(16)
+        scroll.setWidget(inner)
+        root_lay.addWidget(scroll, 1)
 
         # Header
         title_row = QHBoxLayout()
@@ -263,7 +278,7 @@ class _InstallDialog(QDialog):
         lay.addWidget(_lbl(_t("skills.install.files_to_copy", count=len(file_list)), 11, C_TEXT3))
         file_view = QTextEdit()
         file_view.setReadOnly(True)
-        file_view.setFixedHeight(100)
+        file_view.setFixedHeight(_pt(100))
         file_view.setPlainText("\n".join(f"  📄 {f}" for f in sorted(file_list)) or "  (No files)")
         if not file_list:
             file_view.setPlainText(_t("skills.install.no_files_hint"))
@@ -307,11 +322,19 @@ class _InstallDialog(QDialog):
             font-family:'JetBrains Mono','Consolas',monospace;
             font-size:{_pt(10)}pt; padding:12px;
         """)
+        self._log_edit.setMinimumHeight(_pt(140))
         lay.addWidget(self._log_edit, 1)
+        lay.addStretch()
+
+        # ── 底部按钮栏（固定，不随滚动） ──
+        btn_frame = QWidget()
+        btn_frame.setStyleSheet(f"background:{C_BG}; border-top:1px solid rgba(255,255,255,0.06);")
+        btn_row = QHBoxLayout(btn_frame)
+        btn_row.setContentsMargins(24, 12, 24, 16)
+        btn_row.setSpacing(12)
+        root_lay.addWidget(btn_frame)
 
         # Action row
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(12)
         self._install_btn = _btn(_t("skills.install.btn.start"), primary=True)
         self._stop_btn    = _btn(_t("common.stop"), danger=True)
         self._stop_btn.setEnabled(False)
@@ -325,7 +348,6 @@ class _InstallDialog(QDialog):
         btn_row.addWidget(self._ai_btn)
         btn_row.addSpacing(8)
         btn_row.addWidget(close_btn)
-        lay.addLayout(btn_row)
 
         self._install_btn.clicked.connect(self._start)
         self._stop_btn.clicked.connect(self._stop)
@@ -334,6 +356,21 @@ class _InstallDialog(QDialog):
         if not file_list:
             self._install_btn.setEnabled(False)
             self._install_btn.setText(_t("skills.install.no_files"))
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
     def _append(self, text: str):
         self._log_edit.moveCursor(QTextCursor.End)
@@ -384,7 +421,7 @@ class _DocDialog(QDialog):
     def __init__(self, skill: Skill, parent=None):
         super().__init__(parent)
         self.setWindowTitle(f"📖  {skill.name}")
-        self.setMinimumSize(720, 580)
+        self.setMinimumSize(_pt(720), _pt(580))
         self.setWindowTitle(_t("skills.doc.title", name=skill.name))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
         lay = QVBoxLayout(self)
@@ -421,6 +458,21 @@ class _DocDialog(QDialog):
         btn_row.addStretch()
         btn_row.addWidget(close_btn)
         lay.addLayout(btn_row)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from PyQt5.QtWidgets import QApplication
+        geo = QApplication.primaryScreen().availableGeometry()
+        max_w = int(geo.width()  * 0.95)
+        max_h = int(geo.height() * 0.92)
+        self.setMinimumSize(min(self.minimumWidth(), max_w),
+                            min(self.minimumHeight(), max_h))
+        w = min(max(self.width(),  self.minimumWidth()),  max_w)
+        h = min(max(self.height(), self.minimumHeight()), max_h)
+        self.resize(w, h)
+        x = geo.x() + (geo.width()  - self.width())  // 2
+        y = geo.y() + (geo.height() - self.height()) // 2
+        self.move(x, y)
 
 
 from seeed_jetson_develop.gui.widgets.page_base import PageBase
@@ -481,7 +533,7 @@ class SkillsPage(PageBase):
         banner.setStyleSheet(
             "background: qlineargradient(x1:0,y1:0,x2:1,y2:0,"
             "stop:0 rgba(122,179,23,0.10), stop:1 rgba(44,123,229,0.06));"
-            "border:none; border-radius:12px;"
+            "border: 1px solid rgba(255,255,255,0.05); border-radius:12px;"
         )
         bl = QHBoxLayout(banner)
         bl.setContentsMargins(20, 16, 20, 16)
@@ -714,10 +766,20 @@ class SkillsPage(PageBase):
         BTN_W = _pt(40)
 
         row = QFrame()
-        row.setStyleSheet(
-            "background:rgba(122,179,23,0.08); border:none; border-radius:10px;"
-            if any_done else f"background:{C_CARD}; border:none; border-radius:10px;"
-        )
+        if any_done:
+            row.setStyleSheet(
+                "background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+                "stop:0 #203246, stop:1 #19293B);"
+                "border: 1px solid rgba(122,179,23,0.22);"
+                "border-radius:10px;"
+            )
+        else:
+            row.setStyleSheet(
+                "background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+                "stop:0 #1E2D40, stop:1 #192333);"
+                "border: 1px solid rgba(255,255,255,0.05);"
+                "border-radius:10px;"
+            )
         row.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         outer = QVBoxLayout(row)
         outer.setContentsMargins(16, 12, 16, 12)
@@ -734,7 +796,12 @@ class SkillsPage(PageBase):
         parts.append(f'<span style="float:right;font-size:{_pt(10)}pt;color:{C_TEXT3}">{group.duration_hint}</span>')
         top_lbl = QLabel("".join(parts))
         top_lbl.setTextFormat(Qt.RichText)
-        top_lbl.setStyleSheet("background:transparent;")
+        top_lbl.setFrameShape(QFrame.NoFrame)
+        top_lbl.setFrameShadow(QFrame.Plain)
+        top_lbl.setLineWidth(0)
+        top_lbl.setMidLineWidth(0)
+        top_lbl.setContentsMargins(0, 0, 0, 0)
+        top_lbl.setStyleSheet("QLabel { background:transparent; border:none; padding:0; margin:0; }")
         outer.addWidget(top_lbl)
         outer.addWidget(_lbl(group.desc, 11, C_TEXT2, wrap=True))
 
