@@ -289,11 +289,18 @@ class DesktopRemoteDialog(QDialog):
 
     def _do_deploy_all(self):
         pwd = self._runner.sudo_password
-        vnc_pwd = self._vnc_pwd.text().strip()
+        vnc_pwd = self._vnc_pwd.text().strip() or self._runner.password or self._runner.sudo_password
+        if not self._vnc_pwd.text().strip():
+            self._append("[info] VNC password input is empty, fallback to login password.")
         cmds = [
             (dr.build_enable_autologin_cmd(pwd, self._runner.username), 30),
             (dr.build_install_vnc_cmd(pwd), 180),
-            (dr.build_start_vnc_cmd(password=vnc_pwd), 15),
+            (dr.build_prepare_vnc_password_cmd(vnc_pwd), 20),
+            (dr.build_write_headless_xvfb_unit_cmd(self._runner.username), 20),
+            (dr.build_write_headless_session_unit_cmd(self._runner.username), 20),
+            (dr.build_write_x11vnc_unit_cmd(self._runner.username), 20),
+            (dr.build_write_novnc_unit_cmd(), 20),
+            (dr.build_install_enable_units_cmd(pwd), 60),
             (dr.build_install_novnc_cmd(pwd), 180),
             (dr.build_start_novnc_cmd(), 15),
         ]
@@ -317,6 +324,11 @@ class DesktopRemoteDialog(QDialog):
             self._append(_tt("remote.desktop.deploy.tip4"))
             self._append(_tt("remote.desktop.deploy.tip5"))
             self._append(_tt("remote.desktop.deploy.tip6"))
+            self._append("")
+            self._append("Diagnostics:")
+            self._append(f"$ {dr.build_diagnose_cmd()}")
+            self._append("Rollback:")
+            self._append(f"$ {dr.build_rollback_cmd(self._runner.sudo_password)}")
         self._do_refresh()
 
     def _do_stop(self):
