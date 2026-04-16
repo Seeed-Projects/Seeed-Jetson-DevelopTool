@@ -176,6 +176,7 @@ class FlashThread(QThread):
         self.lang = lang or get_language()
         self._cancel = False
         self._flash_progress = _FlashProgressEstimator()
+        self._last_log_pct = -1   # 上次打印日志时的进度百分比
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = t(key, lang=self.lang, **kwargs)
@@ -262,7 +263,21 @@ class FlashThread(QThread):
         if stage == "download":
             self.download_progress.emit(int(cur), int(total))
             if total:
+                pct = int(cur / total * 100)
                 self.progress_val.emit(int(5 + (cur / total) * 45))
+                # 每变化 2% 才打印一次，避免刷屏
+                if pct >= self._last_log_pct + 2 or pct == 100:
+                    self._last_log_pct = pct
+                    def _fmt(b):
+                        if b >= 1024 ** 3: return f"{b / 1024 ** 3:.2f} GB"
+                        if b >= 1024 ** 2: return f"{b / 1024 ** 2:.1f} MB"
+                        return f"{b / 1024:.0f} KB"
+                    remaining = total - cur
+                    log_line = (
+                        f"[下载] {_fmt(cur)} / {_fmt(total)} ({pct}%)"
+                        f"  剩余 {_fmt(remaining)}"
+                    )
+                    self.progress_log.emit(log_line)
         elif stage == "verify":
             if total:
                 self.progress_val.emit(int(50 + (cur / total) * 10))

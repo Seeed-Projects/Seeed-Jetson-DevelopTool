@@ -63,23 +63,37 @@ def build_enable_autologin_cmd(sudo_password: str, username: str) -> str:
     escaped_pwd = sudo_password.replace("'", "'\\''")
     escaped_user = username.replace("'", "'\\''")
     return (
+        # 1. 找配置文件路径
         'CONF=""; '
         'for f in /etc/gdm3/custom.conf /etc/gdm/custom.conf; do '
-        '  if [ -f "$f" ]; then CONF="$f"; break; fi; '
+        '  [ -f "$f" ] && CONF="$f" && break; '
         'done; '
-        'if [ -z "$CONF" ]; then CONF=/etc/gdm3/custom.conf; fi; '
-        f"echo '{escaped_pwd}' | sudo -S mkdir -p \"$(dirname \"$CONF\")\"; "
+        '[ -z "$CONF" ] && CONF=/etc/gdm3/custom.conf; '
+        f"echo '{escaped_pwd}' | sudo -S mkdir -p \"$(dirname \"$CONF\")\" 2>/dev/null; "
         f"echo '{escaped_pwd}' | sudo -S touch \"$CONF\"; "
-        'grep -q "^\\[daemon\\]" "$CONF" || '
-        f"printf '\\n[daemon]\\n' | (echo '{escaped_pwd}' | sudo -S tee -a \"$CONF\" >/dev/null); "
-        'grep -q "^AutomaticLoginEnable=" "$CONF" && '
-        f"(echo '{escaped_pwd}' | sudo -S sed -i 's/^AutomaticLoginEnable=.*/AutomaticLoginEnable=true/' \"$CONF\") || "
-        f"(echo '{escaped_pwd}' | sudo -S sed -i '/^\\[daemon\\]/a AutomaticLoginEnable=true' \"$CONF\"); "
-        'grep -q "^AutomaticLogin=" "$CONF" && '
-        f"(echo '{escaped_pwd}' | sudo -S sed -i \"s/^AutomaticLogin=.*/AutomaticLogin={escaped_user}/\" \"$CONF\") || "
-        f"(echo '{escaped_pwd}' | sudo -S sed -i '/^\\[daemon\\]/a AutomaticLogin={escaped_user}' \"$CONF\"); "
-        'echo "auto-login ensured in $CONF for user: '
-        f'{escaped_user}"'
+        # 2. 把当前配置读出来，用 python3 修改后写回（通过 tee，避免 sed 的 &&/|| 优先级 bug）
+        "CONF_CONTENT=$(cat \"$CONF\" 2>/dev/null || echo ''); "
+        "NEW_CONTENT=$(echo \"$CONF_CONTENT\" | python3 -c \""
+        "import sys, re; "
+        "txt = sys.stdin.read(); "
+        "if '[daemon]' not in txt: txt = '[daemon]\\n' + txt; "
+        "txt = re.sub(r'(?m)^AutomaticLoginEnable=.*', 'AutomaticLoginEnable=true', txt); "
+        "txt = txt if 'AutomaticLoginEnable=' in txt else txt.replace('[daemon]', '[daemon]\\nAutomaticLoginEnable=true'); "
+        f"txt = re.sub(r'(?m)^AutomaticLogin=.*', 'AutomaticLogin={escaped_user}', txt); "
+        f"txt = txt if 'AutomaticLogin=' in txt else txt.replace('[daemon]', '[daemon]\\nAutomaticLogin={escaped_user}'); "
+        "sys.stdout.write(txt)"
+        "\"); "
+        "echo \"$NEW_CONTENT\" | "
+        f"(echo '{escaped_pwd}' | sudo -S tee \"$CONF\" >/dev/null); "
+        "echo \"autologin config written to $CONF\"; "
+        "cat \"$CONF\"; "
+        # 3. 重启 display manager 让配置立即生效
+        f"echo '{escaped_pwd}' | sudo -S systemctl restart gdm3 2>/dev/null "
+        f"|| echo '{escaped_pwd}' | sudo -S systemctl restart gdm 2>/dev/null "
+        f"|| echo '{escaped_pwd}' | sudo -S systemctl restart lightdm 2>/dev/null "
+        "|| echo 'display manager restart skipped'; "
+        "sleep 6; "
+        "echo 'autologin setup done'"
     )
 
 
@@ -90,13 +104,15 @@ def build_start_vnc_cmd(password: str = "", display: str = "") -> str:
     auth = "-nopw"
     # 自动探测 display：有真实桌面就接真实桌面；没有则启动 Xvfb :99 作为 headless 桌面
     detect_display = (
-        'DISP="${DISPLAY:-}"; HEADLESS=0; '
-        'if [ -n "$DISP" ] && ! xdpyinfo -display "$DISP" >/dev/null 2>&1; then DISP=""; fi; '
-        'if [ -z "$DISP" ]; then '
+        # 等待最多 20 秒让 GDM 自动登录后的桌面 session 就绪
+        'DISP=""; '
+        'for i in $(seq 1 10); do '
         '  for d in :0 :1 :2; do '
-        '    if xdpyinfo -display "$d" >/dev/null 2>&1; then DISP=$d; break; fi; '
+        '    if xdpyinfo -display "$d" >/dev/null 2>&1; then DISP=$d; break 2; fi; '
         '  done; '
-        'fi; '
+        '  sleep 2; '
+        'done; '
+        'HEADLESS=0; '
         'if [ -z "$DISP" ]; then '
         '  HEADLESS=1; DISP=:99; '
         '  pkill -f "Xvfb :99" 2>/dev/null || true; '

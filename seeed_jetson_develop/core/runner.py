@@ -125,11 +125,13 @@ class SSHRunner(Runner):
 
     def _build_remote_shell_command(self, cmd: str) -> str:
         wrapper_parts = ["export TERM=${TERM:-xterm-256color};"]
-        wrapper_parts.extend([
-            "if [ -n \"${SEEED_SUDO_PASSWORD:-}\" ]; then "
-            "sudo() { printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S \"$@\"; }; "
-            "export -f sudo; fi;",
-        ])
+        if self.sudo_password:
+            # 直接 inline 密码，不依赖环境变量（SSH 服务器通常不转发 AcceptEnv）
+            wrapper_parts.extend([
+                f"export SEEED_SUDO_PASSWORD={shlex.quote(self.sudo_password)};",
+                "sudo() { printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S \"$@\"; }; "
+                "export -f sudo;",
+            ])
         wrapper_parts.append(cmd)
         wrapper = " ".join(wrapper_parts)
         return f"bash -lc {shlex.quote(wrapper)}"
@@ -159,7 +161,6 @@ class SSHRunner(Runner):
         on_output: Optional[Callable[[str], None]] = None,
     ) -> tuple[int, str]:
         safe_cmd = self._build_remote_shell_command(cmd)
-        env = {"SEEED_SUDO_PASSWORD": self.sudo_password} if self.sudo_password else None
         try:
             import paramiko
             client = paramiko.SSHClient()
@@ -175,18 +176,10 @@ class SSHRunner(Runner):
             )
             client.get_transport().set_keepalive(30)
             try:
-                try:
-                    _, stdout, stderr = client.exec_command(
-                        safe_cmd,
-                        timeout=timeout,
-                        environment=env,
-                    )
-                except TypeError:
-                    log.error("Paramiko does not support exec_command(environment=...). Refusing insecure sudo-password fallback.")
-                    return -1, (
-                        "Paramiko version is too old for secure environment passthrough. "
-                        "Please upgrade Paramiko to a version that supports exec_command(environment=...)."
-                    )
+                _, stdout, stderr = client.exec_command(
+                    safe_cmd,
+                    timeout=timeout,
+                )
                 lines = []
                 for raw in stdout:
                     line = raw.rstrip("\n")

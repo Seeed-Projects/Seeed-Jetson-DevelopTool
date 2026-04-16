@@ -329,11 +329,78 @@ class DesktopRemoteDialog(QDialog):
         self._do_refresh()
 
     def _do_open_browser(self):
+        s = self._last_status
+        vnc_running = s["vnc_running"] if s else False
+        novnc_running = s["novnc_running"] if s else False
+        vnc_installed = s["vnc_installed"] if s else False
+        novnc_installed = s["novnc_installed"] if s else False
+
+        pwd = self._runner.sudo_password
+        vnc_pwd = self._vnc_pwd.text().strip()
+        cmds = []
+
+        # 未安装先安装，未运行再启动
+        if not vnc_installed:
+            cmds.append((dr.build_install_vnc_cmd(pwd), 180))
+        if not novnc_installed:
+            cmds.append((dr.build_install_novnc_cmd(pwd), 180))
+        if not vnc_running:
+            cmds.append((dr.build_start_vnc_cmd(password=vnc_pwd), 30))
+        if not novnc_running:
+            cmds.append((dr.build_start_novnc_cmd(), 15))
+
+        if cmds:
+            self._run_cmds(
+                cmds,
+                self._open_browser_btn,
+                _tt("remote.desktop.btn.open_browser"),
+                self._on_start_for_browser_done,
+            )
+        else:
+            self._open_browser_now()
+
+    def _on_start_for_browser_done(self, rc: int, out: str):
+        self._open_browser_btn.setEnabled(True)
+        self._open_browser_btn.setText(_tt("remote.desktop.btn.open_browser"))
+        self._do_refresh()
+        self._open_browser_now()
+
+    def _open_browser_now(self):
         url = dr.format_novnc_url(self._ip)
         dr.open_in_browser(url)
         self._append(_tt("remote.desktop.browser_opened", url=url))
 
     def _do_open_vnc(self):
+        s = self._last_status
+        vnc_running = s["vnc_running"] if s else False
+        vnc_installed = s["vnc_installed"] if s else False
+
+        pwd = self._runner.sudo_password
+        vnc_pwd = self._vnc_pwd.text().strip()
+        cmds = []
+
+        if not vnc_installed:
+            cmds.append((dr.build_install_vnc_cmd(pwd), 180))
+        if not vnc_running:
+            cmds.append((dr.build_start_vnc_cmd(password=vnc_pwd), 30))
+
+        if cmds:
+            self._run_cmds(
+                cmds,
+                self._open_vnc_btn,
+                _tt("remote.desktop.btn.open_vnc"),
+                self._on_start_for_vnc_done,
+            )
+        else:
+            self._open_vnc_now()
+
+    def _on_start_for_vnc_done(self, rc: int, out: str):
+        self._open_vnc_btn.setEnabled(True)
+        self._open_vnc_btn.setText(_tt("remote.desktop.btn.open_vnc"))
+        self._do_refresh()
+        self._open_vnc_now()
+
+    def _open_vnc_now(self):
         if dr.launch_vnc_viewer(self._ip):
             return
         show_info_message(

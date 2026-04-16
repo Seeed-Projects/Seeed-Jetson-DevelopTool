@@ -557,16 +557,86 @@ _PROXY_CANDIDATE_PORTS = [7890, 1080, 10808, 8080, 1087, 7891, 20171, 20172]
 
 def detect_local_proxy() -> tuple[str, int] | None:
     """检测本机是否有代理端口在监听，返回 (host, port) 或 None。
-    只检测 127.0.0.1，不检测 0.0.0.0（避免误判其他服务）。
+    用 ss 查实际绑定地址：
+    - 绑定 0.0.0.0/* 表示局域网可直接访问
+    - 绑定 127.0.0.1 表示仅本机，需要 iptables DNAT 转发
     """
     import socket
+
+    # 先用 ss 获取所有 TCP LISTEN 的绑定地址
+    listening: dict[int, str] = {}  # port -> bind_addr
+    try:
+        r = subprocess.run(
+            ["ss", "-tlnp"],
+            capture_output=True, text=True, timeout=5,
+        )
+        for line in r.stdout.splitlines():
+            # Local Address:Port 列，格式如 0.0.0.0:7890 或 127.0.0.1:7890 或 *:7890
+            parts = line.split()
+            if len(parts) < 4:
+                continue
+            addr_port = parts[3]
+            if ":" not in addr_port:
+                continue
+            addr, _, port_str = addr_port.rpartition(":")
+            try:
+                p = int(port_str)
+                if p in _PROXY_CANDIDATE_PORTS:
+                    # 0.0.0.0 / * / :: 都表示监听所有接口
+                    listening[p] = addr
+            except ValueError:
+                pass
+    except Exception:
+        pass
+
+    # 按优先级检测
+    for port in _PROXY_CANDIDATE_PORTS:
+        if port not in listening:
+            continue
+        bind = listening[port]
+        if bind in ("0.0.0.0", "*", "::", ""):
+            return ("0.0.0.0", port)   # 局域网可直接访问
+        if bind == "127.0.0.1":
+            return ("127.0.0.1", port)  # 仅本机，需要转发
+
+    # ss 失败时 fallback：直接尝试连接
     for port in _PROXY_CANDIDATE_PORTS:
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=0.3):
                 return ("127.0.0.1", port)
         except OSError:
-            continue
+            pass
     return None
+
+
+def build_proxy_lan_forward_cmd(sudo_password: str, lan_iface: str, port: int) -> str:
+    """当代理只监听 127.0.0.1 时，用 iptables DNAT + MASQUERADE 把 LAN 接口上的请求转发到本机代理。
+    需要 route_localnet=1 允许路由到 loopback，MASQUERADE 确保回包路径正确。
+    """
+    escaped = sudo_password.replace("'", "'\\''")
+    p = port
+    i = lan_iface
+    return (
+        # 1. 允许路由到 loopback（DNAT 到 127.0.0.1 必须）
+        f"echo '{escaped}' | sudo -S sysctl -w net.ipv4.conf.{i}.route_localnet=1; "
+        f"echo '{escaped}' | sudo -S sysctl -w net.ipv4.conf.lo.route_localnet=1; "
+        # 2. PREROUTING DNAT：把从 LAN 进来的 TCP:port 转到 127.0.0.1:port
+        f"echo '{escaped}' | sudo -S iptables -t nat -C PREROUTING "
+        f"-i {i} -p tcp --dport {p} -j DNAT --to-destination 127.0.0.1:{p} 2>/dev/null "
+        f"|| echo '{escaped}' | sudo -S iptables -t nat -A PREROUTING "
+        f"-i {i} -p tcp --dport {p} -j DNAT --to-destination 127.0.0.1:{p}; "
+        # 3. OUTPUT MASQUERADE：让代理回包的源地址变成 PC LAN IP，确保 Jetson 能收到回包
+        f"echo '{escaped}' | sudo -S iptables -t nat -C POSTROUTING "
+        f"-o lo -p tcp --dport {p} -j MASQUERADE 2>/dev/null "
+        f"|| echo '{escaped}' | sudo -S iptables -t nat -A POSTROUTING "
+        f"-o lo -p tcp --dport {p} -j MASQUERADE; "
+        # 4. 允许转发到 loopback
+        f"echo '{escaped}' | sudo -S iptables -C FORWARD "
+        f"-i {i} -p tcp --dport {p} -j ACCEPT 2>/dev/null "
+        f"|| echo '{escaped}' | sudo -S iptables -A FORWARD "
+        f"-i {i} -p tcp --dport {p} -j ACCEPT; "
+        f"echo 'proxy_forward_set={p}'"
+    )
 
 
 def build_jetson_proxy_cmd(proxy_host: str, proxy_port: int) -> str:

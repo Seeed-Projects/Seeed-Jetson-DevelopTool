@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QGridLayout,
     QScrollArea, QDialog, QTextEdit,
-    QComboBox, QLineEdit, QFormLayout, QDialogButtonBox, QSizePolicy,
+    QLineEdit, QFormLayout, QDialogButtonBox, QSizePolicy,
 )
 
 from seeed_jetson_develop.core.runner import Runner, SSHRunner, SerialRunner, get_runner
@@ -17,7 +17,7 @@ from seeed_jetson_develop.gui.theme import (
     C_TEXT, C_TEXT2, C_TEXT3,
     pt as _pt, make_label as _lbl, make_button as _btn,
     make_card as _card, make_input_card as _input_card,
-    apply_shadow as _shadow,
+    apply_shadow as _shadow, DropdownButton,
 )
 from seeed_jetson_develop.modules.remote.jetson_init import open_jetson_init_dialog
 from .diagnostics import DIAG_ITEMS, PERIPH_ITEMS, run_all, run_periph, collect_info
@@ -104,7 +104,7 @@ class _SerialCredDialog(QDialog):
         form.setSpacing(10)
 
         # Serial port selection.
-        self.port_combo = QComboBox()
+        self.port_combo = DropdownButton(max_popup_height=_pt(200))
         self.port_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._refresh_ports()
         refresh_btn = _btn(t("devices.serial_cred.refresh", lang=lang), small=True)

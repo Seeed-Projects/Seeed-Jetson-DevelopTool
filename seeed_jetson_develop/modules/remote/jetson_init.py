@@ -15,7 +15,6 @@ import serial
 import serial.tools.list_ports
 from PyQt5.QtCore import QThread, QTimer, Qt, pyqtSignal
 from PyQt5.QtWidgets import (
-    QComboBox,
     QDialog,
     QGridLayout,
     QHBoxLayout,
@@ -48,6 +47,7 @@ from seeed_jetson_develop.gui.theme import (
     pt,
     show_info_message,
     show_warning_message,
+    DropdownButton,
 )
 from seeed_jetson_develop.modules.remote.native_terminal import NativeTerminalWidget
 
@@ -409,7 +409,7 @@ class JetsonInitDialog(QDialog):
         left.setSpacing(10)
         self._serial_port_lbl = make_label(_tr("remote.jetson_init.serial_port", "Serial Port", self._lang), 12, C_TEXT2)
         left.addWidget(self._serial_port_lbl)
-        self.port_combo = QComboBox()
+        self.port_combo = DropdownButton(max_popup_height=pt(200))
         left.addWidget(self.port_combo)
 
         row = QHBoxLayout()
@@ -747,11 +747,8 @@ class JetsonNetConfigDialog(QDialog):
         row_port.setSpacing(10)
         self._port_lbl = make_label(_tr("remote.jetson_net_config.port", "Port", self._lang), 11, C_TEXT2)
         self._port_lbl.setFixedWidth(field_label_w)
-        self._port_combo = QComboBox()
+        self._port_combo = DropdownButton(max_popup_height=pt(200))
         self._port_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self._port_combo.setMinimumHeight(pt(34))
-        self._port_combo.setMaximumWidth(pt(760))
-        self._port_combo.setStyleSheet(self._combo_style())
         self._refresh_btn = make_button(_tr("common.refresh", "Refresh", self._lang), small=True)
         self._refresh_btn.setMinimumWidth(pt(100))
         row_port.addWidget(self._port_lbl)
@@ -825,11 +822,8 @@ class JetsonNetConfigDialog(QDialog):
         row_iface.setSpacing(10)
         self._iface_lbl = make_label(_tr("remote.jetson_net_config.interface", "Interface", self._lang), 11, C_TEXT2)
         self._iface_lbl.setFixedWidth(field_label_w)
-        self._iface_combo = QComboBox()
+        self._iface_combo = DropdownButton(max_popup_height=pt(200))
         self._iface_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self._iface_combo.setMinimumHeight(pt(34))
-        self._iface_combo.setMaximumWidth(pt(760))
-        self._iface_combo.setStyleSheet(self._combo_style())
         self._iface_combo.setEnabled(False)
         row_iface.addWidget(self._iface_lbl)
         row_iface.addWidget(self._iface_combo, 1)

@@ -1,12 +1,12 @@
 """Community page UI with quick links and product purchase entry."""
 import webbrowser
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QComboBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout
 from seeed_jetson_develop.gui.i18n import get_language, t
 from seeed_jetson_develop.gui.widgets.page_base import PageBase
 from seeed_jetson_develop.gui.theme import (
     C_TEXT, C_TEXT2, C_TEXT3,
     pt as _pt, make_label as _lbl, make_button as _btn,
-    make_card as _card, apply_shadow as _shadow,
+    make_card as _card, apply_shadow as _shadow, DropdownButton,
 )
 
 _LINKS = [
@@ -114,7 +114,7 @@ def build_page(products: dict, product_images: dict) -> QWidget:
     page.i18n.bind_text(buy_title, "community.buy.title")
     page.i18n.bind_text(buy_desc, "community.buy.desc")
 
-    combo = QComboBox()
+    combo = DropdownButton(max_popup_height=_pt(320))
     combo.addItems(sorted(products.keys()))
     bc_lay.addWidget(combo)
 

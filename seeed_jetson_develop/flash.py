@@ -189,11 +189,33 @@ class JetsonFlasher:
                     self._emit_progress("extract", idx, total_members)
 
     def _download_from_url(self, url, filepath, filename):
-        """从指定 URL 下载到目标文件，支持断点续传。"""
+        """从指定 URL 下载到目标文件，支持多线程分片并行下载和断点续传。"""
         self._check_cancel()
-        tmp_path = filepath.with_suffix(filepath.suffix + ".part")
 
-        # 已下载的字节数（断点续传起点）
+        # ── 1. HEAD 请求探测服务器能力 ──────────────────────────────────────
+        try:
+            head = requests.head(url, timeout=(10, 30), allow_redirects=True)
+            total_size = int(head.headers.get("content-length", 0))
+            accept_ranges = head.headers.get("accept-ranges", "").lower() == "bytes"
+        except Exception:
+            total_size = 0
+            accept_ranges = False
+
+        # 服务器支持 Range 且文件足够大时启用多线程分片下载
+        MIN_MULTIPART_SIZE = 32 * 1024 * 1024   # 32 MB 以上才分片
+        NUM_PARTS = 8                             # 并发分片数
+        use_multipart = accept_ranges and total_size >= MIN_MULTIPART_SIZE
+
+        if use_multipart:
+            print(f"启用多线程分片下载: {NUM_PARTS} 线程, 总大小 {total_size // 1024 // 1024} MB")
+            self._download_multipart(url, filepath, filename, total_size, NUM_PARTS)
+        else:
+            print("使用单线程下载")
+            self._download_single(url, filepath, filename)
+
+    def _download_single(self, url, filepath, filename):
+        """单线程下载，支持断点续传。"""
+        tmp_path = filepath.with_suffix(filepath.suffix + ".part")
         resume_pos = tmp_path.stat().st_size if tmp_path.exists() else 0
 
         headers = {}
@@ -204,7 +226,6 @@ class JetsonFlasher:
         response = requests.get(url, stream=True, timeout=(15, 600),
                                 allow_redirects=True, headers=headers)
 
-        # 服务器不支持 Range 时返回 200，需要重头下载
         if resume_pos > 0 and response.status_code == 200:
             print("服务器不支持断点续传，重新下载")
             resume_pos = 0
@@ -214,13 +235,11 @@ class JetsonFlasher:
 
         total_size = int(response.headers.get("content-length", 0))
         if total_size and resume_pos and response.status_code == 206:
-            # 206 Partial Content: content-length 是剩余长度，换算为总长度
             total_size += resume_pos
 
         content_type = response.headers.get("content-type", "")
-        chunks = response.iter_content(chunk_size=65536)
+        chunks = response.iter_content(chunk_size=1024 * 1024)  # 1 MB chunks
 
-        # 验证首个 chunk 不是 HTML（仅首次下载时检查）
         first_chunk = b""
         for chunk in chunks:
             if chunk:
@@ -229,37 +248,127 @@ class JetsonFlasher:
 
         if not first_chunk:
             raise ValueError("下载内容为空")
-
         if resume_pos == 0 and self._looks_like_html(content_type, first_chunk):
             raise ValueError("下载链接返回网页内容，非固件文件")
 
         written = resume_pos + len(first_chunk)
         open_mode = "ab" if resume_pos > 0 else "wb"
 
-        with open(tmp_path, open_mode) as f, tqdm(
-            desc=filename,
-            initial=resume_pos,
-            total=total_size if total_size > 0 else None,
-            unit="B",
-            unit_scale=True,
-            unit_divisor=1024,
-        ) as pbar:
+        with open(tmp_path, open_mode) as f:
             self._check_cancel()
             f.write(first_chunk)
-            pbar.update(len(first_chunk))
             self._emit_progress("download", written, total_size)
             for chunk in chunks:
                 if chunk:
                     self._check_cancel()
                     f.write(chunk)
                     written += len(chunk)
-                    pbar.update(len(chunk))
                     self._emit_progress("download", written, total_size)
 
         if written < 1024 * 1024:
             raise ValueError(f"下载文件异常偏小: {written} bytes")
 
         tmp_path.replace(filepath)
+
+    def _download_multipart(self, url, filepath, filename, total_size, num_parts):
+        """多线程分片并行下载，所有分片完成后合并。"""
+        import threading
+
+        part_size = total_size // num_parts
+        parts = []
+        for i in range(num_parts):
+            start = i * part_size
+            end = (start + part_size - 1) if i < num_parts - 1 else (total_size - 1)
+            part_file = filepath.with_suffix(filepath.suffix + f".part{i}")
+            parts.append((i, start, end, part_file))
+
+        # 用一个共享计数器累计全局已下载字节数，初始值为各分片断点续传的已有大小
+        total_written_bytes = sum(
+            part_file.stat().st_size if part_file.exists() else 0
+            for _, _, _, part_file in parts
+        )
+        counter_lock = threading.Lock()
+        part_errors = [None] * num_parts
+
+        def download_part(idx, start, end, part_file):
+            nonlocal total_written_bytes
+            resume = part_file.stat().st_size if part_file.exists() else 0
+            byte_start = start + resume
+            if resume > 0 and byte_start > end:
+                # 该分片已完整下载
+                return
+
+            headers = {"Range": f"bytes={byte_start}-{end}"}
+            max_retries = 3
+            # 记录本次尝试开始前该分片贡献的字节数（用于重试时修正计数器）
+            committed = resume
+
+            for attempt in range(max_retries):
+                try:
+                    self._check_cancel()
+                    resp = requests.get(url, stream=True, timeout=(15, 600),
+                                        allow_redirects=True, headers=headers)
+                    resp.raise_for_status()
+
+                    with open(part_file, "ab" if committed > 0 else "wb") as f:
+                        for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                            if chunk:
+                                self._check_cancel()
+                                f.write(chunk)
+                                with counter_lock:
+                                    total_written_bytes += len(chunk)
+                                    snap = total_written_bytes
+                                self._emit_progress("download", snap, total_size)
+                                committed += len(chunk)
+                    return  # 成功
+                except InterruptedError:
+                    raise
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        part_errors[idx] = e
+                    else:
+                        # 重试前：把本次尝试写入但未成功的字节从计数器中减掉
+                        actual_on_disk = part_file.stat().st_size if part_file.exists() else 0
+                        with counter_lock:
+                            total_written_bytes -= (committed - actual_on_disk)
+                        committed = actual_on_disk
+                        # 重新计算断点续传起点
+                        resume = actual_on_disk
+                        byte_start = start + resume
+                        headers = {"Range": f"bytes={byte_start}-{end}"}
+                        time.sleep(2 ** attempt)
+
+        threads = []
+        for idx, start, end, part_file in parts:
+            t = threading.Thread(target=download_part, args=(idx, start, end, part_file), daemon=True)
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        self._check_cancel()
+
+        # 检查是否有分片失败
+        failed = [(i, e) for i, e in enumerate(part_errors) if e is not None]
+        if failed:
+            raise Exception(f"分片下载失败: {', '.join(f'part{i}: {e}' for i, e in failed)}")
+
+        # 合并分片
+        print("合并分片...")
+        tmp_path = filepath.with_suffix(filepath.suffix + ".part")
+        with open(tmp_path, "wb") as out:
+            for idx, start, end, part_file in parts:
+                with open(part_file, "rb") as pf:
+                    shutil.copyfileobj(pf, out, length=4 * 1024 * 1024)
+                part_file.unlink(missing_ok=True)
+
+        actual_size = tmp_path.stat().st_size
+        if actual_size < 1024 * 1024:
+            raise ValueError(f"合并后文件异常偏小: {actual_size} bytes")
+
+        tmp_path.replace(filepath)
+        print(f"下载完成，文件大小: {actual_size // 1024 // 1024} MB")
     
     def firmware_cached(self) -> bool:
         """检查固件压缩包是否已缓存（文件存在且大小正常）。"""
@@ -360,6 +469,9 @@ class JetsonFlasher:
             part_path = filepath.with_suffix(filepath.suffix + ".part")
             if part_path.exists():
                 part_path.unlink()
+            # 清理多线程分片文件
+            for part_file in self.download_dir.glob(filepath.name + ".part[0-9]*"):
+                part_file.unlink(missing_ok=True)
         
         print(f"正在下载固件: {filename}")
         urls = self._candidate_urls()
