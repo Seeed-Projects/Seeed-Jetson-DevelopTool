@@ -306,7 +306,7 @@ class AgentInstallDialog(QDialog):
         # Ensure Node.js first
         cmds.append((
             f"node --version 2>/dev/null || "
-            f"( echo '{escaped}' | sudo -S apt-get update -qq "
+            f"( echo '{escaped}' | sudo -S apt-get update "
             f"&& echo '{escaped}' | sudo -S apt-get install -y nodejs npm "
             f"&& node --version )",
             180,

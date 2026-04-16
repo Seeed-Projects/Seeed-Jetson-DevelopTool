@@ -41,7 +41,8 @@ def load_locale(lang: str) -> dict[str, str]:
     merged: dict[str, str] = {}
     for file_path in _locale_files(lang):
         try:
-            payload = json.loads(file_path.read_text(encoding="utf-8"))
+            # Accept both plain UTF-8 and UTF-8 with BOM.
+            payload = json.loads(file_path.read_text(encoding="utf-8-sig"))
         except Exception:
             continue
         if not isinstance(payload, dict):

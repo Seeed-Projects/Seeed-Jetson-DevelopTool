@@ -37,11 +37,35 @@ from seeed_jetson_develop.gui.theme import (
     pt as _pt, make_label as _lbl, make_button as _btn,
     make_card as _card, make_input_card as _input_card,
     apply_shadow as _shadow,
-    ask_question_message as _ask_question_message,
     show_error_message as _show_error_message,
     show_info_message as _show_info_message,
     show_warning_message as _show_warning_message,
 )
+
+
+def _ask_yes_no_localized(parent: QWidget, title: str, text: str) -> int:
+    msg = QMessageBox(parent)
+    msg.setIcon(QMessageBox.Question)
+    msg.setWindowTitle(title)
+    msg.setText(text)
+    msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+
+    def _apply_btn_text():
+        yes_btn = msg.button(QMessageBox.Yes)
+        no_btn = msg.button(QMessageBox.No)
+        if yes_btn is not None:
+            yes_btn.setText(_at("common.yes"))
+            yes_btn.setAutoDefault(False)
+            yes_btn.setDefault(False)
+        if no_btn is not None:
+            no_btn.setText(_at("common.no"))
+            no_btn.setAutoDefault(False)
+            no_btn.setDefault(False)
+
+    _apply_btn_text()
+    # Qt 在 exec_() 初始化时可能重置按钮文字，延迟再设置一次保证生效
+    QTimer.singleShot(0, _apply_btn_text)
+    return msg.exec_()
 
 
 class _ResponsiveScrollArea(QScrollArea):
@@ -103,9 +127,10 @@ class _InstallThread(QThread):
     log  = pyqtSignal(str)
     done = pyqtSignal(bool)
 
-    def __init__(self, cmds: list[str]):
+    def __init__(self, cmds: list[str], app: dict | None = None):
         super().__init__()
         self._cmds   = cmds
+        self._app    = app or {}
         self._cancel = False
 
     def cancel(self):
@@ -113,6 +138,97 @@ class _InstallThread(QThread):
 
     def run(self):
         runner = get_runner()
+        # For Depth Anything V3 custom docker flow, upload launcher script only when commands require it.
+        needs_da3_launcher_upload = any(
+            "run_camera_depth_rtsp.sh" in (c or "") for c in self._cmds
+        )
+        if (
+            isinstance(runner, SSHRunner)
+            and self._app.get("id") == "jx-depth-anything-v3"
+            and needs_da3_launcher_upload
+        ):
+            try:
+                import base64
+                import shlex
+                from pathlib import Path
+                remote_asset_dir = "$HOME/.seeed_da3_assets"
+                remote_script_path = f"{remote_asset_dir}/run_camera_depth_rtsp.sh"
+                local_script = (
+                    Path(__file__).resolve().parents[3]
+                    / "depth_anything_v3"
+                    / "depth_anything_v3"
+                    / "assets"
+                    / "jetson"
+                    / "run_camera_depth_rtsp.sh"
+                )
+                if not local_script.exists():
+                    self.log.emit(f"[failed] missing local script: {local_script}")
+                    self.done.emit(False)
+                    return
+                rc, _ = runner.run(f"mkdir -p {remote_asset_dir}", timeout=20)
+                if rc != 0:
+                    self.log.emit(f"[failed] cannot create {remote_asset_dir} on remote")
+                    self.done.emit(False)
+                    return
+                # Recover from a bad previous state where the target file path became a directory.
+                runner.run(
+                    "bash -lc 'set -e; "
+                    f"if [ -d {remote_script_path} ]; then "
+                    f"rm -rf {remote_script_path}; "
+                    "fi'",
+                    timeout=20,
+                )
+                upload_ok = False
+                try:
+                    client, sftp = runner.open_sftp()
+                    try:
+                        sftp.put(str(local_script), remote_script_path)
+                        upload_ok = True
+                    finally:
+                        try:
+                            sftp.close()
+                        except Exception:
+                            pass
+                        client.close()
+                except Exception as sftp_err:
+                    self.log.emit(
+                        f"[warn] sftp upload failed ({type(sftp_err).__name__}: {sftp_err}), trying ssh fallback..."
+                    )
+                    encoded = base64.b64encode(local_script.read_bytes()).decode("ascii")
+                    fallback_cmd = (
+                        "set -e; "
+                        f"mkdir -p {remote_asset_dir}; "
+                        f"if [ -d {remote_script_path} ]; then "
+                        f"rm -rf {remote_script_path}; "
+                        "fi; "
+                        "command -v base64 >/dev/null 2>&1 || { echo base64-not-found; exit 1; }; "
+                        f"printf '%s' {shlex.quote(encoded)} | base64 -d > {remote_script_path}; "
+                        f"chmod +x {remote_script_path}; "
+                        f"test -s {remote_script_path}"
+                    )
+                    rc, out = runner.run(f"bash -lc {shlex.quote(fallback_cmd)}", timeout=90)
+                    if rc == 0:
+                        upload_ok = True
+                        self.log.emit("[ok] uploaded run_camera_depth_rtsp.sh via ssh fallback")
+                    else:
+                        self.log.emit(f"[failed] fallback upload rc={rc}: {out}")
+                        self.done.emit(False)
+                        return
+                if not upload_ok:
+                    self.log.emit("[failed] upload did not complete")
+                    self.done.emit(False)
+                    return
+                rc, _ = runner.run(f"chmod +x {remote_script_path}", timeout=10)
+                if rc != 0:
+                    self.log.emit("[failed] chmod launcher script failed")
+                    self.done.emit(False)
+                    return
+                self.log.emit(f"[ok] uploaded run_camera_depth_rtsp.sh to {remote_asset_dir}")
+            except Exception as e:
+                self.log.emit(f"[failed] upload depth_anything_v3 assets failed: {type(e).__name__}: {e}")
+                self.done.emit(False)
+                return
+
         for cmd in self._cmds:
             if self._cancel:
                 self.log.emit("Cancelled")
@@ -121,9 +237,11 @@ class _InstallThread(QThread):
             self.log.emit(f"\n$ {cmd}")
             rc, _ = runner.run(cmd, timeout=600, on_output=lambda l: self.log.emit(l))
             if rc != 0:
+                self.log.emit(f"[failed] rc={rc}")
                 self.log.emit(f"\nCommand failed (rc={rc})")
                 self.done.emit(False)
                 return
+            self.log.emit(f"[ok] rc={rc}")
         self.done.emit(True)
 
 
@@ -288,7 +406,7 @@ class _InstallDialog(QDialog):
         self._ai_btn.setVisible(False)
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
-        t = _InstallThread(self._cmds)
+        t = _InstallThread(self._cmds, app=self._app)
         t.log.connect(self._append)
         t.done.connect(self._on_done)
         t.start()
@@ -308,9 +426,9 @@ class _InstallDialog(QDialog):
             "clean": (_at("apps.dialog.done.clean_ok"), _at("apps.dialog.done.clean_fail")),
         }.get(self._mode, (_at("apps.dialog.done.exec_ok"), _at("apps.dialog.done.exec_fail")))
         if success:
-            self._append(f"\n✅ {action_text[0]}")
+            self._append(f"\n??{action_text[0]}")
         else:
-            self._append(f"\n❌ {action_text[1]}")
+            self._append(f"\n??{action_text[1]}")
             self._ai_btn.setVisible(True)
         self.install_done.emit(self._app["id"], success)
 
@@ -517,10 +635,14 @@ class AppsPage(ListPageBase):
         return l4t
 
     def _l4t_matches(self, current: str, allowed: str) -> bool:
+        import re
         current = (current or "").strip()
         allowed = (allowed or "").strip()
         if not current or not allowed:
             return False
+        # Normalize forms like "R36.4.4" to "36.4.4" for wildcard matching.
+        current = re.sub(r"^[Rr]", "", current)
+        allowed = re.sub(r"^[Rr]", "", allowed)
         if allowed.endswith(".x"):
             return current.startswith(allowed[:-1])
         return current == allowed
@@ -591,11 +713,10 @@ class AppsPage(ListPageBase):
         app = next((a for a in self.items_data if a["id"] == app_id), None)
         if not app:
             return
-        ret = _ask_question_message(
+        ret = _ask_yes_no_localized(
             self,
             _at("apps.msg.confirm_clean.title"),
             _at("apps.msg.confirm_clean.body", name=app["name"]),
-            buttons=QMessageBox.Yes | QMessageBox.No, default_button=QMessageBox.No,
         )
         if ret == QMessageBox.Yes:
             self._open_dialog(app_id, "clean", self._get_clean_cmds(app), self._on_clean_done)
@@ -612,11 +733,10 @@ class AppsPage(ListPageBase):
                 _at("apps.msg.no_uninstall_cmd", name=app["name"]),
             )
             return
-        ret = _ask_question_message(
+        ret = _ask_yes_no_localized(
             self,
             _at("apps.msg.confirm_uninstall.title"),
             _at("apps.msg.confirm_uninstall.body", name=app["name"]),
-            buttons=QMessageBox.Yes | QMessageBox.No, default_button=QMessageBox.No,
         )
         if ret == QMessageBox.Yes:
             self._open_dialog(app_id, "uninstall", cmds, self._on_uninstall_done)

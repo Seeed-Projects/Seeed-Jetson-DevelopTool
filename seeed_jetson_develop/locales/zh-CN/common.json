@@ -1,5 +1,7 @@
-{
+﻿{
   "common.ok": "确定",
+  "common.yes": "是",
+  "common.no": "否",
   "common.cancel": "取消",
   "common.close": "关闭",
   "common.refresh": "刷新",

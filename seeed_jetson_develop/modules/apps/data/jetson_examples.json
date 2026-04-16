@@ -149,6 +149,39 @@
     }
   },
   {
+    "id": "jx-depth-anything-v3",
+    "icon": "CV",
+    "name": "Depth Anything V3",
+    "category": "CV / Vision",
+    "desc": "Follow official full tutorial flow: install jetson-examples, run reComputer demo, enter container, build engine, and run USB camera demo.",
+    "source": "jetson-examples",
+    "example_name": "depth_anything_v3",
+    "check_cmd": "bash -lc 'sudo docker ps --format \"{{.Names}}\" | grep -q \"^depth_anything_v3$\"'",
+    "install_cmds": [
+      "bash -lc 'set -e; echo [1/2] pip install jetson-examples; python3 -m pip install -U jetson-examples'",
+      "bash -lc 'set -e; echo [2/2] start demo container with reComputer; export PATH=$HOME/.local/bin:$PATH; reComputer run depth-anything-v3'"
+    ],
+    "run_cmds": [
+      "bash -lc 'set -e; echo [1/5] display auth precheck; DISP=${DISPLAY:-}; if [ -z \"$DISP\" ]; then if [ -S /tmp/.X11-unix/X1 ]; then DISP=:1; else DISP=:0; fi; fi; echo \"[info] use DISPLAY=$DISP\"; if test -f $HOME/.Xauthority; then echo \"[ok] ~/.Xauthority found\"; else echo \"[warn] ~/.Xauthority not found; RViz may fail in GUI mode\"; fi'",
+      "bash -lc 'echo; echo \"[2/5] optional swap (run manually only if engine build fails due to OOM)\"; echo \"sudo mkdir -p /mnt/nvme\"; echo \"sudo fallocate -l 16G /mnt/nvme/swapfile\"; echo \"sudo chmod 600 /mnt/nvme/swapfile\"; echo \"sudo mkswap /mnt/nvme/swapfile\"; echo \"sudo swapon /mnt/nvme/swapfile\"; echo'",
+      "bash -lc 'set -e; echo \"[3/5] start tutorial container + run GUI preview in background xauth mode\"; DISP=${DISPLAY:-}; if [ -z \"$DISP\" ]; then if [ -S /tmp/.X11-unix/X1 ]; then DISP=:1; else DISP=:0; fi; fi; echo \"[info] start container with DISPLAY=$DISP\"; sudo docker rm -f depth_anything_v3 >/dev/null 2>&1 || true; sudo docker run -d --name depth_anything_v3 --restart unless-stopped --runtime=nvidia --network host --ipc host --privileged -e DISPLAY=$DISP -e XAUTHORITY=/home/seeed/.Xauthority -e QT_X11_NO_MITSHM=1 -e LIBGL_ALWAYS_SOFTWARE=1 -v /tmp/.X11-unix:/tmp/.X11-unix -v /home/seeed/.Xauthority:/home/seeed/.Xauthority:ro -v /dev:/dev chenduola6/depth_anything_v3:jp6.2 bash -lc \"set -e; cd /workspace/ros2-depth-anything-v3-trt; source install/setup.bash; if ls onnx/*.engine >/dev/null 2>&1; then echo '[skip] engine already exists'; else echo '[info] first run will build TensorRT engine; this can take several minutes'; ros2 run depth_anything_v3 generate_engines onnx; fi; exec ./run_camera_depth.sh\"; sudo docker ps -a --filter name=depth_anything_v3'",
+      "bash -lc 'echo \"[4/5] show depth_anything_v3 status (if started by reComputer path)\"; sudo docker ps -a --filter name=depth_anything_v3'",
+      "bash -lc 'echo \"[5/5] follow logs for 120s\"; timeout 120s sudo docker logs -f depth_anything_v3 2>&1 || true; echo \"[hint] if still building engine, rerun Run and keep logs open\"'"
+    ],
+    "clean_cmds": [
+      "bash -lc 'set -e; export PATH=$HOME/.local/bin:$PATH; if reComputer clean depth-anything-v3; then echo \"[ok] reComputer clean depth-anything-v3\"; else echo \"[warn] reComputer clean failed, fallback to docker rm only\"; sudo docker rm -f depth_anything_v3 >/dev/null 2>&1 || true; fi; echo depth_anything_v3 cleaned'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "36.4.x"
+      ],
+      "required_disk_gb": 20,
+      "required_mem_gb": 8,
+      "docker_enabled": true
+    }
+  },
+  {
     "id": "jx-llama-factory",
     "icon": "LLM",
     "name": "Llama Factory",
