@@ -78,7 +78,6 @@ def build_enable_autologin_cmd(sudo_password: str, username: str) -> str:
     escaped_pwd = sudo_password.replace("'", "'\\''")
     escaped_user = username.replace("'", "'\\''")
     return (
-        # 1. 找配置文件路径
         'CONF=""; '
         'for f in /etc/gdm3/custom.conf /etc/gdm/custom.conf; do '
         '  [ -f "$f" ] && CONF="$f" && break; '
@@ -86,15 +85,27 @@ def build_enable_autologin_cmd(sudo_password: str, username: str) -> str:
         '[ -z "$CONF" ] && CONF=/etc/gdm3/custom.conf; '
         f"echo '{escaped_pwd}' | sudo -S mkdir -p \"$(dirname \"$CONF\")\" 2>/dev/null; "
         f"echo '{escaped_pwd}' | sudo -S touch \"$CONF\"; "
-        'grep -q "^\\[daemon\\]" "$CONF" || '
-        f"printf '\\n[daemon]\\n' | (echo '{escaped_pwd}' | sudo -S tee -a \"$CONF\" >/dev/null); "
-        'grep -q "^AutomaticLoginEnable=" "$CONF" && '
-        f"(echo '{escaped_pwd}' | sudo -S sed -i 's/^AutomaticLoginEnable=.*/AutomaticLoginEnable=true/' \"$CONF\") || "
-        f"(echo '{escaped_pwd}' | sudo -S sed -i '/^\\[daemon\\]/a AutomaticLoginEnable=true' \"$CONF\"); "
-        'grep -q "^AutomaticLogin=" "$CONF" && '
-        f"(echo '{escaped_pwd}' | sudo -S sed -i \"s/^AutomaticLogin=.*/AutomaticLogin={escaped_user}/\" \"$CONF\") || "
-        f"(echo '{escaped_pwd}' | sudo -S sed -i '/^\\[daemon\\]/a AutomaticLogin={escaped_user}' \"$CONF\"); "
-        'echo "auto-login ensured in $CONF"'
+        "CONF_CONTENT=$(cat \"$CONF\" 2>/dev/null || echo ''); "
+        "NEW_CONTENT=$(echo \"$CONF_CONTENT\" | python3 -c \""
+        "import sys, re; "
+        "txt = sys.stdin.read(); "
+        "if '[daemon]' not in txt: txt = '[daemon]\\n' + txt; "
+        "txt = re.sub(r'(?m)^AutomaticLoginEnable=.*', 'AutomaticLoginEnable=true', txt); "
+        "txt = txt if 'AutomaticLoginEnable=' in txt else txt.replace('[daemon]', '[daemon]\\nAutomaticLoginEnable=true'); "
+        f"txt = re.sub(r'(?m)^AutomaticLogin=.*', 'AutomaticLogin={escaped_user}', txt); "
+        f"txt = txt if 'AutomaticLogin=' in txt else txt.replace('[daemon]', '[daemon]\\nAutomaticLogin={escaped_user}'); "
+        "sys.stdout.write(txt)"
+        "\"); "
+        "echo \"$NEW_CONTENT\" | "
+        f"(echo '{escaped_pwd}' | sudo -S tee \"$CONF\" >/dev/null); "
+        "echo \"autologin config written to $CONF\"; "
+        "cat \"$CONF\"; "
+        f"echo '{escaped_pwd}' | sudo -S systemctl restart gdm3 2>/dev/null "
+        f"|| echo '{escaped_pwd}' | sudo -S systemctl restart gdm 2>/dev/null "
+        f"|| echo '{escaped_pwd}' | sudo -S systemctl restart lightdm 2>/dev/null "
+        "|| echo 'display manager restart skipped'; "
+        "sleep 6; "
+        "echo 'autologin setup done'"
     )
 
 
@@ -336,10 +347,14 @@ def build_start_novnc_cmd(vnc_port: int = 5900, web_port: int = 6080) -> str:
         "set -e; "
         "if systemctl list-unit-files 2>/dev/null | grep -q '^seeed-novnc.service'; then "
         "  sudo systemctl restart seeed-novnc.service >/dev/null 2>&1 || true; "
-        f"  echo 'noVNC ensured by systemd on port {web_port}'; "
         "else "
         f"  pkill websockify 2>/dev/null; sleep 0.3; websockify --web=/usr/share/novnc {web_port} localhost:{vnc_port} --daemon 2>&1; "
-        f"  echo 'noVNC started on port {web_port}'; "
+        "fi; "
+        f"sleep 2; if ss -tlnp 2>/dev/null | grep -q ':{web_port}' || netstat -tlnp 2>/dev/null | grep -q ':{web_port}'; then "
+        f"  echo 'noVNC ensured on port {web_port}'; "
+        "else "
+        "  echo 'noVNC start check failed'; "
+        "  exit 1; "
         "fi"
     )
 

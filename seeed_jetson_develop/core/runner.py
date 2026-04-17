@@ -185,10 +185,13 @@ class SSHRunner(Runner):
                         get_pty=True,
                     )
                 except TypeError:
-                    log.error("Paramiko does not support exec_command(environment=...). Refusing insecure sudo-password fallback.")
-                    return -1, (
-                        "Paramiko version is too old for secure environment passthrough. "
-                        "Please upgrade Paramiko to a version that supports exec_command(environment=...)."
+                    log.warning(
+                        "Paramiko on %s does not support exec_command(get_pty=...). Falling back to non-PTY mode.",
+                        self.host,
+                    )
+                    _, stdout, stderr = client.exec_command(
+                        safe_cmd,
+                        timeout=timeout,
                     )
                 ch = stdout.channel
                 out_buf = b""

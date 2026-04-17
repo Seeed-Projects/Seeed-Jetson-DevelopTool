@@ -244,6 +244,12 @@ class DesktopRemoteDialog(QDialog):
         self._log.append(line)
         self._log.verticalScrollBar().setValue(self._log.verticalScrollBar().maximum())
 
+    def _resolved_vnc_password(self) -> str:
+        manual = self._vnc_pwd.text().strip()
+        if manual:
+            return manual
+        return self._runner.password or self._runner.sudo_password or ""
+
     def _do_refresh(self):
         self._refresh_btn.setEnabled(False)
         self._refresh_btn.setText(_tt("remote.desktop.status.checking"))
@@ -337,7 +343,7 @@ class DesktopRemoteDialog(QDialog):
         novnc_installed = s["novnc_installed"] if s else False
 
         pwd = self._runner.sudo_password
-        vnc_pwd = self._vnc_pwd.text().strip()
+        vnc_pwd = self._resolved_vnc_password()
         cmds = []
 
         # 未安装先安装，未运行再启动
@@ -346,7 +352,7 @@ class DesktopRemoteDialog(QDialog):
         if not novnc_installed:
             cmds.append((dr.build_install_novnc_cmd(pwd), 180))
         if not vnc_running:
-            cmds.append((dr.build_start_vnc_cmd(password=vnc_pwd), 30))
+            cmds.append((dr.build_start_vnc_cmd(password=vnc_pwd, sudo_password=pwd), 30))
         if not novnc_running:
             cmds.append((dr.build_start_novnc_cmd(), 15))
 
@@ -364,7 +370,10 @@ class DesktopRemoteDialog(QDialog):
         self._open_browser_btn.setEnabled(True)
         self._open_browser_btn.setText(_tt("remote.desktop.btn.open_browser"))
         self._do_refresh()
-        self._open_browser_now()
+        if rc == 0:
+            self._open_browser_now()
+        else:
+            self._append(_tt("remote.desktop.deploy.failed", rc=rc))
 
     def _open_browser_now(self):
         url = dr.format_novnc_url(self._ip)
@@ -377,13 +386,13 @@ class DesktopRemoteDialog(QDialog):
         vnc_installed = s["vnc_installed"] if s else False
 
         pwd = self._runner.sudo_password
-        vnc_pwd = self._vnc_pwd.text().strip()
+        vnc_pwd = self._resolved_vnc_password()
         cmds = []
 
         if not vnc_installed:
             cmds.append((dr.build_install_vnc_cmd(pwd), 180))
         if not vnc_running:
-            cmds.append((dr.build_start_vnc_cmd(password=vnc_pwd), 30))
+            cmds.append((dr.build_start_vnc_cmd(password=vnc_pwd, sudo_password=pwd), 30))
 
         if cmds:
             self._run_cmds(
@@ -399,7 +408,10 @@ class DesktopRemoteDialog(QDialog):
         self._open_vnc_btn.setEnabled(True)
         self._open_vnc_btn.setText(_tt("remote.desktop.btn.open_vnc"))
         self._do_refresh()
-        self._open_vnc_now()
+        if rc == 0:
+            self._open_vnc_now()
+        else:
+            self._append(_tt("remote.desktop.deploy.failed", rc=rc))
 
     def _open_vnc_now(self):
         if dr.launch_vnc_viewer(self._ip):

@@ -47,6 +47,96 @@ sys.excepthook = _excepthook
 os.environ["NO_AT_BRIDGE"]    = "1"
 os.environ["QT_ACCESSIBILITY"] = "0"
 
+# ── X display 健康检测 + 自动 Xvfb fallback（仅 Linux）─────────────────────
+def _ensure_display():
+    if sys.platform == "win32":
+        return  # Windows 不需要处理
+
+    import socket
+    import subprocess
+    import time
+
+    def _x_client_count(display: str) -> int:
+        """通过 ss 统计当前 display socket 的连接数，失败返回 0。"""
+        num = display.lstrip(":").split(".")[0]
+        sock_path = f"/tmp/.X11-unix/X{num}"
+        try:
+            out = subprocess.check_output(
+                ["ss", "-xp"], stderr=subprocess.DEVNULL, text=True
+            )
+            return sum(1 for line in out.splitlines() if sock_path in line)
+        except Exception:
+            return 0
+
+    def _can_connect(display: str) -> bool:
+        num = display.lstrip(":").split(".")[0]
+        sock_path = f"/tmp/.X11-unix/X{num}"
+        if not os.path.exists(sock_path):
+            return False
+        try:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.settimeout(2)
+            s.connect(sock_path)
+            s.close()
+            return True
+        except OSError:
+            return False
+
+    def _start_xvfb(display: str) -> bool:
+        """尝试启动 Xvfb，成功返回 True。"""
+        try:
+            subprocess.Popen(
+                ["Xvfb", display, "-screen", "0", "1920x1080x24", "-maxclients", "512"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            for _ in range(20):
+                time.sleep(0.3)
+                if _can_connect(display):
+                    return True
+            return False
+        except FileNotFoundError:
+            return False  # Xvfb 未安装
+
+    display = os.environ.get("DISPLAY", "")
+
+    # 没有 DISPLAY，直接尝试 Xvfb :10
+    if not display:
+        log.warning("未设置 DISPLAY，尝试启动 Xvfb :10 作为 fallback")
+        if _start_xvfb(":10"):
+            os.environ["DISPLAY"] = ":10"
+            log.info("Xvfb :10 启动成功，使用 DISPLAY=:10")
+            return
+        log.error("Xvfb 启动失败且无可用 DISPLAY，请在图形桌面环境下运行")
+        sys.exit(1)
+
+    # 有 DISPLAY，检测连接数是否接近上限（>= 240 视为危险）
+    count = _x_client_count(display)
+    log.debug("X display %s 当前连接数: %d", display, count)
+
+    if count >= 240 or not _can_connect(display):
+        log.warning(
+            "X display %s 连接数已满或不可用（count=%d），尝试启动 Xvfb fallback",
+            display, count,
+        )
+        # 找一个空闲的 display 编号
+        for n in range(10, 30):
+            fb_display = f":{n}"
+            if not os.path.exists(f"/tmp/.X11-unix/X{n}"):
+                if _start_xvfb(fb_display):
+                    os.environ["DISPLAY"] = fb_display
+                    log.info("Xvfb %s 启动成功，使用 DISPLAY=%s", fb_display, fb_display)
+                    return
+                break
+        log.error(
+            "X display %s 不可用且 Xvfb fallback 失败。\n"
+            "请注销重新登录桌面以释放 X 连接，或安装 Xvfb: sudo apt install xvfb",
+            display,
+        )
+        sys.exit(1)
+
+_ensure_display()
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
 
