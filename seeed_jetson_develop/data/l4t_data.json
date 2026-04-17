@@ -840,5 +840,14 @@
     "filename": "mfi_recomputer-robo-agx-orin-32g-j501-6.2.1-36.4.4-2025-11-01.tar.gz",
     "foldername": "mfi_recomputer-robo-agx-orin-j501x",
     "sha256": "58fa8b76754449b0a49ad7d5f273eddf3e1d1f458cdb34994f6d8643da7a1249"
+  },
+  {
+    "product": "orin-nano-devkit-super",
+    "l4t": "36.4.3",
+    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQABvCSRcBTDT7su9QHy0B0IAXTPkkbd6751SUZ1GSnXaEc?e=bDMTGA",
+    "mirrorlink": "",
+    "filename": "mfi_orin-nano-devkit-super-36.4.3-2025-11-21.tar.gz",
+    "foldername": "mfi_orin-nano-devkit-super",
+    "sha256": "b3b23880aad514962cdf689f3f26362e373ce825f7d737adc8cba5b153cbaeaa"
   }
 ]

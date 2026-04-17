@@ -222,5 +222,12 @@
     "wiki": "https://wiki.seeedstudio.com/ai_robotics_recomputer_j501_robotics_getting_started/",
     "getting_started": "https://wiki.seeedstudio.com/ai_robotics_recomputer_j501_robotics_getting_started/",
     "hardware_interfaces": "https://wiki.seeedstudio.com/ai_robotics_recomputer_j501_robotics_getting_started/"
+  },
+  "orin-nano-devkit-super": {
+    "name": "NVIDIA Jetson Orin Nano Developer Kit (Super)",
+    "local_image": "assets/devices/orin_nano_devkit_super.jpg",
+    "wiki": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/",
+    "getting_started": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/",
+    "hardware_interfaces": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/"
   }
 }

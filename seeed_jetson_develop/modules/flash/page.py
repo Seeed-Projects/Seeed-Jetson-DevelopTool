@@ -22,6 +22,7 @@ from seeed_jetson_develop.gui.i18n import get_language, t
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_BLUE, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3, make_button, make_card, make_label, pt, PLATFORM,
+    DropdownButton,
 )
 
 log = logging.getLogger(__name__)
@@ -96,10 +97,13 @@ def _flash_lang() -> str:
 
 def _flash_info_html(name: str, versions: int) -> str:
     lang = _flash_lang()
+    from seeed_jetson_develop.gui.theme import C_CARD_LIGHT, C_TEXT2
     return (
+        f'<html><body style="background:{C_CARD_LIGHT}; color:{C_TEXT2}; margin:0; padding:0;">'
         f"{t('flash.product_summary.model', lang=lang, name=name)}<br>"
         f"{t('flash.product_summary.versions', lang=lang, count=versions)}<br>"
         f"{t('flash.product_summary.docs_shortcut', lang=lang)}"
+        f"</body></html>"
     )
 
 
@@ -266,11 +270,11 @@ def build_page() -> QWidget:
     flash_left_stack.setLineWidth(0)
     flash_left_stack.setStyleSheet("QStackedWidget { background:transparent; border:none; margin:0; padding:0; }")
 
-    # Left page 0: device selection
-    left_page0 = QWidget()
-    left_page0.setStyleSheet("background:transparent;")
-    left_col = QVBoxLayout(left_page0)
-    left_col.setContentsMargins(0, 0, 0, 0)
+    # Left page 0: device selection — wrapped in a scroll area
+    left_page0_inner = QWidget()
+    left_page0_inner.setStyleSheet("background:transparent;")
+    left_col = QVBoxLayout(left_page0_inner)
+    left_col.setContentsMargins(0, 0, pt(4), 0)
     left_col.setSpacing(pt(20))
 
     dev_card = make_card(12)
@@ -287,19 +291,8 @@ def build_page() -> QWidget:
     prod_name_lbl = make_label(_ft("flash.device.product"), 12, C_TEXT2)
     prod_row.addWidget(prod_name_lbl)
     prod_row.addStretch()
-    combo_style = f"""
-        QComboBox {{
-            color: {C_TEXT};
-            font-size: {pt(12)}pt;
-        }}
-        QComboBox QAbstractItemView {{
-            color: {C_TEXT};
-            font-size: {pt(12)}pt;
-        }}
-    """
-    flash_product_combo = QComboBox()
+    flash_product_combo = DropdownButton(max_popup_height=pt(320))
     flash_product_combo.setMinimumWidth(pt(260))
-    flash_product_combo.setStyleSheet(combo_style)
     flash_product_combo.addItems(sorted(products.keys()))
     prod_row.addWidget(flash_product_combo)
     dev_lay.addLayout(prod_row)
@@ -308,9 +301,8 @@ def build_page() -> QWidget:
     l4t_name_lbl = make_label(_ft("flash.device.l4t"), 12, C_TEXT2)
     l4t_row.addWidget(l4t_name_lbl)
     l4t_row.addStretch()
-    flash_l4t_combo = QComboBox()
+    flash_l4t_combo = DropdownButton(max_popup_height=pt(200))
     flash_l4t_combo.setMinimumWidth(pt(260))
-    flash_l4t_combo.setStyleSheet(combo_style)
     l4t_row.addWidget(flash_l4t_combo)
     dev_lay.addLayout(l4t_row)
 
@@ -372,9 +364,23 @@ def build_page() -> QWidget:
     opt_title_lbl = make_label(_ft("flash.options.title"), 14, C_TEXT, bold=True)
     opt_lay.addWidget(opt_title_lbl)
     skip_verify_cb = QCheckBox(_ft("flash.options.skip_verify"))
+    skip_verify_cb.setChecked(True)
     opt_lay.addWidget(skip_verify_cb)
     left_col.addWidget(opt_card)
     left_col.addStretch()
+
+    left_page0 = QScrollArea()
+    left_page0.setWidgetResizable(True)
+    left_page0.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    left_page0.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    left_page0.setFrameShape(QFrame.NoFrame)
+    left_page0.setStyleSheet(
+        "QScrollArea { background:transparent; border:none; }"
+        "QScrollBar:vertical { background:transparent; width:6px; border-radius:3px; }"
+        f"QScrollBar::handle:vertical {{ background:rgba(255,255,255,0.18); border-radius:3px; min-height:{pt(24)}px; }}"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height:0; }"
+    )
+    left_page0.setWidget(left_page0_inner)
     flash_left_stack.addWidget(left_page0)
 
     # Left page 1: Recovery guide
@@ -838,8 +844,29 @@ def build_page() -> QWidget:
             flash_device_img.setPixmap(pix)
             flash_device_img.setText("")
         else:
-            flash_device_img.clear()
-            flash_device_img.setText(t("flash.product_summary.no_image", lang=get_language()))
+            image_url = info.get("image_url", "")
+            if image_url:
+                flash_device_img.clear()
+                flash_device_img.setText(t("flash.product_summary.no_image", lang=get_language()))
+                def _fetch_device_img(url=image_url):
+                    try:
+                        import requests as _req
+                        resp = _req.get(url, timeout=10)
+                        resp.raise_for_status()
+                        data = resp.content
+                        def _update():
+                            p = QPixmap()
+                            p.loadFromData(data)
+                            if not p.isNull():
+                                flash_device_img.setPixmap(p.scaled(320, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+                                flash_device_img.setText("")
+                        QTimer.singleShot(0, _update)
+                    except Exception:
+                        pass
+                threading.Thread(target=_fetch_device_img, daemon=True).start()
+            else:
+                flash_device_img.clear()
+                flash_device_img.setText(t("flash.product_summary.no_image", lang=get_language()))
         _update_cache_label()
 
     def _update_cache_label():

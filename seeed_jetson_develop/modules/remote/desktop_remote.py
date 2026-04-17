@@ -78,12 +78,13 @@ def build_enable_autologin_cmd(sudo_password: str, username: str) -> str:
     escaped_pwd = sudo_password.replace("'", "'\\''")
     escaped_user = username.replace("'", "'\\''")
     return (
+        # 1. 找配置文件路径
         'CONF=""; '
         'for f in /etc/gdm3/custom.conf /etc/gdm/custom.conf; do '
-        '  if [ -f "$f" ]; then CONF="$f"; break; fi; '
+        '  [ -f "$f" ] && CONF="$f" && break; '
         'done; '
-        'if [ -z "$CONF" ]; then CONF=/etc/gdm3/custom.conf; fi; '
-        f"echo '{escaped_pwd}' | sudo -S mkdir -p \"$(dirname \"$CONF\")\"; "
+        '[ -z "$CONF" ] && CONF=/etc/gdm3/custom.conf; '
+        f"echo '{escaped_pwd}' | sudo -S mkdir -p \"$(dirname \"$CONF\")\" 2>/dev/null; "
         f"echo '{escaped_pwd}' | sudo -S touch \"$CONF\"; "
         'grep -q "^\\[daemon\\]" "$CONF" || '
         f"printf '\\n[daemon]\\n' | (echo '{escaped_pwd}' | sudo -S tee -a \"$CONF\" >/dev/null); "

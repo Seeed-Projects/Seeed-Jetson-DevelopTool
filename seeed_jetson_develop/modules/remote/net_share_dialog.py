@@ -4,7 +4,7 @@ from __future__ import annotations
 import sys
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
-    QComboBox, QDialog, QHBoxLayout, QLabel,
+    QDialog, QHBoxLayout, QLabel,
     QLineEdit, QMessageBox, QSizePolicy, QTextEdit, QVBoxLayout,
 )
 
@@ -12,7 +12,7 @@ from seeed_jetson_develop.gui.theme import (
     C_BG, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3,
     apply_shadow, ask_question_message, make_button, make_card,
-    make_label, pt, show_warning_message,
+    make_label, pt, show_warning_message, DropdownButton,
 )
 from seeed_jetson_develop.gui.runtime_i18n import (
     apply_language,
@@ -62,11 +62,12 @@ class _JetsonGatewayThread(QThread):
     """后台通过 SSH 配置 Jetson 的网关和 DNS。"""
     done = pyqtSignal(bool, str)  # ok, log
 
-    def __init__(self, runner: SSHRunner, gateway: str, lang: str = "zh"):
+    def __init__(self, runner: SSHRunner, gateway: str, lang: str = "zh", lan_iface: str = ""):
         super().__init__()
         self._runner = runner
         self._gateway = gateway
         self._lang = lang
+        self._lan_iface = lan_iface
 
     def _msg(self, zh: str, en: str) -> str:
         return zh if self._lang == "zh" else en
@@ -103,20 +104,46 @@ class _JetsonGatewayThread(QThread):
                 "ℹ 未检测到 PC 本地代理，跳过代理配置",
                 "ℹ No local proxy detected on PC, skipping proxy setup",
             )
-        _, port = proxy
-        # 代理地址用 PC 的 LAN IP（Jetson 能访问到的地址），不用 127.0.0.1
-        proxy_host = self._gateway
+        proxy_host_detected, port = proxy
+        proxy_host = self._gateway  # Jetson 访问 PC 的 LAN IP
+
+        extra_log = ""
+        # 代理只监听 127.0.0.1，需要在 PC 上用 iptables DNAT 转发
+        if proxy_host_detected == "127.0.0.1" and sys.platform != "win32":
+            from seeed_jetson_develop.modules.remote.net_share import build_proxy_lan_forward_cmd
+            sudo_pwd = getattr(self._runner, "sudo_password", "")
+            fwd_cmd = build_proxy_lan_forward_cmd(sudo_pwd, self._lan_iface, port)
+            try:
+                import subprocess as _sp
+                r = _sp.run(["bash", "-c", fwd_cmd], capture_output=True, text=True, timeout=15)
+                if r.returncode == 0 and "proxy_forward_set=" in (r.stdout + r.stderr):
+                    extra_log = self._msg(
+                        f"\n   （代理仅监听 127.0.0.1，已通过 iptables DNAT 转发 LAN 接口 {self._lan_iface}:{port}）",
+                        f"\n   (proxy was on 127.0.0.1 only; iptables DNAT applied on {self._lan_iface}:{port})",
+                    )
+                else:
+                    out = (r.stdout + r.stderr).strip()
+                    extra_log = self._msg(
+                        f"\n   ⚠ iptables 转发设置失败，Jetson 可能无法访问代理：{out}",
+                        f"\n   ⚠ iptables DNAT failed, Jetson may not reach proxy: {out}",
+                    )
+            except Exception as e:
+                extra_log = self._msg(
+                    f"\n   ⚠ iptables 转发异常：{e}",
+                    f"\n   ⚠ iptables DNAT exception: {e}",
+                )
+
         cmd = build_jetson_proxy_cmd(proxy_host, port)
         rc, out = self._runner.run(cmd, timeout=15)
         if rc == 0 and "proxy_set=" in out:
             proxy_url = f"http://{proxy_host}:{port}"
             return self._msg(
-                f"✅ 已自动配置代理：{proxy_url}（PC 端口 {port} 检测到代理）",
-                f"✅ Proxy configured: {proxy_url} (detected proxy on PC port {port})",
+                f"✅ 已自动配置代理：{proxy_url}（PC 端口 {port}）{extra_log}",
+                f"✅ Proxy configured: {proxy_url} (PC port {port}){extra_log}",
             )
         return self._msg(
-            f"⚠ 代理配置失败：{out}",
-            f"⚠ Proxy setup failed: {out}",
+            f"⚠ 代理配置失败：{out}{extra_log}",
+            f"⚠ Proxy setup failed: {out}{extra_log}",
         )
 
     def run(self):
@@ -191,11 +218,8 @@ class NetShareDialog(QDialog):
         wan_row = QHBoxLayout()
         wan_row.setSpacing(8)
         wan_row.addWidget(make_label("PC 上网网卡 (WAN)", 12, C_TEXT2))
-        self._wan_combo = QComboBox()
+        self._wan_combo = DropdownButton(max_popup_height=pt(240))
         self._wan_combo.setMinimumWidth(pt(200))
-        self._wan_combo.setMaximumWidth(pt(520))
-        self._wan_combo.setMinimumHeight(pt(38))
-        self._wan_combo.setStyleSheet(self._combo_style())
         wan_row.addWidget(self._wan_combo)
         wan_row.addStretch()
         cl.addLayout(wan_row)
@@ -204,11 +228,8 @@ class NetShareDialog(QDialog):
         lan_row = QHBoxLayout()
         lan_row.setSpacing(8)
         lan_row.addWidget(make_label("PC 连接 Jetson 的网卡 (LAN)", 12, C_TEXT2))
-        self._lan_combo = QComboBox()
+        self._lan_combo = DropdownButton(max_popup_height=pt(240))
         self._lan_combo.setMinimumWidth(pt(200))
-        self._lan_combo.setMaximumWidth(pt(520))
-        self._lan_combo.setMinimumHeight(pt(38))
-        self._lan_combo.setStyleSheet(self._combo_style())
         lan_row.addWidget(self._lan_combo)
         lan_row.addStretch()
         cl.addLayout(lan_row)
@@ -512,7 +533,7 @@ class NetShareDialog(QDialog):
             return
 
         self._log.append("\n" + self._format_configuring_gateway_log(lan_ip))
-        self._jetson_thread = _JetsonGatewayThread(runner, lan_ip, self._lang)
+        self._jetson_thread = _JetsonGatewayThread(runner, lan_ip, self._lang, self._get_lan())
         self._jetson_thread.done.connect(self._on_jetson_gw_done)
         self._jetson_thread.start()
 

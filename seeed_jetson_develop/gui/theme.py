@@ -1039,3 +1039,178 @@ def ask_question_message(
         buttons=buttons,
         default_button=default_button,
     ).exec_()
+
+
+# ── 自定义下拉选择器（替代 QComboBox，解决 Linux 下 popup 无法限高的问题）────────
+
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QListWidget, QListWidgetItem
+
+
+class DropdownButton(QWidget):
+    """点击后在按钮正下方弹出固定高度的列表，带滚动条，跨平台一致。"""
+
+    currentTextChanged = pyqtSignal(str)
+
+    def __init__(self, parent=None, max_popup_height: int = 300):
+        super().__init__(parent)
+        self._items: list[str] = []
+        self._data: dict[str, object] = {}   # label -> user data
+        self._current: str = ""
+        self._max_h = max_popup_height
+        self._popup: QWidget | None = None
+        self._list: QListWidget | None = None
+
+        self._btn = QPushButton("", self)
+        self._btn.setCursor(Qt.PointingHandCursor)
+        self._btn.clicked.connect(self._toggle_popup)
+        self._btn.setStyleSheet(self._btn_style())
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self._btn)
+
+    # ── public API ──────────────────────────────────────────────────────────
+
+    def addItems(self, items: list[str]):
+        self._items = list(items)
+        if self._items and not self._current:
+            self._set_current(self._items[0])
+        elif self._items and self._current not in self._items:
+            self._set_current(self._items[0])
+        if self._list is not None:
+            self._list.clear()
+            for item in self._items:
+                self._list.addItem(QListWidgetItem(item))
+
+    def addItem(self, label: str, data: object = None):
+        self._items.append(label)
+        if data is not None:
+            self._data[label] = data
+        if len(self._items) == 1:
+            self._set_current(label)
+        if self._list is not None:
+            self._list.addItem(QListWidgetItem(label))
+
+    def clear(self):
+        self._items = []
+        self._data = {}
+        self._current = ""
+        self._btn.setText("  ▾")
+        if self._list is not None:
+            self._list.clear()
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def itemData(self, index: int) -> object:
+        if 0 <= index < len(self._items):
+            return self._data.get(self._items[index])
+        return None
+
+    def setCurrentIndex(self, index: int):
+        if 0 <= index < len(self._items):
+            self._set_current(self._items[index])
+
+    def blockSignals(self, block: bool) -> bool:
+        return super().blockSignals(block)
+
+    def setEnabled(self, enabled: bool):
+        super().setEnabled(enabled)
+        self._btn.setEnabled(enabled)
+
+    def currentText(self) -> str:
+        return self._current
+
+    def setCurrentText(self, text: str):
+        if text in self._items:
+            self._set_current(text)
+
+    def setMinimumWidth(self, w: int):
+        super().setMinimumWidth(w)
+        self._btn.setMinimumWidth(w)
+
+    # ── internals ───────────────────────────────────────────────────────────
+
+    def _set_current(self, text: str):
+        self._current = text
+        self._btn.setText(f"  {text}  ▾")
+        if not self.signalsBlocked():
+            self.currentTextChanged.emit(text)
+
+    def _btn_style(self) -> str:
+        return (
+            f"QPushButton {{"
+            f" background: qlineargradient(x1:0,y1:0,x2:0,y2:1,"
+            f"   stop:0 #1E2D40, stop:1 {C_CARD_LIGHT});"
+            f" border: 1px solid rgba(255,255,255,0.10);"
+            f" border-top-color: rgba(255,255,255,0.16);"
+            f" border-radius: 10px;"
+            f" color: {C_TEXT};"
+            f" font-size: {pt(12)}px;"
+            f" text-align: left;"
+            f" padding: 0 {pt(12)}px;"
+            f" min-height: {pt(36)}px;"
+            f"}}"
+            f" QPushButton:hover {{ border-color: rgba(255,255,255,0.22); }}"
+            f" QPushButton:pressed {{ background: {C_CARD_LIGHT}; }}"
+        )
+
+    def _toggle_popup(self):
+        if self._popup and self._popup.isVisible():
+            self._popup.hide()
+            return
+        self._show_popup()
+
+    def _show_popup(self):
+        if self._popup is None:
+            self._popup = QWidget(self.window(), Qt.Popup | Qt.FramelessWindowHint)
+            self._popup.setAttribute(Qt.WA_StyledBackground, True)
+            self._popup.setStyleSheet(
+                f"background:{C_CARD_LIGHT}; border:1px solid rgba(255,255,255,0.12);"
+                f" border-radius:10px;"
+            )
+            pop_lay = QVBoxLayout(self._popup)
+            pop_lay.setContentsMargins(4, 4, 4, 4)
+            pop_lay.setSpacing(0)
+
+            self._list = QListWidget()
+            self._list.setStyleSheet(
+                f"QListWidget {{ background:transparent; border:none; color:{C_TEXT};"
+                f" font-size:{pt(13)}px; outline:none; }}"
+                f" QListWidget::item {{ padding:{pt(7)}px {pt(12)}px; border-radius:6px; }}"
+                f" QListWidget::item:hover {{ background:rgba(255,255,255,0.08); }}"
+                f" QListWidget::item:selected {{ background:rgba(141,194,31,0.18); color:{C_GREEN}; }}"
+                f" QScrollBar:vertical {{ background:transparent; width:{pt(6)}px; }}"
+                f" QScrollBar::handle:vertical {{ background:rgba(255,255,255,0.20);"
+                f"   border-radius:{pt(3)}px; min-height:{pt(20)}px; }}"
+                f" QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; }}"
+            )
+            for item in self._items:
+                self._list.addItem(QListWidgetItem(item))
+            self._list.itemClicked.connect(self._on_item_clicked)
+            pop_lay.addWidget(self._list)
+
+        # 选中当前项
+        for i in range(self._list.count()):
+            self._list.item(i).setSelected(self._list.item(i).text() == self._current)
+
+        # 定位到按钮正下方
+        btn_global = self._btn.mapToGlobal(self._btn.rect().bottomLeft())
+        w = max(self._btn.width(), pt(260))
+        h = min(self._max_h, self._list.sizeHintForRow(0) * len(self._items) + 12)
+        self._popup.setFixedWidth(w)
+        self._popup.setFixedHeight(h)
+        self._popup.move(btn_global)
+        self._popup.show()
+        self._popup.raise_()
+
+    def _on_item_clicked(self, item: QListWidgetItem):
+        self._set_current(item.text())
+        if self._popup:
+            self._popup.hide()
+
+    def hideEvent(self, event):
+        if self._popup:
+            self._popup.hide()
+        super().hideEvent(event)
