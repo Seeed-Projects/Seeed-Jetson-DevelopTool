@@ -5,6 +5,7 @@ import shlex
 import subprocess
 import logging
 import threading
+import time
 from typing import Callable, Optional
 
 log = logging.getLogger("seeed.core.runner")
@@ -126,12 +127,13 @@ class SSHRunner(Runner):
     def _build_remote_shell_command(self, cmd: str) -> str:
         wrapper_parts = ["export TERM=${TERM:-xterm-256color};"]
         if self.sudo_password:
-            # 直接 inline 密码，不依赖环境变量（SSH 服务器通常不转发 AcceptEnv）
-            wrapper_parts.extend([
-                f"export SEEED_SUDO_PASSWORD={shlex.quote(self.sudo_password)};",
-                "sudo() { printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S \"$@\"; }; "
-                "export -f sudo;",
-            ])
+            # Do not rely on SSH environment passthrough, which may be blocked by server policy.
+            wrapper_parts.append(f"SEEED_SUDO_PASSWORD={shlex.quote(self.sudo_password)}; export SEEED_SUDO_PASSWORD;")
+        wrapper_parts.extend([
+            "if [ -n \"${SEEED_SUDO_PASSWORD:-}\" ]; then "
+            "sudo() { printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S -p '' \"$@\"; }; "
+            "export -f sudo; fi;",
+        ])
         wrapper_parts.append(cmd)
         wrapper = " ".join(wrapper_parts)
         return f"bash -lc {shlex.quote(wrapper)}"
@@ -176,31 +178,66 @@ class SSHRunner(Runner):
             )
             client.get_transport().set_keepalive(30)
             try:
-                _, stdout, stderr = client.exec_command(
-                    safe_cmd,
-                    timeout=timeout,
-                )
-                lines = []
-                for raw in stdout:
-                    line = raw.rstrip("\n")
-                    lines.append(line)
+                try:
+                    _, stdout, stderr = client.exec_command(
+                        safe_cmd,
+                        timeout=timeout,
+                        get_pty=True,
+                    )
+                except TypeError:
+                    log.error("Paramiko does not support exec_command(environment=...). Refusing insecure sudo-password fallback.")
+                    return -1, (
+                        "Paramiko version is too old for secure environment passthrough. "
+                        "Please upgrade Paramiko to a version that supports exec_command(environment=...)."
+                    )
+                ch = stdout.channel
+                out_buf = b""
+                err_buf = b""
+                lines: list[str] = []
+                start_ts = time.time()
+                deadline = start_ts + timeout if timeout and timeout > 0 else None
+
+                def _emit_line(line: str):
+                    s = (line or "").strip()
+                    if not s:
+                        return
+                    if s.startswith("[sudo]") or "password for" in s.lower() or "的密码" in s:
+                        return
+                    lines.append(s)
                     if on_output:
-                        on_output(line)
-                rc  = stdout.channel.recv_exit_status()
-                err = stderr.read().decode("utf-8", errors="replace").strip()
-                if err:
-                    # 过滤 sudo 密码提示行，避免污染输出
-                    filtered = [
-                        line for line in err.splitlines()
-                        if line.strip()
-                        and not line.strip().startswith("[sudo]")
-                        and "password for" not in line.lower()
-                        and "的密码" not in line
-                    ]
-                    for line in filtered:
-                        if on_output:
-                            on_output(line)
-                    lines.extend(filtered)
+                        on_output(s)
+
+                def _drain_buf(buf: bytes) -> bytes:
+                    parts = re.split(rb"[\r\n]+", buf)
+                    for part in parts[:-1]:
+                        _emit_line(part.decode("utf-8", errors="replace"))
+                    return parts[-1]
+
+                while True:
+                    had_new_output = False
+                    if ch.recv_ready():
+                        out_buf += ch.recv(65536)
+                        out_buf = _drain_buf(out_buf)
+                        had_new_output = True
+                    if ch.recv_stderr_ready():
+                        err_buf += ch.recv_stderr(65536)
+                        err_buf = _drain_buf(err_buf)
+                        had_new_output = True
+
+                    if ch.exit_status_ready() and not ch.recv_ready() and not ch.recv_stderr_ready():
+                        break
+
+                    if deadline and time.time() > deadline:
+                        ch.close()
+                        return -1, "timeout"
+                    time.sleep(0.05)
+
+                if out_buf.strip():
+                    _emit_line(out_buf.decode("utf-8", errors="replace"))
+                if err_buf.strip():
+                    _emit_line(err_buf.decode("utf-8", errors="replace"))
+
+                rc = ch.recv_exit_status()
                 out = "\n".join(lines)
                 return rc, out
             finally:

@@ -1,5 +1,7 @@
-{
+﻿{
   "common.ok": "OK",
+  "common.yes": "Yes",
+  "common.no": "No",
   "common.cancel": "Cancel",
   "common.close": "Close",
   "common.refresh": "Refresh",
@@ -22,3 +24,5 @@
   "common.search_placeholder": "Search...",
   "common.no_data": "No data"
 }
+
+

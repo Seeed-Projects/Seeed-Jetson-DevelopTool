@@ -142,21 +142,11 @@ class DesktopRemoteDialog(QDialog):
         addr_row.addStretch()
         sc.addLayout(addr_row)
 
-        pwd_row = QHBoxLayout()
+        # VNC password is unified with login password; hide manual input to reduce confusion.
         self._vnc_password_lbl = make_label(_tt("remote.desktop.vnc_password"), 11, C_TEXT3)
-        pwd_row.addWidget(self._vnc_password_lbl)
+        self._vnc_password_lbl.setVisible(False)
         self._vnc_pwd = QLineEdit()
-        self._vnc_pwd.setPlaceholderText(_tt("remote.desktop.vnc_password_placeholder"))
-        self._vnc_pwd.setEchoMode(QLineEdit.Password)
-        self._vnc_pwd.setMinimumWidth(pt(220))
-        self._vnc_pwd.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self._vnc_pwd.setStyleSheet(
-            f"QLineEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:8px;"
-            f" padding:6px 10px; color:{C_TEXT}; font-size:{pt(11)}px; }}"
-        )
-        pwd_row.addWidget(self._vnc_pwd, 1)
-        pwd_row.addStretch()
-        sc.addLayout(pwd_row)
+        self._vnc_pwd.setVisible(False)
         root.addWidget(status_card)
 
         op_row = QHBoxLayout()
@@ -289,11 +279,17 @@ class DesktopRemoteDialog(QDialog):
 
     def _do_deploy_all(self):
         pwd = self._runner.sudo_password
-        vnc_pwd = self._vnc_pwd.text().strip()
+        vnc_pwd = self._runner.password or self._runner.sudo_password
+        self._append("[info] VNC password is unified with login password.")
         cmds = [
             (dr.build_enable_autologin_cmd(pwd, self._runner.username), 30),
             (dr.build_install_vnc_cmd(pwd), 180),
-            (dr.build_start_vnc_cmd(password=vnc_pwd), 15),
+            (dr.build_prepare_vnc_password_cmd(vnc_pwd), 20),
+            (dr.build_write_headless_xvfb_unit_cmd(self._runner.username), 20),
+            (dr.build_write_headless_session_unit_cmd(self._runner.username), 20),
+            (dr.build_write_x11vnc_unit_cmd(self._runner.username), 20),
+            (dr.build_write_novnc_unit_cmd(), 20),
+            (dr.build_install_enable_units_cmd(pwd), 60),
             (dr.build_install_novnc_cmd(pwd), 180),
             (dr.build_start_novnc_cmd(), 15),
         ]
@@ -317,6 +313,11 @@ class DesktopRemoteDialog(QDialog):
             self._append(_tt("remote.desktop.deploy.tip4"))
             self._append(_tt("remote.desktop.deploy.tip5"))
             self._append(_tt("remote.desktop.deploy.tip6"))
+            self._append("")
+            self._append("Diagnostics:")
+            self._append(f"$ {dr.build_diagnose_cmd()}")
+            self._append("Rollback:")
+            self._append(f"$ {dr.build_rollback_cmd(self._runner.sudo_password)}")
         self._do_refresh()
 
     def _do_stop(self):

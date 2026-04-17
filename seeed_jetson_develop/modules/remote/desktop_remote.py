@@ -1,9 +1,9 @@
-"""远程桌面核心逻辑 — 通过 SSH 在 Jetson 上部署/管理 x11vnc + noVNC。
+"""Remote desktop core logic for deploying/managing x11vnc + noVNC on Jetson."""
 
-客户端做控制面，Jetson 做服务面。
-"""
 from __future__ import annotations
 
+import base64
+import os
 import shutil
 import subprocess
 import sys
@@ -12,16 +12,20 @@ import webbrowser
 from seeed_jetson_develop.core.runner import SSHRunner
 
 
-# ── SSH 命令模板 ──────────────────────────────────────────────────────────────
-
 CHECK_VNC_CMD = "which x11vnc 2>/dev/null || dpkg -l x11vnc 2>/dev/null | grep '^ii'"
 CHECK_NOVNC_CMD = "which websockify 2>/dev/null || pip3 show websockify 2>/dev/null | grep -i name"
-CHECK_VNC_RUNNING_CMD = "pgrep -a x11vnc 2>/dev/null"
-CHECK_NOVNC_RUNNING_CMD = "pgrep -a websockify 2>/dev/null"
-STOP_CMD = "pkill x11vnc 2>/dev/null; pkill websockify 2>/dev/null; echo 'stopped'"
+CHECK_VNC_RUNNING_CMD = "systemctl is-active seeed-x11vnc.service 2>/dev/null || pgrep -a x11vnc 2>/dev/null"
+CHECK_NOVNC_RUNNING_CMD = (
+    "systemctl is-active seeed-novnc.service 2>/dev/null || pgrep -a websockify 2>/dev/null"
+)
+STOP_CMD = (
+    "sudo systemctl stop seeed-novnc.service seeed-x11vnc.service seeed-headless-session.service seeed-headless-xvfb.service 2>/dev/null || true; "
+    "pkill x11vnc 2>/dev/null || true; "
+    "pkill websockify 2>/dev/null || true; "
+    "pkill -x Xvfb 2>/dev/null || true; "
+    "echo 'stopped'"
+)
 
-
-# ── 状态检测 ──────────────────────────────────────────────────────────────────
 
 def check_vnc_installed(runner: SSHRunner) -> bool:
     rc, out = runner.run(CHECK_VNC_CMD, timeout=10)
@@ -34,28 +38,39 @@ def check_novnc_installed(runner: SSHRunner) -> bool:
 
 
 def check_vnc_running(runner: SSHRunner) -> tuple[bool, str]:
-    rc, out = runner.run(CHECK_VNC_RUNNING_CMD, timeout=5)
+    rc, out = runner.run(CHECK_VNC_RUNNING_CMD, timeout=8)
     if rc == 0 and out.strip():
-        pid = out.strip().splitlines()[0].split()[0]
+        lines = out.strip().splitlines()
+        if "active" in lines[0]:
+            rc2, out2 = runner.run("pgrep -a x11vnc 2>/dev/null | head -n1", timeout=5)
+            if rc2 == 0 and out2.strip():
+                return True, out2.strip().split()[0]
+            return True, "systemd"
+        pid = lines[0].split()[0]
         return True, pid
     return False, ""
 
 
 def check_novnc_running(runner: SSHRunner) -> tuple[bool, str]:
-    rc, out = runner.run(CHECK_NOVNC_RUNNING_CMD, timeout=5)
+    rc, out = runner.run(CHECK_NOVNC_RUNNING_CMD, timeout=8)
     if rc == 0 and out.strip():
-        pid = out.strip().splitlines()[0].split()[0]
+        lines = out.strip().splitlines()
+        if "active" in lines[0]:
+            rc2, out2 = runner.run("pgrep -a websockify 2>/dev/null | head -n1", timeout=5)
+            if rc2 == 0 and out2.strip():
+                return True, out2.strip().split()[0]
+            return True, "systemd"
+        pid = lines[0].split()[0]
         return True, pid
     return False, ""
 
 
-# ── 命令生成 ──────────────────────────────────────────────────────────────────
-
 def build_install_vnc_cmd(sudo_password: str) -> str:
     escaped = sudo_password.replace("'", "'\\''")
     return (
-        f"echo '{escaped}' | sudo -S apt-get update -qq "
-        f"&& echo '{escaped}' | sudo -S apt-get install -y x11vnc xvfb xauth dbus-x11 x11-xserver-utils"
+        f"echo '{escaped}' | sudo -S apt-get update && "
+        f"echo '{escaped}' | sudo -S apt-get install -y "
+        "x11vnc xvfb xauth dbus-x11 x11-xserver-utils novnc websockify python3-websockify openbox xterm"
     )
 
 
@@ -71,133 +86,299 @@ def build_enable_autologin_cmd(sudo_password: str, username: str) -> str:
         '[ -z "$CONF" ] && CONF=/etc/gdm3/custom.conf; '
         f"echo '{escaped_pwd}' | sudo -S mkdir -p \"$(dirname \"$CONF\")\" 2>/dev/null; "
         f"echo '{escaped_pwd}' | sudo -S touch \"$CONF\"; "
-        # 2. 把当前配置读出来，用 python3 修改后写回（通过 tee，避免 sed 的 &&/|| 优先级 bug）
-        "CONF_CONTENT=$(cat \"$CONF\" 2>/dev/null || echo ''); "
-        "NEW_CONTENT=$(echo \"$CONF_CONTENT\" | python3 -c \""
-        "import sys, re; "
-        "txt = sys.stdin.read(); "
-        "if '[daemon]' not in txt: txt = '[daemon]\\n' + txt; "
-        "txt = re.sub(r'(?m)^AutomaticLoginEnable=.*', 'AutomaticLoginEnable=true', txt); "
-        "txt = txt if 'AutomaticLoginEnable=' in txt else txt.replace('[daemon]', '[daemon]\\nAutomaticLoginEnable=true'); "
-        f"txt = re.sub(r'(?m)^AutomaticLogin=.*', 'AutomaticLogin={escaped_user}', txt); "
-        f"txt = txt if 'AutomaticLogin=' in txt else txt.replace('[daemon]', '[daemon]\\nAutomaticLogin={escaped_user}'); "
-        "sys.stdout.write(txt)"
-        "\"); "
-        "echo \"$NEW_CONTENT\" | "
-        f"(echo '{escaped_pwd}' | sudo -S tee \"$CONF\" >/dev/null); "
-        "echo \"autologin config written to $CONF\"; "
-        "cat \"$CONF\"; "
-        # 3. 重启 display manager 让配置立即生效
-        f"echo '{escaped_pwd}' | sudo -S systemctl restart gdm3 2>/dev/null "
-        f"|| echo '{escaped_pwd}' | sudo -S systemctl restart gdm 2>/dev/null "
-        f"|| echo '{escaped_pwd}' | sudo -S systemctl restart lightdm 2>/dev/null "
-        "|| echo 'display manager restart skipped'; "
-        "sleep 6; "
-        "echo 'autologin setup done'"
+        'grep -q "^\\[daemon\\]" "$CONF" || '
+        f"printf '\\n[daemon]\\n' | (echo '{escaped_pwd}' | sudo -S tee -a \"$CONF\" >/dev/null); "
+        'grep -q "^AutomaticLoginEnable=" "$CONF" && '
+        f"(echo '{escaped_pwd}' | sudo -S sed -i 's/^AutomaticLoginEnable=.*/AutomaticLoginEnable=true/' \"$CONF\") || "
+        f"(echo '{escaped_pwd}' | sudo -S sed -i '/^\\[daemon\\]/a AutomaticLoginEnable=true' \"$CONF\"); "
+        'grep -q "^AutomaticLogin=" "$CONF" && '
+        f"(echo '{escaped_pwd}' | sudo -S sed -i \"s/^AutomaticLogin=.*/AutomaticLogin={escaped_user}/\" \"$CONF\") || "
+        f"(echo '{escaped_pwd}' | sudo -S sed -i '/^\\[daemon\\]/a AutomaticLogin={escaped_user}' \"$CONF\"); "
+        'echo "auto-login ensured in $CONF"'
     )
 
 
-def build_start_vnc_cmd(password: str = "", display: str = "") -> str:
-    """启动 x11vnc，始终以无密码模式运行。"""
-    # 为了保证客户端和 noVNC 都不再弹出 VNC 密码，这里强制使用 -nopw。
-    # password/display 参数保留仅用于兼容旧调用方。
-    auth = "-nopw"
-    # 自动探测 display：有真实桌面就接真实桌面；没有则启动 Xvfb :99 作为 headless 桌面
-    detect_display = (
-        # 等待最多 20 秒让 GDM 自动登录后的桌面 session 就绪
-        'DISP=""; '
-        'for i in $(seq 1 10); do '
-        '  for d in :0 :1 :2; do '
-        '    if xdpyinfo -display "$d" >/dev/null 2>&1; then DISP=$d; break 2; fi; '
-        '  done; '
-        '  sleep 2; '
-        'done; '
-        'HEADLESS=0; '
-        'if [ -z "$DISP" ]; then '
-        '  HEADLESS=1; DISP=:99; '
-        '  pkill -f "Xvfb :99" 2>/dev/null || true; '
-        '  rm -f /tmp/.X99-lock; '
-        '  nohup Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset >/tmp/seeed-xvfb.log 2>&1 & '
-        '  echo $! >/tmp/seeed-xvfb.pid; '
-        '  sleep 2; '
-        '  export DISPLAY=:99; '
-        '  if command -v gnome-session >/dev/null 2>&1; then '
-        '    nohup dbus-launch --exit-with-session gnome-session >/tmp/seeed-headless-desktop.log 2>&1 & '
-        '    echo $! >/tmp/seeed-headless-session.pid; '
-        '  elif command -v startxfce4 >/dev/null 2>&1; then '
-        '    nohup dbus-launch --exit-with-session startxfce4 >/tmp/seeed-headless-desktop.log 2>&1 & '
-        '    echo $! >/tmp/seeed-headless-session.pid; '
-        '  elif command -v openbox-session >/dev/null 2>&1; then '
-        '    nohup openbox-session >/tmp/seeed-headless-desktop.log 2>&1 & '
-        '    echo $! >/tmp/seeed-headless-session.pid; '
-        '  fi; '
-        '  sleep 3; '
-        'fi; '
-        'echo "Using display: $DISP (headless=$HEADLESS)"; '
+def build_start_vnc_cmd(password: str = "", display: str = "", sudo_password: str = "") -> str:
+    """Create and start persistent systemd services for headless-friendly VNC/noVNC."""
+    if not password:
+        # keep behavior explicit: no anonymous VNC session
+        return "echo '[error] VNC password is required for secure mode'; exit 2"
+
+    escaped_pwd = sudo_password.replace("'", "'\\''")
+    escaped_vnc = password.replace("'", "'\\''")
+    display_hint = (display or "").replace('"', "").replace("'", "")
+
+    xvfb_service = (
+        "[Unit]\n"
+        "Description=Seeed Headless Xvfb\n"
+        "After=network.target\n\n"
+        "[Service]\n"
+        "Type=simple\n"
+        "User=$USER_NAME\n"
+        "Environment=HOME=$HOME_DIR\n"
+        "ExecStart=/usr/bin/Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -ac\n"
+        "Restart=always\n"
+        "RestartSec=2\n\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
     )
-    start_vnc = (
-        f'pkill x11vnc 2>/dev/null; sleep 0.5; '
-        # 删除所有可能的 x11vnc 密码文件，确保无密码模式
-        'rm -f ~/.vnc/passwd ~/.x11vncrc /tmp/.x11vnc-passwd 2>/dev/null; '
-        f'if [ "$HEADLESS" = "1" ]; then X11_AUTH=""; else X11_AUTH="-auth guess"; fi; '
-        f'x11vnc $X11_AUTH -display $DISP -forever -shared -rfbport 5900 {auth} '
-        f'-noxdamage -noxfixes -nowf -nowcr -noscr -o /tmp/x11vnc.log -bg 2>&1; '
-        f'sleep 2; '
-        f'if ss -tlnp 2>/dev/null | grep -q ":5900" || netstat -tlnp 2>/dev/null | grep -q ":5900"; then '
-        f'  echo "x11vnc started OK on port 5900"; '
-        f'else '
-        f'  echo "x11vnc may have failed, check /tmp/x11vnc.log:"; '
-        f'  tail -20 /tmp/x11vnc.log 2>/dev/null || echo "(no log)"; '
-        f'  exit 1; '
-        f'fi'
+    x11vnc_service = (
+        "[Unit]\n"
+        "Description=Seeed x11vnc server\n"
+        "After=display-manager.service seeed-headless-xvfb.service seeed-headless-session.service\n"
+        "Wants=seeed-headless-xvfb.service seeed-headless-session.service\n\n"
+        "[Service]\n"
+        "Type=simple\n"
+        "User=$USER_NAME\n"
+        "Environment=HOME=$HOME_DIR\n"
+        f"Environment=DISPLAY_HINT={display_hint}\n"
+        "ExecStart=/bin/bash -lc 'set -e; DISP=\"$DISPLAY_HINT\"; if [ -n \"$DISP\" ] && ! xdpyinfo -display \"$DISP\" >/dev/null 2>&1; then DISP=\"\"; fi; if [ -z \"$DISP\" ]; then for d in :0 :1 :2 :99; do if xdpyinfo -display \"$d\" >/dev/null 2>&1; then DISP=$d; break; fi; done; fi; [ -n \"$DISP\" ] || DISP=:99; XAUTH=\"\"; for p in /run/user/1000/gdm/Xauthority \"$HOME/.Xauthority\"; do [ -f \"$p\" ] && XAUTH=$p && break; done; if [ -n \"$XAUTH\" ]; then AUTH_ARG=\"-auth $XAUTH\"; else AUTH_ARG=\"-auth guess\"; fi; exec /usr/bin/x11vnc $AUTH_ARG -display \"$DISP\" -forever -shared -rfbport 5900 -rfbauth \"$HOME/.vnc/passwd\" -noxdamage -noxfixes -nowf -nowcr -noscr -o /tmp/x11vnc.log'\n"
+        "Restart=always\n"
+        "RestartSec=2\n\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
     )
-    return detect_display + start_vnc
+    session_service = (
+        "[Unit]\n"
+        "Description=Seeed Headless Desktop Session on :99\n"
+        "After=seeed-headless-xvfb.service\n"
+        "Wants=seeed-headless-xvfb.service\n\n"
+        "[Service]\n"
+        "Type=simple\n"
+        "User=$USER_NAME\n"
+        "Environment=HOME=$HOME_DIR\n"
+        "Environment=DISPLAY=:99\n"
+        "ExecStart=/bin/bash -lc 'set -e; export DISPLAY=:99; export XDG_RUNTIME_DIR=/run/user/1000; if command -v openbox >/dev/null 2>&1; then dbus-launch --exit-with-session openbox; else xterm -geometry 120x40+20+20; fi'\n"
+        "Restart=always\n"
+        "RestartSec=2\n\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
+    )
+    novnc_service = (
+        "[Unit]\n"
+        "Description=Seeed noVNC websockify\n"
+        "After=network.target seeed-x11vnc.service\n"
+        "Wants=seeed-x11vnc.service\n\n"
+        "[Service]\n"
+        "Type=simple\n"
+        "ExecStart=/usr/bin/websockify --web=/usr/share/novnc 6080 localhost:5900\n"
+        "Restart=always\n"
+        "RestartSec=2\n\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
+    )
+    b64_xvfb = base64.b64encode(xvfb_service.encode("utf-8")).decode("ascii")
+    b64_x11vnc = base64.b64encode(x11vnc_service.encode("utf-8")).decode("ascii")
+    b64_session = base64.b64encode(session_service.encode("utf-8")).decode("ascii")
+    b64_novnc = base64.b64encode(novnc_service.encode("utf-8")).decode("ascii")
+
+    return (
+        "set -e; "
+        f"VNC_PASS='{escaped_vnc}'; "
+        f"SUDO_PASS='{escaped_pwd}'; "
+        'USER_NAME="$(id -un)"; '
+        'HOME_DIR="$(getent passwd "$USER_NAME" | cut -d: -f6)"; '
+        'mkdir -p "$HOME_DIR/.vnc"; '
+        'x11vnc -storepasswd "$VNC_PASS" "$HOME_DIR/.vnc/passwd" >/dev/null; '
+        'chmod 600 "$HOME_DIR/.vnc/passwd"; '
+        'chown "$USER_NAME":"$USER_NAME" "$HOME_DIR/.vnc/passwd"; '
+        f"echo '{b64_xvfb}' | base64 -d > /tmp/seeed-headless-xvfb.service; "
+        f"echo '{b64_x11vnc}' | base64 -d > /tmp/seeed-x11vnc.service; "
+        f"echo '{b64_session}' | base64 -d > /tmp/seeed-headless-session.service; "
+        f"echo '{b64_novnc}' | base64 -d > /tmp/seeed-novnc.service; "
+        'echo "$SUDO_PASS" | sudo -S systemctl stop seeed-novnc.service seeed-x11vnc.service seeed-headless-session.service seeed-headless-xvfb.service 2>/dev/null || true; '
+        "pkill x11vnc 2>/dev/null || true; "
+        "pkill websockify 2>/dev/null || true; "
+        "pkill -x Xvfb 2>/dev/null || true; "
+        'echo "$SUDO_PASS" | sudo -S cp /tmp/seeed-headless-xvfb.service /etc/systemd/system/seeed-headless-xvfb.service; '
+        'echo "$SUDO_PASS" | sudo -S cp /tmp/seeed-headless-session.service /etc/systemd/system/seeed-headless-session.service; '
+        'echo "$SUDO_PASS" | sudo -S cp /tmp/seeed-x11vnc.service /etc/systemd/system/seeed-x11vnc.service; '
+        'echo "$SUDO_PASS" | sudo -S cp /tmp/seeed-novnc.service /etc/systemd/system/seeed-novnc.service; '
+        'echo "$SUDO_PASS" | sudo -S systemctl daemon-reload; '
+        'echo "$SUDO_PASS" | sudo -S systemctl enable --now seeed-headless-xvfb.service seeed-headless-session.service seeed-x11vnc.service seeed-novnc.service; '
+        'echo "$SUDO_PASS" | sudo -S systemctl restart seeed-headless-session.service seeed-x11vnc.service seeed-novnc.service; '
+        'sleep 2; '
+        'echo "$SUDO_PASS" | sudo -S systemctl --no-pager --full status seeed-headless-session.service seeed-x11vnc.service seeed-novnc.service | sed -n "1,60p"; '
+        'if ss -tlnp 2>/dev/null | grep -q ":5900" && ss -tlnp 2>/dev/null | grep -q ":6080"; then '
+        "  echo 'x11vnc/noVNC started OK on 5900/6080'; "
+        "else "
+        "  echo 'service started but port check failed'; "
+        "  exit 1; "
+        "fi"
+    )
 
 
 def build_install_novnc_cmd(sudo_password: str) -> str:
     escaped = sudo_password.replace("'", "'\\''")
+    return f"echo '{escaped}' | sudo -S apt-get install -y novnc websockify python3-websockify"
+
+
+def build_prepare_vnc_password_cmd(password: str) -> str:
+    escaped = password.replace("'", "'\\''")
     return (
-        f"echo '{escaped}' | sudo -S apt-get install -y novnc websockify python3-websockify"
+        "set -e; "
+        f"VNC_PASS='{escaped}'; "
+        "mkdir -p ~/.vnc; "
+        'x11vnc -storepasswd "$VNC_PASS" ~/.vnc/passwd >/dev/null; '
+        "chmod 600 ~/.vnc/passwd; "
+        "echo 'vnc password prepared'"
+    )
+
+
+def build_write_headless_xvfb_unit_cmd(username: str) -> str:
+    user = username.replace("'", "")
+    return (
+        "cat > /tmp/seeed-headless-xvfb.service <<'EOF'\n"
+        "[Unit]\n"
+        "Description=Seeed Headless Xvfb\n"
+        "After=network.target\n\n"
+        "[Service]\n"
+        "Type=simple\n"
+        f"User={user}\n"
+        f"Environment=HOME=/home/{user}\n"
+        "ExecStart=/usr/bin/Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp -ac\n"
+        "Restart=always\n"
+        "RestartSec=2\n\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
+        "EOF"
+    )
+
+
+def build_write_headless_session_unit_cmd(username: str) -> str:
+    user = username.replace("'", "")
+    return (
+        "cat > /tmp/seeed-headless-session.service <<'EOF'\n"
+        "[Unit]\n"
+        "Description=Seeed Headless Desktop Session on :99\n"
+        "After=seeed-headless-xvfb.service\n"
+        "Wants=seeed-headless-xvfb.service\n\n"
+        "[Service]\n"
+        "Type=simple\n"
+        f"User={user}\n"
+        f"Environment=HOME=/home/{user}\n"
+        "Environment=DISPLAY=:99\n"
+        "ExecStart=/bin/bash -lc 'set -e; export DISPLAY=:99; export XDG_RUNTIME_DIR=/run/user/1000; if command -v openbox >/dev/null 2>&1; then dbus-launch --exit-with-session openbox; else xterm -geometry 120x40+20+20; fi'\n"
+        "Restart=always\n"
+        "RestartSec=2\n\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
+        "EOF"
+    )
+
+
+def build_write_x11vnc_unit_cmd(username: str, display: str = "") -> str:
+    user = username.replace("'", "")
+    display_hint = (display or "").replace('"', "").replace("'", "")
+    return (
+        "cat > /tmp/seeed-x11vnc.service <<'EOF'\n"
+        "[Unit]\n"
+        "Description=Seeed x11vnc server\n"
+        "After=display-manager.service seeed-headless-xvfb.service seeed-headless-session.service\n"
+        "Wants=seeed-headless-xvfb.service seeed-headless-session.service\n\n"
+        "[Service]\n"
+        "Type=simple\n"
+        f"User={user}\n"
+        f"Environment=HOME=/home/{user}\n"
+        f"Environment=DISPLAY_HINT={display_hint}\n"
+        "ExecStart=/bin/bash -lc 'set -e; DISP=\"$DISPLAY_HINT\"; if [ -n \"$DISP\" ] && ! xdpyinfo -display \"$DISP\" >/dev/null 2>&1; then DISP=\"\"; fi; if [ -z \"$DISP\" ]; then for d in :0 :1 :2 :99; do if xdpyinfo -display \"$d\" >/dev/null 2>&1; then DISP=$d; break; fi; done; fi; [ -n \"$DISP\" ] || DISP=:99; XAUTH=\"\"; for p in /run/user/1000/gdm/Xauthority \"$HOME/.Xauthority\"; do [ -f \"$p\" ] && XAUTH=$p && break; done; if [ -n \"$XAUTH\" ]; then AUTH_ARG=\"-auth $XAUTH\"; else AUTH_ARG=\"-auth guess\"; fi; exec /usr/bin/x11vnc $AUTH_ARG -display \"$DISP\" -forever -shared -rfbport 5900 -rfbauth \"$HOME/.vnc/passwd\" -noxdamage -noxfixes -nowf -nowcr -noscr -o /tmp/x11vnc.log'\n"
+        "Restart=always\n"
+        "RestartSec=2\n\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
+        "EOF"
+    )
+
+
+def build_write_novnc_unit_cmd() -> str:
+    return (
+        "cat > /tmp/seeed-novnc.service <<'EOF'\n"
+        "[Unit]\n"
+        "Description=Seeed noVNC websockify\n"
+        "After=network.target seeed-x11vnc.service\n"
+        "Wants=seeed-x11vnc.service\n\n"
+        "[Service]\n"
+        "Type=simple\n"
+        "ExecStart=/usr/bin/websockify --web=/usr/share/novnc 6080 localhost:5900\n"
+        "Restart=always\n"
+        "RestartSec=2\n\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n"
+        "EOF"
+    )
+
+
+def build_install_enable_units_cmd(sudo_password: str) -> str:
+    escaped = sudo_password.replace("'", "'\\''")
+    return (
+        "set -e; "
+        f"SUDO_PASS='{escaped}'; "
+        'echo "$SUDO_PASS" | sudo -S systemctl stop seeed-novnc.service seeed-x11vnc.service seeed-headless-session.service seeed-headless-xvfb.service 2>/dev/null || true; '
+        "pkill x11vnc 2>/dev/null || true; "
+        "pkill websockify 2>/dev/null || true; "
+        "pkill -x Xvfb 2>/dev/null || true; "
+        'echo "$SUDO_PASS" | sudo -S cp /tmp/seeed-headless-xvfb.service /etc/systemd/system/seeed-headless-xvfb.service; '
+        'echo "$SUDO_PASS" | sudo -S cp /tmp/seeed-headless-session.service /etc/systemd/system/seeed-headless-session.service; '
+        'echo "$SUDO_PASS" | sudo -S cp /tmp/seeed-x11vnc.service /etc/systemd/system/seeed-x11vnc.service; '
+        'echo "$SUDO_PASS" | sudo -S cp /tmp/seeed-novnc.service /etc/systemd/system/seeed-novnc.service; '
+        'echo "$SUDO_PASS" | sudo -S systemctl daemon-reload; '
+        'echo "$SUDO_PASS" | sudo -S systemctl enable --now seeed-headless-xvfb.service seeed-headless-session.service seeed-x11vnc.service seeed-novnc.service; '
+        'echo "$SUDO_PASS" | sudo -S systemctl restart seeed-headless-session.service seeed-x11vnc.service seeed-novnc.service; '
+        "sleep 2; "
+        "ss -tlnp | grep -E ':5900|:6080' >/dev/null; "
+        "echo 'vnc/novnc services started'"
     )
 
 
 def build_start_novnc_cmd(vnc_port: int = 5900, web_port: int = 6080) -> str:
-    # 探测 novnc web 目录
+    # noVNC is started by systemd in secure mode; keep compatibility for legacy button flow.
     return (
-        f'pkill websockify 2>/dev/null; sleep 0.3; '
-        f'NOVNC_DIR=""; '
-        f'for d in /usr/share/novnc /usr/local/share/novnc /opt/novnc; do '
-        f'  if [ -f "$d/vnc.html" ] || [ -f "$d/index.html" ]; then NOVNC_DIR=$d; break; fi; '
-        f'done; '
-        f'if [ -n "$NOVNC_DIR" ]; then '
-        f'  websockify --web="$NOVNC_DIR" {web_port} localhost:{vnc_port} --daemon 2>&1; '
-        f'else '
-        f'  websockify {web_port} localhost:{vnc_port} --daemon 2>&1; '
-        f'fi; '
-        f'sleep 2; '
-        f'if ss -tlnp 2>/dev/null | grep -q ":{web_port}" || netstat -tlnp 2>/dev/null | grep -q ":{web_port}"; then '
-        f'  echo "noVNC started OK on port {web_port}"; '
-        f'else '
-        f'  echo "websockify may have failed"; exit 1; '
-        f'fi'
+        "set -e; "
+        "if systemctl list-unit-files 2>/dev/null | grep -q '^seeed-novnc.service'; then "
+        "  sudo systemctl restart seeed-novnc.service >/dev/null 2>&1 || true; "
+        f"  echo 'noVNC ensured by systemd on port {web_port}'; "
+        "else "
+        f"  pkill websockify 2>/dev/null; sleep 0.3; websockify --web=/usr/share/novnc {web_port} localhost:{vnc_port} --daemon 2>&1; "
+        f"  echo 'noVNC started on port {web_port}'; "
+        "fi"
     )
 
 
 def build_stop_cmd() -> str:
     return (
         STOP_CMD
-        + ' ; '
-        + 'rm -f ~/.vnc/passwd 2>/dev/null'
-        + ' ; '
-        + 'if [ -f /tmp/seeed-headless-session.pid ]; then kill "$(cat /tmp/seeed-headless-session.pid)" 2>/dev/null || true; rm -f /tmp/seeed-headless-session.pid; fi'
-        + ' ; '
-        + 'if [ -f /tmp/seeed-xvfb.pid ]; then kill "$(cat /tmp/seeed-xvfb.pid)" 2>/dev/null || true; rm -f /tmp/seeed-xvfb.pid; fi'
-        + ' ; '
-        + 'pkill -f "Xvfb :99" 2>/dev/null || true'
+        + "; "
+        + "sudo systemctl disable seeed-novnc.service seeed-x11vnc.service seeed-headless-session.service seeed-headless-xvfb.service 2>/dev/null || true"
     )
 
 
-# ── 地址格式化 ────────────────────────────────────────────────────────────────
+def build_diagnose_cmd() -> str:
+    return (
+        "set -e; "
+        "echo '== systemd services =='; "
+        "sudo systemctl --no-pager --full status seeed-headless-xvfb.service seeed-headless-session.service seeed-x11vnc.service seeed-novnc.service || true; "
+        "echo '== display/xauth =='; "
+        "echo DISPLAY=${DISPLAY:-}; "
+        "echo XAUTHORITY=${XAUTHORITY:-}; "
+        "ls -l /run/user/1000/gdm/Xauthority ~/.Xauthority 2>/dev/null || true; "
+        "echo '== listening ports =='; "
+        "ss -tlnp 2>/dev/null | grep -E ':5900|:6080' || true; "
+        "echo '== tail x11vnc log =='; "
+        "tail -n 80 /tmp/x11vnc.log 2>/dev/null || true"
+    )
+
+
+def build_rollback_cmd(sudo_password: str) -> str:
+    escaped = sudo_password.replace("'", "'\\''")
+    return (
+        f"echo '{escaped}' | sudo -S systemctl stop seeed-novnc.service seeed-x11vnc.service seeed-headless-session.service seeed-headless-xvfb.service 2>/dev/null || true; "
+        f"echo '{escaped}' | sudo -S systemctl disable seeed-novnc.service seeed-x11vnc.service seeed-headless-session.service seeed-headless-xvfb.service 2>/dev/null || true; "
+        f"echo '{escaped}' | sudo -S rm -f /etc/systemd/system/seeed-headless-xvfb.service /etc/systemd/system/seeed-headless-session.service /etc/systemd/system/seeed-x11vnc.service /etc/systemd/system/seeed-novnc.service; "
+        f"echo '{escaped}' | sudo -S systemctl daemon-reload; "
+        "pkill x11vnc 2>/dev/null || true; pkill websockify 2>/dev/null || true; pkill -x Xvfb 2>/dev/null || true; "
+        "echo 'rollback done'"
+    )
+
 
 def format_vnc_address(ip: str, port: int = 5900) -> str:
     return f"{ip}:{port}"
@@ -207,22 +388,36 @@ def format_novnc_url(ip: str, port: int = 6080) -> str:
     return f"http://{ip}:{port}/vnc.html"
 
 
-# ── 平台工具 ──────────────────────────────────────────────────────────────────
-
 def get_vnc_launch_cmd(ip: str, port: int = 5900) -> str | None:
-    """返回当前平台打开 VNC 客户端的命令，找不到返回 None。"""
+    """Get OS-specific launch command for installed VNC viewer."""
     addr = f"{ip}:{port}"
     if sys.platform == "win32":
-        # Windows: 尝试 vnc:// 协议
-        return f'start vnc://{addr}'
-    # Linux: 尝试已知 VNC 客户端
+        roots = [
+            os.environ.get("ProgramFiles", r"C:\Program Files"),
+            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+        ]
+        candidates = [
+            r"RealVNC\VNC Viewer\VNCViewer.exe",
+            r"TigerVNC\vncviewer.exe",
+            r"TightVNC\tvnviewer.exe",
+            r"UltraVNC\vncviewer.exe",
+        ]
+        for rel in candidates:
+            for root in roots:
+                if not root:
+                    continue
+                exe = os.path.join(root, rel)
+                if os.path.exists(exe):
+                    return f'"{exe}" {addr}'
+        return f'cmd /c start "" "vnc://{addr}"'
+
     for cmd in ("vncviewer", "remmina", "xdg-open"):
         if shutil.which(cmd):
             if cmd == "remmina":
-                return f'remmina -c vnc://{addr}'
+                return f"remmina -c vnc://{addr}"
             if cmd == "xdg-open":
-                return f'xdg-open vnc://{addr}'
-            return f'{cmd} {addr}'
+                return f"xdg-open vnc://{addr}"
+            return f"{cmd} {addr}"
     return None
 
 
@@ -231,12 +426,18 @@ def open_in_browser(url: str) -> None:
 
 
 def launch_vnc_viewer(ip: str, port: int = 5900) -> bool:
-    """尝试启动 VNC 客户端，成功返回 True。"""
+    """Launch local VNC viewer if found."""
     cmd = get_vnc_launch_cmd(ip, port)
     if not cmd:
         return False
     try:
-        subprocess.Popen(cmd, shell=True)
+        proc = subprocess.Popen(cmd, shell=True)
+        try:
+            rc = proc.wait(timeout=1.2)
+            if rc not in (0, None):
+                return False
+        except Exception:
+            pass
         return True
     except Exception:
         return False
