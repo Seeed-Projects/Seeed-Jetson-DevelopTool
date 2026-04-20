@@ -1,0 +1,28 @@
+﻿{
+  "common.ok": "OK",
+  "common.yes": "Yes",
+  "common.no": "No",
+  "common.cancel": "Cancel",
+  "common.close": "Close",
+  "common.refresh": "Refresh",
+  "common.username": "Username",
+  "common.password": "Password",
+  "common.stop": "Stop",
+  "common.ask_ai": "Ask AI",
+  "common.ai_short": "AI",
+  "common.error": "Error",
+  "common.language": "Language",
+  "common.switch_language": "Switch interface language",
+  "common.ready": "Ready",
+  "common.checking": "Checking...",
+  "common.checking_short": "Checking",
+  "common.loading": "Loading...",
+  "common.notice": "Notice",
+  "common.status.local_jetson": "Jetson Local",
+  "common.status.remote_connected": "Remote Connected",
+  "common.status.no_device": "No Device Connected",
+  "common.search_placeholder": "Search...",
+  "common.no_data": "No data"
+}
+
+

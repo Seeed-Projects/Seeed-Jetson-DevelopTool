@@ -1,0 +1,52 @@
+{
+  "_comment": "Compatibility matrix for yolov26-jetson-setup on Jetson. Based on validated install 2026-03.",
+  "_updated": "2026-03-05",
+  "profiles": {
+    "yolov26-jetson": {
+      "_description": "YOLOv26 dual USB camera system + TensorRT on Jetson Orin",
+      "supported_jetpack": ["6.0", "6.1", "6.2"],
+      "l4t_major": "36",
+      "cuda_min": "12.0",
+      "cuda_max": "12.9",
+      "cuda_arch": "8.7",
+      "python_required": "3.10",
+      "pinned_versions": {
+        "torch": "2.8.0a0+gitba56102",
+        "torchvision": "0.23.0",
+        "numpy": "1.26.0",
+        "opencv_python": "4.10.0.84",
+        "onnxruntime_gpu": "1.23.0",
+        "libcusparselt0": "0.6.2.3"
+      },
+      "wheel_files": {
+        "torch": "torch-2.8.0a0+gitba56102-cp310-cp310-linux_aarch64.whl",
+        "torchvision": "torchvision-0.23.0-cp310-cp310-linux_aarch64.whl",
+        "onnxruntime_gpu": "onnxruntime_gpu-1.23.0-cp310-cp310-linux_aarch64.whl"
+      },
+      "wheel_sources": {
+        "torch": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCPB-wlwOrsSZNkhH9I27DMAcXbUvnXhRmshioXZz-N4Jk?e=7lNXct&download=1",
+        "torchvision": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBerMERh1BARK9-J5_S5NpvAdV_v9YgOh7BtPCa4Ne5Qho?e=DBWNMD&download=1",
+        "onnxruntime_gpu": "https://github.com/ultralytics/assets/releases/download/v0.0.0/onnxruntime_gpu-1.23.0-cp310-cp310-linux_aarch64.whl"
+      },
+      "yolov26_repo": "https://github.com/bleaaach/yolov26_jetson.git",
+      "model_dir": "~/ultralytics_data",
+      "models": {
+        "detection":    "yolo26n.pt  →  yolo26n.engine",
+        "pose":         "yolo26n-pose.pt  →  yolo26n-pose.engine",
+        "segmentation": "yolo26n-seg.pt   →  yolo26n-seg.engine"
+      },
+      "blocked_conditions": [
+        "JetPack 5.x (L4T 35.x) — CUDA 11.x, torch 2.8 requires CUDA 12+",
+        "Python != 3.10 — wheel files are cp310 only"
+      ],
+      "notes": [
+        "torch wheels must be installed BEFORE and AFTER pip install ultralytics[export]",
+        "torchvision wheel must be the Jetson build — PyPI build lacks CUDA NMS support",
+        "numpy must be pinned to 1.26.x — avoid 2.x (OpenCV ABI conflict)",
+        "opencv: install via conda (for system libs), remove conda binding, reinstall via pip",
+        "libcusparselt0 0.6.2.3 deb is bundled in ~/yolov26_jetson/",
+        "TensorRT engines must be exported on the target device — not portable across architectures"
+      ]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "main.app_title": "Seeed Jetson Develop Tool",
+  "main.title.tool": "Jetson Develop Tool",
+  "main.brand.workspace": "Jetson 开发工作台",
+  "main.nav.flash": "烧录",
+  "main.nav.devices": "设备管理",
+  "main.nav.apps": "应用市场",
+  "main.nav.skills": "Skills",
+  "main.nav.remote": "远程开发",
+  "main.nav.community": "社区",
+  "main.lazy.apps_error_title": "App Market",
+  "main.lazy.skills_error_title": "Skills",
+  "main.lazy.load_error_message": "页面加载失败，请重试或查看日志。"
+}

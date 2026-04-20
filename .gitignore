@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# UV cache
+.uv-cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backups
+*.backup
+*.bak
+
+# Snapshots / codex
+.snapshots/
+.codex/
+.codex
+
+# Temp / broken installs
+=0.20.0
+
+# Large assets (zip)
+assets/*.zip

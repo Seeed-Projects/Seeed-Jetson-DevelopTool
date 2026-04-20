@@ -1,0 +1,22 @@
+{
+  "community.page.title": "社区",
+  "community.page.subtitle": "文档、论坛与常见问题解答",
+  "community.quick_links.title": "快速链接",
+  "community.quick_links.open": "打开 ->",
+  "community.link.wiki.name": "Seeed Wiki",
+  "community.link.wiki.desc": "Jetson 系列完整文档",
+  "community.link.forum.name": "Seeed 论坛",
+  "community.link.forum.desc": "社区问答与经验分享",
+  "community.link.github.name": "GitHub",
+  "community.link.github.desc": "开源代码与 Issue 反馈",
+  "community.link.video.name": "视频教程",
+  "community.link.video.desc": "YouTube 上手教程合集",
+  "community.link.ngc.name": "NVIDIA NGC",
+  "community.link.ngc.desc": "官方容器镜像仓库",
+  "community.link.hf.name": "Hugging Face",
+  "community.link.hf.desc": "模型与数据集下载",
+  "community.buy.title": "购买商品",
+  "community.buy.desc": "按产品型号打开对应商品页，购买整机或官方配套版本。",
+  "community.buy.button": "购买商品",
+  "community.buy.no_link": "未找到该产品的购买链接"
+}

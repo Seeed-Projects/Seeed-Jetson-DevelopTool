@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "seeed-jetson-developer"
+version = "0.1.2"
+description = "Seeed Jetson Developer Tool — Flash, device management, app market, skills, and remote development"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Brian9527", email = "dayu.li@seeed.cc" },
+    { name = "Lorraine", email = "shuanglian.luo@seeed.cc" },
+]
+keywords = ["jetson", "nvidia", "embedded", "flash", "seeed", "recomputer"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Embedded Systems",
+    "Topic :: System :: Hardware",
+    "Environment :: X11 Applications :: Qt",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.25.0",
+    "tqdm>=4.60.0",
+    "click>=8.0.0",
+    "rich>=10.0.0",
+    "PyQt5>=5.15.0",
+    "paramiko>=2.8.0",
+    "anthropic>=0.20.0",
+    "pyserial>=3.5",
+    "pyte>=0.8.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/Seeed-Studio/seeed-jetson-develop"
+Repository = "https://github.com/Seeed-Studio/seeed-jetson-develop"
+Issues = "https://github.com/Seeed-Studio/seeed-jetson-develop/issues"
+
+[project.scripts]
+seeed-jetson-developer = "seeed_jetson_develop.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["seeed_jetson_develop*"]
+
+[tool.setuptools.package-data]
+seeed_jetson_develop = [
+    "data/*.json",
+    "locales/*/*.json",
+    "assets/recovery/*",
+    "modules/apps/data/*.json",
+    "modules/skills/data/*.json",
+]

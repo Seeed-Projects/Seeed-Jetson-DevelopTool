@@ -1,0 +1,102 @@
+[
+  {
+    "id": "jtop",
+    "example_name": null,
+    "icon": "📼",
+    "name": "jtop 监控",
+    "category": "开发工具",
+    "desc": "jetson-stats 系统监控工具，实时查看 GPU / CPU / 内存使用率",
+    "skill_id": "install_jtop",
+    "check_cmd": "which jtop 2>/dev/null",
+    "install_cmds": null,
+    "run_cmds": null,
+    "clean_cmds": null,
+    "uninstall_cmds": [
+      "sudo pip3 uninstall -y jetson-stats"
+    ]
+  },
+  {
+    "id": "jupyter",
+    "example_name": null,
+    "icon": "📓",
+    "name": "Jupyter Lab",
+    "category": "开发工具",
+    "desc": "交互式 Python 开发环境，支持 GPU 监控插件",
+    "skill_id": null,
+    "check_cmd": "python3 -m jupyter --version 2>/dev/null",
+    "install_cmds": [
+      "pip3 install jupyterlab",
+      "python3 -m jupyter --version"
+    ],
+    "run_cmds": [
+      "jupyter lab --ip=0.0.0.0 --no-browser"
+    ],
+    "clean_cmds": null,
+    "uninstall_cmds": [
+      "pip3 uninstall -y jupyterlab"
+    ]
+  },
+  {
+    "id": "nodered",
+    "example_name": null,
+    "icon": "🔶",
+    "name": "Node-RED",
+    "category": "开发工具",
+    "desc": "可视化流程编排工具，IoT 与边缘计算场景适用",
+    "skill_id": null,
+    "check_cmd": "which node-red 2>/dev/null",
+    "install_cmds": [
+      "sudo apt-get install -y nodejs npm",
+      "sudo npm install -g --unsafe-perm node-red",
+      "node-red --version"
+    ],
+    "run_cmds": [
+      "node-red"
+    ],
+    "clean_cmds": null,
+    "uninstall_cmds": [
+      "sudo npm uninstall -g node-red"
+    ]
+  },
+  {
+    "id": "yolov26-dual-gmsl",
+    "example_name": null,
+    "icon": "CV",
+    "name": "YOLOv26 Dual GMSL",
+    "category": "CV / Vision",
+    "desc": "基于双路 GMSL 相机的 YOLOv26 TensorRT 视觉系统，运行检测、姿态和分割三路推理。",
+    "skill_id": null,
+    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && test -x /home/seeed/yolov26_jetson/run_dual_gmsl_local.sh && test -f /home/seeed/ultralytics_data/yolov26n.engine && python3 -c \"import ultralytics, torch, torchvision, onnxruntime\" 2>/dev/null'",
+    "install_cmds": [
+      "sudo apt-get update",
+      "sudo apt-get install -y git python3-pip v4l-utils libcusparselt0",
+      "python3 -m pip install --user -U pip",
+      "cd /home/seeed && [ -d yolov26_jetson ] || git clone https://github.com/bleaaach/yolov26_jetson.git",
+      "python3 -m pip install --user \"ultralytics[export]\"",
+      "python3 -m pip uninstall -y torch torchvision || true",
+      "python3 -m pip install --user https://github.com/ultralytics/assets/releases/download/v0.0.0/torch-2.5.0a0+872d972e41.nv24.08-cp310-cp310-linux_aarch64.whl",
+      "python3 -m pip install --user https://github.com/ultralytics/assets/releases/download/v0.0.0/torchvision-0.20.0a0+afc54f7-cp310-cp310-linux_aarch64.whl",
+      "python3 -m pip install --user https://github.com/ultralytics/assets/releases/download/v0.0.0/onnxruntime_gpu-1.23.0-cp310-cp310-linux_aarch64.whl",
+      "grep -qxF 'export PATH=$PATH:~/.local/bin' ~/.bashrc || echo 'export PATH=$PATH:~/.local/bin' >> ~/.bashrc",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && python3 -c \"import ultralytics, torch, torchvision, onnxruntime; print(ultralytics.__version__); print(torch.__version__); print(torchvision.__version__); print(onnxruntime.__version__)\"'",
+      "mkdir -p /home/seeed/ultralytics_data",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && cd /home/seeed/ultralytics_data && [ -f yolov26n.engine ] || yolo export model=yolov26n.pt format=engine device=0 half=True'",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && cd /home/seeed/ultralytics_data && [ -f yolov26n-pose.engine ] || yolo export model=yolov26n-pose.pt format=engine device=0 half=True'",
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && cd /home/seeed/ultralytics_data && [ -f yolov26n-seg.engine ] || yolo export model=yolov26n-seg.pt format=engine device=0 half=True'"
+    ],
+    "run_cmds": [
+      "cd /home/seeed/yolov26_jetson && chmod +x run_dual_gmsl_local.sh && ./run_dual_gmsl_local.sh"
+    ],
+    "clean_cmds": [
+      "rm -f /home/seeed/ultralytics_data/yolov26n.engine /home/seeed/ultralytics_data/yolov26n-pose.engine /home/seeed/ultralytics_data/yolov26n-seg.engine"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "36.x"
+      ],
+      "required_disk_gb": 20,
+      "required_mem_gb": 8
+    }
+  }
+]

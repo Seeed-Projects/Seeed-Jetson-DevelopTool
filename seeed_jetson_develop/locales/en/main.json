@@ -1,0 +1,14 @@
+{
+  "main.app_title": "Seeed Jetson Develop Tool",
+  "main.title.tool": "Jetson Develop Tool",
+  "main.brand.workspace": "Jetson Developer Workspace",
+  "main.nav.flash": "Flash",
+  "main.nav.devices": "Devices",
+  "main.nav.apps": "App Market",
+  "main.nav.skills": "Skills",
+  "main.nav.remote": "Remote Dev",
+  "main.nav.community": "Community",
+  "main.lazy.apps_error_title": "App Market",
+  "main.lazy.skills_error_title": "Skills",
+  "main.lazy.load_error_message": "Page failed to load. Please retry or check the log."
+}
