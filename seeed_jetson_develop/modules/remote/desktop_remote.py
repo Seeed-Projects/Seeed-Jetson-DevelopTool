@@ -70,7 +70,7 @@ def build_install_vnc_cmd(sudo_password: str) -> str:
     return (
         f"echo '{escaped}' | sudo -S apt-get update && "
         f"echo '{escaped}' | sudo -S apt-get install -y "
-        "x11vnc xvfb xauth dbus-x11 x11-xserver-utils novnc websockify python3-websockify openbox xterm"
+        "x11vnc xvfb xauth dbus-x11 x11-xserver-utils novnc websockify python3-websockify openbox xterm xfce4 xfce4-terminal"
     )
 
 
@@ -143,7 +143,7 @@ def build_start_vnc_cmd(password: str = "", display: str = "", sudo_password: st
         "User=$USER_NAME\n"
         "Environment=HOME=$HOME_DIR\n"
         f"Environment=DISPLAY_HINT={display_hint}\n"
-        "ExecStart=/bin/bash -lc 'set -e; DISP=\"$DISPLAY_HINT\"; if [ -n \"$DISP\" ] && ! xdpyinfo -display \"$DISP\" >/dev/null 2>&1; then DISP=\"\"; fi; if [ -z \"$DISP\" ]; then for d in :0 :1 :2 :99; do if xdpyinfo -display \"$d\" >/dev/null 2>&1; then DISP=$d; break; fi; done; fi; [ -n \"$DISP\" ] || DISP=:99; XAUTH=\"\"; for p in /run/user/1000/gdm/Xauthority \"$HOME/.Xauthority\"; do [ -f \"$p\" ] && XAUTH=$p && break; done; if [ -n \"$XAUTH\" ]; then AUTH_ARG=\"-auth $XAUTH\"; else AUTH_ARG=\"-auth guess\"; fi; exec /usr/bin/x11vnc $AUTH_ARG -display \"$DISP\" -forever -shared -rfbport 5900 -rfbauth \"$HOME/.vnc/passwd\" -noxdamage -noxfixes -nowf -nowcr -noscr -o /tmp/x11vnc.log'\n"
+        "ExecStart=/bin/bash -lc 'set -e; DISP=\"$DISPLAY_HINT\"; if [ -n \"$DISP\" ] && ! xdpyinfo -display \"$DISP\" >/dev/null 2>&1; then DISP=\"\"; fi; if [ -z \"$DISP\" ]; then for d in :99 :1 :2 :0; do if xdpyinfo -display \"$d\" >/dev/null 2>&1; then DISP=$d; break; fi; done; fi; [ -n \"$DISP\" ] || DISP=:99; XAUTH=\"\"; for p in /run/user/1000/gdm/Xauthority \"$HOME/.Xauthority\"; do [ -f \"$p\" ] && XAUTH=$p && break; done; if [ -n \"$XAUTH\" ]; then AUTH_ARG=\"-auth $XAUTH\"; else AUTH_ARG=\"-auth guess\"; fi; exec /usr/bin/x11vnc $AUTH_ARG -display \"$DISP\" -forever -shared -rfbport 5900 -rfbauth \"$HOME/.vnc/passwd\" -noxdamage -noxfixes -nowf -nowcr -noscr -o /tmp/x11vnc.log'\n"
         "Restart=always\n"
         "RestartSec=2\n\n"
         "[Install]\n"
@@ -159,7 +159,7 @@ def build_start_vnc_cmd(password: str = "", display: str = "", sudo_password: st
         "User=$USER_NAME\n"
         "Environment=HOME=$HOME_DIR\n"
         "Environment=DISPLAY=:99\n"
-        "ExecStart=/bin/bash -lc 'set -e; export DISPLAY=:99; export XDG_RUNTIME_DIR=/run/user/1000; if command -v openbox >/dev/null 2>&1; then dbus-launch --exit-with-session openbox; else xterm -geometry 120x40+20+20; fi'\n"
+        "ExecStart=/bin/bash -lc 'set -e; export DISPLAY=:99; export XDG_RUNTIME_DIR=/run/user/1000; if command -v startxfce4 >/dev/null 2>&1; then dbus-launch --exit-with-session startxfce4; elif command -v openbox >/dev/null 2>&1; then dbus-launch --exit-with-session openbox; else xterm -geometry 120x40+20+20; fi'\n"
         "Restart=always\n"
         "RestartSec=2\n\n"
         "[Install]\n"
@@ -269,7 +269,7 @@ def build_write_headless_session_unit_cmd(username: str) -> str:
         f"User={user}\n"
         f"Environment=HOME=/home/{user}\n"
         "Environment=DISPLAY=:99\n"
-        "ExecStart=/bin/bash -lc 'set -e; export DISPLAY=:99; export XDG_RUNTIME_DIR=/run/user/1000; if command -v openbox >/dev/null 2>&1; then dbus-launch --exit-with-session openbox; else xterm -geometry 120x40+20+20; fi'\n"
+        "ExecStart=/bin/bash -lc 'set -e; export DISPLAY=:99; export XDG_RUNTIME_DIR=/run/user/1000; if command -v startxfce4 >/dev/null 2>&1; then dbus-launch --exit-with-session startxfce4; elif command -v openbox >/dev/null 2>&1; then dbus-launch --exit-with-session openbox; else xterm -geometry 120x40+20+20; fi'\n"
         "Restart=always\n"
         "RestartSec=2\n\n"
         "[Install]\n"
@@ -292,7 +292,7 @@ def build_write_x11vnc_unit_cmd(username: str, display: str = "") -> str:
         f"User={user}\n"
         f"Environment=HOME=/home/{user}\n"
         f"Environment=DISPLAY_HINT={display_hint}\n"
-        "ExecStart=/bin/bash -lc 'set -e; DISP=\"$DISPLAY_HINT\"; if [ -n \"$DISP\" ] && ! xdpyinfo -display \"$DISP\" >/dev/null 2>&1; then DISP=\"\"; fi; if [ -z \"$DISP\" ]; then for d in :0 :1 :2 :99; do if xdpyinfo -display \"$d\" >/dev/null 2>&1; then DISP=$d; break; fi; done; fi; [ -n \"$DISP\" ] || DISP=:99; XAUTH=\"\"; for p in /run/user/1000/gdm/Xauthority \"$HOME/.Xauthority\"; do [ -f \"$p\" ] && XAUTH=$p && break; done; if [ -n \"$XAUTH\" ]; then AUTH_ARG=\"-auth $XAUTH\"; else AUTH_ARG=\"-auth guess\"; fi; exec /usr/bin/x11vnc $AUTH_ARG -display \"$DISP\" -forever -shared -rfbport 5900 -rfbauth \"$HOME/.vnc/passwd\" -noxdamage -noxfixes -nowf -nowcr -noscr -o /tmp/x11vnc.log'\n"
+        "ExecStart=/bin/bash -lc 'set -e; DISP=\"$DISPLAY_HINT\"; if [ -n \"$DISP\" ] && ! xdpyinfo -display \"$DISP\" >/dev/null 2>&1; then DISP=\"\"; fi; if [ -z \"$DISP\" ]; then for d in :99 :1 :2 :0; do if xdpyinfo -display \"$d\" >/dev/null 2>&1; then DISP=$d; break; fi; done; fi; [ -n \"$DISP\" ] || DISP=:99; XAUTH=\"\"; for p in /run/user/1000/gdm/Xauthority \"$HOME/.Xauthority\"; do [ -f \"$p\" ] && XAUTH=$p && break; done; if [ -n \"$XAUTH\" ]; then AUTH_ARG=\"-auth $XAUTH\"; else AUTH_ARG=\"-auth guess\"; fi; exec /usr/bin/x11vnc $AUTH_ARG -display \"$DISP\" -forever -shared -rfbport 5900 -rfbauth \"$HOME/.vnc/passwd\" -noxdamage -noxfixes -nowf -nowcr -noscr -o /tmp/x11vnc.log'\n"
         "Restart=always\n"
         "RestartSec=2\n\n"
         "[Install]\n"
