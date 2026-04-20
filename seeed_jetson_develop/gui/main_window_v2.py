@@ -246,10 +246,10 @@ def make_btn(text, primary=False, danger=False, small=False):
 
 NAV_ITEMS = [
     ("flash", "main.nav.flash"),
+    ("remote", "main.nav.remote"),
     ("devices", "main.nav.devices"),
     ("apps", "main.nav.apps"),
     ("skills", "main.nav.skills"),
-    ("remote", "main.nav.remote"),
     ("community", "main.nav.community"),
 ]
 
@@ -394,20 +394,20 @@ class MainWindowV2(QMainWindow):
         from seeed_jetson_develop.modules.devices.page import build_page as _devices_page
         from seeed_jetson_develop.modules.community.page import build_page as _community_page
         from seeed_jetson_develop.modules.remote.page import build_page as _remote_page
-        # 顺序必须与 NAV_ITEMS 一致: flash, devices, apps, skills, remote, community
+        # 顺序必须与 NAV_ITEMS 一致: flash, remote, devices, apps, skills, community
         self.stack.addWidget(_flash_page())        # 0
-        self.stack.addWidget(_devices_page())      # 1
+        self.stack.addWidget(_remote_page())       # 1
+        self.stack.addWidget(_devices_page())      # 2
         # Apps 页面延迟加载（placeholder 占位，首次访问时替换）
         self._apps_placeholder = QWidget()
         self._apps_placeholder.setStyleSheet(f"background:{C_BG};")
         self._apps_built = False
-        self.stack.addWidget(self._apps_placeholder)   # 2: apps
+        self.stack.addWidget(self._apps_placeholder)   # 3: apps
         # Skills 页面延迟加载
         self._skills_placeholder = QWidget()
         self._skills_placeholder.setStyleSheet(f"background:{C_BG};")
         self._skills_built = False
-        self.stack.addWidget(self._skills_placeholder) # 3: skills
-        self.stack.addWidget(_remote_page())           # 4: remote
+        self.stack.addWidget(self._skills_placeholder) # 4: skills
         self.stack.addWidget(_community_page(self.products, self.product_images))  # 5: community
         content_layout.addWidget(self.stack)
 
@@ -707,8 +707,8 @@ class MainWindowV2(QMainWindow):
         return sidebar
 
     def _set_page(self, idx):
-        # Apps 页面（index=2）首次访问时懒加载
-        if idx == 2 and not self._apps_built:
+        # Apps 页面（index=3）首次访问时懒加载
+        if idx == 3 and not self._apps_built:
             try:
                 from seeed_jetson_develop.modules.apps.page import build_page as _apps_page
                 real_page = _apps_page()
@@ -728,8 +728,8 @@ class MainWindowV2(QMainWindow):
             if self._lang == "en":
                 from .runtime_i18n import apply_language
                 apply_language(real_page, "en")
-        # Skills 页面（index=3）首次访问时懒加载
-        if idx == 3 and not self._skills_built:
+        # Skills 页面（index=4）首次访问时懒加载
+        if idx == 4 and not self._skills_built:
             try:
                 from seeed_jetson_develop.modules.skills.page import build_page as _skills_page
                 real_page = _skills_page()

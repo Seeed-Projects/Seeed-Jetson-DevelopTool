@@ -602,10 +602,13 @@ def build_page() -> QWidget:
     ip_input.setFixedHeight(_pt(44))
     ssh_btn = _btn(_tt("remote.conn.btn.connect"), primary=True, small=True)
     scan_btn = _btn(_tt("remote.conn.btn.scan"), small=True)
+    terminal_btn = _btn(_tt("remote.conn.btn.terminal"), small=True)
+    terminal_btn.setEnabled(False)
     ip_row = QHBoxLayout()
     ip_row.addWidget(ip_label)
     ip_row.addWidget(ip_input, 1)
     ip_row.addWidget(ssh_btn)
+    ip_row.addWidget(terminal_btn)
     ip_row.addWidget(scan_btn)
     conn_lay.addLayout(ip_row)
 
@@ -707,12 +710,14 @@ def build_page() -> QWidget:
             _save_conn()
             set_runner(SSHRunner(ip, username=user, password=pwd, sudo_password=sudo_input.text().strip() or pwd))
             bus.device_connected.emit({"ip": ip, "name": "Jetson", "model": ""})
+            terminal_btn.setEnabled(True)
         else:
             conn_status.setText(_tt("remote.conn.status.failed"))
             conn_status.setStyleSheet(f"color:{C_RED}; font-size:{_pt(11)}px; background:transparent; font-weight:700;")
             conn_status.setToolTip(err)
             set_runner(None)
             bus.device_disconnected.emit(ip)
+            terminal_btn.setEnabled(False)
 
     def _do_ssh():
         ip = ip_input.text().strip()
@@ -729,6 +734,44 @@ def build_page() -> QWidget:
         ssh_holder[0] = t_ssh
 
     ssh_btn.clicked.connect(_do_ssh)
+
+    def _open_ssh_terminal():
+        import platform
+        import subprocess
+
+        ip = ip_input.text().strip()
+        user = user_input.text().strip() or "seeed"
+
+        if not ip:
+            _show_warning_message(page, _tt("common.notice"), _tt("remote.conn.warn.ip_required"))
+            return
+
+        ssh_cmd = f"ssh {user}@{ip}"
+
+        try:
+            system = platform.system()
+            if system == "Linux":
+                # Try common Linux terminals
+                terminals = [
+                    ("gnome-terminal", ["gnome-terminal", "--", "bash", "-c", f"{ssh_cmd}; exec bash"]),
+                    ("konsole", ["konsole", "-e", "bash", "-c", f"{ssh_cmd}; exec bash"]),
+                    ("xfce4-terminal", ["xfce4-terminal", "-e", f"bash -c '{ssh_cmd}; exec bash'"]),
+                    ("xterm", ["xterm", "-e", f"bash -c '{ssh_cmd}; exec bash'"]),
+                ]
+                for term_name, cmd in terminals:
+                    if shutil.which(term_name):
+                        subprocess.Popen(cmd)
+                        return
+                _show_warning_message(page, _tt("common.notice"), "No terminal emulator found. Please install gnome-terminal, konsole, xfce4-terminal, or xterm.")
+            elif system == "Windows":
+                # Windows: use cmd or PowerShell
+                subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", ssh_cmd])
+            else:
+                _show_warning_message(page, _tt("common.notice"), f"Unsupported platform: {system}")
+        except Exception as e:
+            _show_error_message(page, _tt("common.error"), f"Failed to open terminal: {str(e)}")
+
+    terminal_btn.clicked.connect(_open_ssh_terminal)
 
     init_card = _card(12)
     init_lay = QVBoxLayout(init_card)

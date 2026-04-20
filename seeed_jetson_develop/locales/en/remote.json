@@ -58,6 +58,7 @@
   "remote.conn.warn.ip_required": "Please enter device IP or hostname first.",
   "remote.conn.btn.connect": "Connect",
   "remote.conn.btn.connecting": "Connecting...",
+  "remote.conn.btn.terminal": "Open Terminal",
   "remote.conn.btn.scan": "Scan LAN",
   "remote.conn.btn.scanning": "Scanning...",
   "remote.scan.scanning_lan": "Scanning LAN...",

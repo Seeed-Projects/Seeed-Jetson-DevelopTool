@@ -610,7 +610,7 @@ class SkillsPage(PageBase):
         return (
             f"QPushButton {{ background:{'rgba(122,179,23,0.15)' if active else 'transparent'};"
             f"border:none; border-radius:0px; color:{C_GREEN if active else C_TEXT2};"
-            f"font-size:{_pt(11)}px; font-weight:{'600' if active else '400'};"
+            f"font-size:{_pt(14)}px; font-weight:{'600' if active else '400'};"
             f"padding:6px 16px; min-height:{_pt(32)}px; }}"
             f"QPushButton:hover {{ background:rgba(255,255,255,0.06); color:{C_TEXT}; }}"
         )

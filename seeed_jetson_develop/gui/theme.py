@@ -323,7 +323,7 @@ def make_tab_button(text: str, active: bool = False) -> "QPushButton":
             border: none;
             border-radius: 0px;
             padding: 0px {pt(18)}px;
-            font-size: {pt(11)}px;
+            font-size: {pt(14)}px;
             font-weight: {weight};
             min-height: {pt(36)}px;
             text-align: center;
