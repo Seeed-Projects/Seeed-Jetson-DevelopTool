@@ -1,4 +1,7 @@
 """App marketplace page."""
+import hashlib
+import re
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton, QLineEdit,
@@ -14,6 +17,34 @@ from seeed_jetson_develop.gui.i18n import get_language, t
 
 def _at(key: str, **kwargs) -> str:
     return t(key, lang=get_language(), **kwargs)
+
+
+def _key_slug(value: str) -> str:
+    text = (value or "").strip()
+    slug = re.sub(r"[^a-z0-9]+", "_", text.lower())
+    slug = re.sub(r"_+", "_", slug).strip("_")
+    if slug:
+        return slug
+    return "u_" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
+
+
+def _app_text(app: dict, field: str) -> str:
+    raw = str(app.get(field, "") or "")
+    app_id = _key_slug(str(app.get("id", "")))
+    return t(f"apps.item.{app_id}.{field}", lang=get_language(), default=raw)
+
+
+def _app_name(app: dict) -> str:
+    return _app_text(app, "name")
+
+
+def _app_desc(app: dict) -> str:
+    return _app_text(app, "desc")
+
+
+def _app_category(app: dict) -> str:
+    raw = str(app.get("category", "App") or "App")
+    return t(f"apps.category.dynamic.{_key_slug(raw)}", lang=get_language(), default=raw)
 
 
 def _can_execute_from_current_env(parent: QWidget) -> bool:
@@ -306,7 +337,9 @@ class _InstallDialog(QDialog):
             "clean": _at("apps.action.clean"),
         }
         title = title_map.get(mode, _at("apps.action.execute"))
-        self.setWindowTitle(f"{title}  {app['name']}")
+        app_name = _app_name(app)
+        app_desc = _app_desc(app)
+        self.setWindowTitle(f"{title}  {app_name}")
         self.setMinimumSize(_pt(640), _pt(480))
         self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
@@ -322,7 +355,7 @@ class _InstallDialog(QDialog):
         tb_lay = QHBoxLayout(titlebar)
         tb_lay.setContentsMargins(16, 0, 8, 0)
         tb_lay.setSpacing(8)
-        title_lbl = QLabel(f"{title}  {app['name']}")
+        title_lbl = QLabel(f"{title}  {app_name}")
         title_lbl.setStyleSheet("color:#222; font-size:13px; font-weight:600; background:transparent;")
         tb_lay.addWidget(title_lbl, 1)
 
@@ -398,10 +431,8 @@ class _InstallDialog(QDialog):
         info_row.addSpacing(12)
         col = QVBoxLayout()
         col.setSpacing(4)
-        from seeed_jetson_develop.gui.runtime_i18n import get_current_lang, translate_text as _tr
-        _lang = get_current_lang(parent)
-        col.addWidget(_lbl(_tr(app["name"], _lang), 15, C_TEXT, bold=True))
-        col.addWidget(_lbl(_tr(app["desc"], _lang), 12, C_TEXT2, wrap=True))
+        col.addWidget(_lbl(app_name, 15, C_TEXT, bold=True))
+        col.addWidget(_lbl(app_desc, 12, C_TEXT2, wrap=True))
         info_row.addLayout(col, 1)
         lay.addLayout(info_row)
 
@@ -527,12 +558,13 @@ class _InstallDialog(QDialog):
         """Hide dialog, replace status_dot with a clickable button to restore."""
         from PyQt5.QtWidgets import QMessageBox
         msg = QMessageBox(self)
-        msg.setWindowTitle("Minimize to Background")
-        msg.setText(f"<b>{self._app.get('name', '')}</b> will continue running in the background.<br><br>Click the status bar at the top to restore this window.")
+        app_name = _app_name(self._app)
+        msg.setWindowTitle(_at("apps.dialog.background.title"))
+        msg.setText(_at("apps.dialog.background.body", name=app_name))
         msg.setIcon(QMessageBox.Information)
         msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
-        msg.button(QMessageBox.Ok).setText("Minimize")
-        msg.button(QMessageBox.Cancel).setText("Cancel")
+        msg.button(QMessageBox.Ok).setText(_at("apps.dialog.background.minimize"))
+        msg.button(QMessageBox.Cancel).setText(_at("common.cancel"))
         if msg.exec_() != QMessageBox.Ok:
             return
 
@@ -542,9 +574,9 @@ class _InstallDialog(QDialog):
         if not win:
             return
         self._bg_win_ref = win
-        name = self._app.get("name", "")
+        name = _app_name(self._app)
         # Replace status_dot text with a clickable indicator
-        win.status_dot.setText(f"⏳ {name}  (click to restore)")
+        win.status_dot.setText(_at("apps.status.background.running", name=name))
         win.status_dot.setCursor(Qt.PointingHandCursor)
         win.status_dot.setStyleSheet(
             f"color:{C_ORANGE}; font-size:{_pt(11)}pt; background:transparent; padding:0;"
@@ -588,9 +620,9 @@ class _InstallDialog(QDialog):
         win = getattr(self, "_bg_win_ref", None)
         if win and hasattr(win, "status_dot"):
             if not self.isVisible():
-                name = self._app.get("name", "")
+                name = _app_name(self._app)
                 icon = "✅" if success else "❌"
-                win.status_dot.setText(f"{icon} {name}  (click to view)")
+                win.status_dot.setText(_at("apps.status.background.done", icon=icon, name=name))
                 win.status_dot.setCursor(Qt.PointingHandCursor)
                 win.status_dot.setStyleSheet(
                     f"color:{C_GREEN if success else C_RED}; font-size:{_pt(11)}pt; background:transparent; padding:0;"
@@ -618,12 +650,12 @@ class _InstallDialog(QDialog):
         if self._thread and self._thread.isRunning():
             from PyQt5.QtWidgets import QMessageBox
             msg = QMessageBox(self)
-            msg.setWindowTitle("Cancel Installation?")
-            msg.setText(f"<b>{self._app.get('name', '')}</b> is still installing.<br><br>Closing will stop the process.")
+            msg.setWindowTitle(_at("apps.dialog.cancel.title"))
+            msg.setText(_at("apps.dialog.cancel.body", name=_app_name(self._app)))
             msg.setIcon(QMessageBox.Warning)
             msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            msg.button(QMessageBox.Yes).setText("Stop & Close")
-            msg.button(QMessageBox.No).setText("Keep Running")
+            msg.button(QMessageBox.Yes).setText(_at("apps.dialog.cancel.stop_close"))
+            msg.button(QMessageBox.No).setText(_at("apps.dialog.cancel.keep_running"))
             if msg.exec_() != QMessageBox.Yes:
                 return
             self._thread.cancel()
@@ -633,12 +665,12 @@ class _InstallDialog(QDialog):
         if self._thread and self._thread.isRunning():
             from PyQt5.QtWidgets import QMessageBox
             msg = QMessageBox(self)
-            msg.setWindowTitle("Cancel Installation?")
-            msg.setText(f"<b>{self._app.get('name', '')}</b> is still installing.<br><br>Closing will stop the process.")
+            msg.setWindowTitle(_at("apps.dialog.cancel.title"))
+            msg.setText(_at("apps.dialog.cancel.body", name=_app_name(self._app)))
             msg.setIcon(QMessageBox.Warning)
             msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            msg.button(QMessageBox.Yes).setText("Stop & Close")
-            msg.button(QMessageBox.No).setText("Keep Running")
+            msg.button(QMessageBox.Yes).setText(_at("apps.dialog.cancel.stop_close"))
+            msg.button(QMessageBox.No).setText(_at("apps.dialog.cancel.keep_running"))
             if msg.exec_() != QMessageBox.Yes:
                 event.ignore()
                 return
@@ -650,7 +682,7 @@ class _InstallDialog(QDialog):
         assistant = getattr(host, "_floating_ai", None)
         if assistant:
             log_text = self._log_edit.toPlainText()
-            assistant.inject_error(self._app["name"], log_text)
+            assistant.inject_error(_app_name(self._app), log_text)
 
 
 # Main page
@@ -783,7 +815,7 @@ class AppsPage(ListPageBase):
             return t("apps.category.all", lang=lang)
         if category == "Installed":
             return t("apps.category.installed", lang=lang)
-        return category
+        return t(f"apps.category.dynamic.{_key_slug(category)}", lang=lang, default=category)
 
     def filter_item(self, item: dict) -> bool:
         cat = self.filter_state["category"]
@@ -793,9 +825,16 @@ class AppsPage(ListPageBase):
             or (cat == "Installed" and self._statuses.get(item["id"]) == "installed")
             or item.get("category") == cat
         )
-        kw_ok = not kw or any(
-            kw in (item.get(f) or "").lower() for f in ("name", "desc", "id")
-        )
+        search_values = [
+            item.get("name", ""),
+            item.get("desc", ""),
+            item.get("category", ""),
+            item.get("id", ""),
+            _app_name(item),
+            _app_desc(item),
+            _app_category(item),
+        ]
+        kw_ok = not kw or any(kw in str(value).lower() for value in search_values)
         return cat_ok and kw_ok
 
     def build_item_widget(self, item: dict) -> QWidget:
@@ -859,7 +898,7 @@ class AppsPage(ListPageBase):
         return app.get("clean_cmds") or []
 
     def _get_ai_details(self, app: dict) -> list[str]:
-        details = [f"Category: {app.get('category', '-')}"]
+        details = [f"{_at('common.category')}: {_app_category(app)}"]
         req = app.get("requirements") or {}
         if req.get("jetpack_versions"):
             details.append(f"L4T：{', '.join(req['jetpack_versions'])}")
@@ -915,7 +954,7 @@ class AppsPage(ListPageBase):
             _show_info_message(
                 self,
                 _at("apps.msg.l4t_detect_failed.title"),
-                _at("apps.msg.l4t_detect_failed.body", name=app["name"], versions=", ".join(allowed)),
+                _at("apps.msg.l4t_detect_failed.body", name=_app_name(app), versions=", ".join(allowed)),
             )
             return True
         if any(self._l4t_matches(current_l4t, v) for v in allowed):
@@ -923,7 +962,7 @@ class AppsPage(ListPageBase):
         _show_warning_message(
             self,
             _at("apps.msg.l4t_incompatible.title"),
-            _at("apps.msg.l4t_incompatible.body", name=app["name"], l4t=current_l4t, versions=", ".join(allowed)),
+            _at("apps.msg.l4t_incompatible.body", name=_app_name(app), l4t=current_l4t, versions=", ".join(allowed)),
         )
         return False
 
@@ -941,7 +980,7 @@ class AppsPage(ListPageBase):
                 _show_info_message(
                     self,
                     _at("common.notice"),
-                    _at("apps.msg.no_exec_cmd", name=app["name"]),
+                    _at("apps.msg.no_exec_cmd", name=_app_name(app)),
                 )
                 return
             dlg = _InstallDialog(app, cmds, parent=self, mode=mode)
@@ -974,7 +1013,7 @@ class AppsPage(ListPageBase):
         ret = _ask_yes_no_localized(
             self,
             _at("apps.msg.confirm_clean.title"),
-            _at("apps.msg.confirm_clean.body", name=app["name"]),
+            _at("apps.msg.confirm_clean.body", name=_app_name(app)),
         )
         if ret == QMessageBox.Yes:
             self._open_dialog(app_id, "clean", self._get_clean_cmds(app), self._on_clean_done)
@@ -988,13 +1027,13 @@ class AppsPage(ListPageBase):
             _show_info_message(
                 self,
                 _at("common.notice"),
-                _at("apps.msg.no_uninstall_cmd", name=app["name"]),
+                _at("apps.msg.no_uninstall_cmd", name=_app_name(app)),
             )
             return
         ret = _ask_yes_no_localized(
             self,
             _at("apps.msg.confirm_uninstall.title"),
-            _at("apps.msg.confirm_uninstall.body", name=app["name"]),
+            _at("apps.msg.confirm_uninstall.body", name=_app_name(app)),
         )
         if ret == QMessageBox.Yes:
             self._open_dialog(app_id, "uninstall", cmds, self._on_uninstall_done)
@@ -1063,7 +1102,6 @@ class AppsPage(ListPageBase):
 
     def _build_row(self, app: dict) -> QFrame:
         from PyQt5.QtWidgets import QFrame
-        from seeed_jetson_develop.gui.runtime_i18n import get_current_lang, translate_text as _tr
         status = self._statuses.get(app["id"], "available")
         row = QFrame()
         row.setStyleSheet(
@@ -1092,20 +1130,19 @@ class AppsPage(ListPageBase):
 
         info = QVBoxLayout()
         info.setSpacing(4)
-        _lang = get_current_lang(self)
         name_row = QHBoxLayout()
         name_row.setSpacing(10)
-        title_lbl = _lbl(_tr(app["name"], _lang), 13, C_TEXT, bold=True)
+        title_lbl = _lbl(_app_name(app), 13, C_TEXT, bold=True)
         title_lbl.setWordWrap(True)
         name_row.addWidget(title_lbl, 1)
-        cat_lbl = QLabel(_tr(app.get("category", "App"), _lang))
+        cat_lbl = QLabel(_app_category(app))
         cat_lbl.setStyleSheet(f"""
             background:rgba(44,123,229,0.10); color:{C_BLUE};
             border:none; border-radius:4px; padding:2px 10px; font-size:{_pt(9)}pt;
         """)
         name_row.addWidget(cat_lbl)
         info.addLayout(name_row)
-        desc_lbl = _lbl(_tr(app.get("desc", ""), _lang), 11, C_TEXT2, wrap=True)
+        desc_lbl = _lbl(_app_desc(app), 11, C_TEXT2, wrap=True)
         desc_lbl.setWordWrap(True)
         info.addWidget(desc_lbl)
         top_row.addLayout(info, 1)
@@ -1157,7 +1194,7 @@ class AppsPage(ListPageBase):
     def _open_ai(self, app: dict):
         assistant = getattr(self.window(), "_floating_ai", None)
         if assistant:
-            assistant.inject_topic(app["name"], app["desc"], self._get_ai_details(app))
+            assistant.inject_topic(_app_name(app), _app_desc(app), self._get_ai_details(app))
 
 
 def build_page() -> QWidget:

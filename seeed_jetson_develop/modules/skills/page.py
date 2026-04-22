@@ -1,4 +1,7 @@
 """Skills center page."""
+import hashlib
+import re
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import (
@@ -197,7 +200,7 @@ class _InstallThread(QThread):
             sftp.close()
             sftp_client.close()
 
-        self.done.emit(True, _t("skills.install.done.ok", name=self._skill.name, dest=dest))
+        self.done.emit(True, _t("skills.install.done.ok", name=_skill_name(self._skill), dest=dest))
 
 
 # Install dialog
@@ -223,7 +226,9 @@ class _InstallDialog(QDialog):
         self._skill  = skill
         self._thread = None
 
-        self.setWindowTitle(_t("skills.install.dialog.title", name=skill.name))
+        skill_name = _skill_name(skill)
+        skill_desc = _skill_desc(skill)
+        self.setWindowTitle(_t("skills.install.dialog.title", name=skill_name))
         self.setMinimumSize(_pt(680), _pt(480))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
 
@@ -249,7 +254,7 @@ class _InstallDialog(QDialog):
         # Header
         title_row = QHBoxLayout()
         cat_icon = CATEGORY_ICONS.get(skill.category, "🔧")
-        title_row.addWidget(_lbl(f"{cat_icon}  {skill.name}", 16, C_TEXT, bold=True))
+        title_row.addWidget(_lbl(f"{cat_icon}  {skill_name}", 16, C_TEXT, bold=True))
         title_row.addStretch()
         # Source badge
         fg, bg = _SOURCE_COLOR.get(skill.source, ("#8DC21F", "rgba(141,194,31,0.15)"))
@@ -262,7 +267,7 @@ class _InstallDialog(QDialog):
         title_row.addWidget(src_badge)
         lay.addLayout(title_row)
 
-        lay.addWidget(_lbl(skill.desc, 12, C_TEXT2, wrap=True))
+        lay.addWidget(_lbl(skill_desc, 12, C_TEXT2, wrap=True))
 
         # File list
         skill_dir = Path(skill.md_path).parent if skill.md_path else None
@@ -414,22 +419,24 @@ class _InstallDialog(QDialog):
         assistant = getattr(host, "_floating_ai", None)
         if assistant:
             log_text = self._log_edit.toPlainText()
-            assistant.inject_error(self._skill.name, log_text)
+            assistant.inject_error(_skill_name(self._skill), log_text)
 
 
 class _DocDialog(QDialog):
     def __init__(self, skill: Skill, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"📖  {skill.name}")
+        skill_name = _skill_name(skill)
+        skill_desc = _skill_desc(skill)
+        self.setWindowTitle(f"📖  {skill_name}")
         self.setMinimumSize(_pt(720), _pt(580))
-        self.setWindowTitle(_t("skills.doc.title", name=skill.name))
+        self.setWindowTitle(_t("skills.doc.title", name=skill_name))
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(24, 20, 24, 20)
         lay.setSpacing(16)
 
-        lay.addWidget(_lbl(skill.name, 16, C_TEXT, bold=True))
-        lay.addWidget(_lbl(skill.desc, 12, C_TEXT2, wrap=True))
+        lay.addWidget(_lbl(skill_name, 16, C_TEXT, bold=True))
+        lay.addWidget(_lbl(skill_desc, 12, C_TEXT2, wrap=True))
 
         from pathlib import Path
         md_text = ""
@@ -492,6 +499,29 @@ _CAT_TO_KEY = {
 
 def _t(key: str, **kwargs) -> str:
     return t(key, lang=get_language(), **kwargs)
+
+
+def _key_slug(value: str) -> str:
+    text = (value or "").strip()
+    slug = re.sub(r"[^a-z0-9]+", "_", text.lower())
+    slug = re.sub(r"_+", "_", slug).strip("_")
+    if slug:
+        return slug
+    return "u_" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
+
+
+def _skill_text(item, field: str) -> str:
+    raw = str(getattr(item, field, "") or "")
+    item_id = _key_slug(str(getattr(item, "id", "")))
+    return t(f"skills.item.{item_id}.{field}", lang=get_language(), default=raw)
+
+
+def _skill_name(item) -> str:
+    return _skill_text(item, "name")
+
+
+def _skill_desc(item) -> str:
+    return _skill_text(item, "desc")
 
 
 def _cat_text(cat: str) -> str:
@@ -716,7 +746,7 @@ class SkillsPage(PageBase):
             return
         assistant = getattr(self.window(), "_floating_ai", None)
         if assistant:
-            assistant.inject_context(ref.name, ref.desc, ref.commands or [])
+            assistant.inject_context(_skill_name(ref), _skill_desc(ref), ref.commands or [])
 
     def _on_install_done(self, skill_id: str, source: str, success: bool):
         if success:
@@ -784,9 +814,11 @@ class SkillsPage(PageBase):
         outer = QVBoxLayout(row)
         outer.setContentsMargins(16, 12, 16, 12)
         outer.setSpacing(4)
+        group_name = _skill_name(group)
+        group_desc = _skill_desc(group)
 
         parts = [f'<span style="font-size:{_pt(15)}pt">{cat_icon}</span>',
-                 f'&nbsp;<b style="font-size:{_pt(13)}pt;color:{C_TEXT}">{group.name}</b>']
+                 f'&nbsp;<b style="font-size:{_pt(13)}pt;color:{C_TEXT}">{group_name}</b>']
         if group.verified:
             parts.append(f'&nbsp;<span style="font-size:{_pt(9)}pt;color:{C_GREEN};font-weight:700"> {_t("skills.badge.verified")}</span>')
         if any_done:
@@ -803,7 +835,7 @@ class SkillsPage(PageBase):
         top_lbl.setContentsMargins(0, 0, 0, 0)
         top_lbl.setStyleSheet("QLabel { background:transparent; border:none; padding:0; margin:0; }")
         outer.addWidget(top_lbl)
-        outer.addWidget(_lbl(group.desc, 11, C_TEXT2, wrap=True))
+        outer.addWidget(_lbl(group_desc, 11, C_TEXT2, wrap=True))
 
         btn_line = QHBoxLayout()
         btn_line.setSpacing(6)
@@ -859,7 +891,14 @@ class SkillsPage(PageBase):
         filtered = [
             g for g in self._groups
         if (cat == _ALL_CATEGORY or g.category == cat)
-            and (not kw or kw in g.name.lower() or kw in g.desc.lower() or kw in g.id.lower())
+            and (
+                not kw
+                or kw in g.name.lower()
+                or kw in g.desc.lower()
+                or kw in g.id.lower()
+                or kw in _skill_name(g).lower()
+                or kw in _skill_desc(g).lower()
+            )
         ]
         self._count_lbl.setText(_t("skills.count.total", count=len(filtered)))
 

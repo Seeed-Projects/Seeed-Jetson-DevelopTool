@@ -29,12 +29,23 @@ def _excepthook(exc_type, exc_value, exc_tb):
         sys.__excepthook__(exc_type, exc_value, exc_tb)
         return
     msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
-    log.critical("未捕获异常:\n%s", msg)
+    log.critical("Uncaught exception:\n%s", msg)
     try:
         from PyQt5.QtWidgets import QApplication, QMessageBox
         if QApplication.instance():
-            QMessageBox.critical(None, "程序错误",
-                f"发生未捕获异常，详情已写入:\n{_log_file}\n\n{msg[-800:]}")
+            tail = msg[-800:]
+            try:
+                from seeed_jetson_develop.gui.i18n import t
+                title = t("common.app_error.title", default="Application Error")
+                body = t(
+                    "common.app_error.body",
+                    default="An uncaught exception occurred. Details written to:\n{log}\n\n{msg}",
+                    log=_log_file, msg=tail,
+                )
+            except Exception:
+                title = "Application Error"
+                body = f"An uncaught exception occurred. Details written to:\n{_log_file}\n\n{tail}"
+            QMessageBox.critical(None, title, body)
     except Exception:
         pass
 

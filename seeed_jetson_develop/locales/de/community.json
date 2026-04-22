@@ -1,0 +1,22 @@
+{
+  "community.page.title": "Community",
+  "community.page.subtitle": "Dokumentation, Foren und häufige Fragen",
+  "community.quick_links.title": "Schnellzugriff",
+  "community.quick_links.open": "Öffnen ->",
+  "community.link.wiki.name": "Seeed-Wiki",
+  "community.link.wiki.desc": "Vollständige Dokumentation der Jetson-Serie",
+  "community.link.forum.name": "Seeed-Forum",
+  "community.link.forum.desc": "Fragen und Erfahrungsaustausch der Community",
+  "community.link.github.name": "GitHub",
+  "community.link.github.desc": "Open-Source-Code und Issue-Tracking",
+  "community.link.video.name": "Video-Tutorials",
+  "community.link.video.desc": "Jetson-Einstiegsvideos auf YouTube",
+  "community.link.ngc.name": "NVIDIA NGC",
+  "community.link.ngc.desc": "Offizieller Container-Image-Katalog",
+  "community.link.hf.name": "Hugging Face",
+  "community.link.hf.desc": "Modell- und Datensatz-Hub",
+  "community.buy.title": "Produkte kaufen",
+  "community.buy.desc": "Öffnen Sie Kauflinks nach Produktmodell für Geräte und offizielles Zubehör.",
+  "community.buy.button": "Kaufen",
+  "community.buy.no_link": "Kein Kauflink für dieses Produkt gefunden"
+}

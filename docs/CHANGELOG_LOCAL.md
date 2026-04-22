@@ -1,6 +1,71 @@
 d:\Seeed-Jetson-DevelopTool\Seeed-Jetson-DevelopTool\docs\CHANGELOG_LOCAL.md
 Bash
 IN
+git show --stat --oneline 4d86fa0
+
+OUT
+4d86fa0 Add French Spanish and German GUI localization
+ docs/i18n/TERMINOLOGY.md                           |  37 +++
+ scripts/check_locales.py                           |  57 ++--
+ seeed_jetson_develop/core/config.py                |  78 +++++-
+ seeed_jetson_develop/gui/i18n.py                   |  32 ++-
+ seeed_jetson_develop/gui/main_window_v2.py         |  79 +++---
+ seeed_jetson_develop/gui/runtime_i18n.py           |  36 ++-
+ seeed_jetson_develop/locales/de/*.json             |  9 files
+ seeed_jetson_develop/locales/es/*.json             |  9 files
+ seeed_jetson_develop/locales/fr/*.json             |  9 files
+ seeed_jetson_develop/modules/apps/page.py          | 149 +++++++----
+ seeed_jetson_develop/modules/skills/page.py        |  99 ++++---
+ tests/test_i18n.py                                 |  76 ++++++
+
+本次新增 GUI 多语言：English、Français、Español、Deutsch，并保留中文兼容。
+语言菜单从 main_window_v2.py 里的 English/中文 硬编码改为 i18n.py 的统一注册表。
+config.py 扩展了 fr-FR/fr_FR、es-ES/es_ES、de-DE/de_DE、zh-CN/zh_CN 等别名，并在首次启动时读取 OS locale。
+新增 locales/fr、locales/es、locales/de，结构与 en / zh-CN 保持一致。
+apps/page.py 和 skills/page.py 增加 data-backed 文案 fallback：locale key 存在时翻译，缺失时保留原始 catalog 文案。
+ai_chat.system 按当前语言要求助手回答，不再固定英文。
+scripts/check_locales.py 改为扫描所有 locale 目录，并用 utf-8-sig 读取 JSON。
+setup.py 增加 locales/*/*.json，保证 legacy packaging 也带上本地化资源。
+
+Bash
+IN
+python -m unittest tests.test_i18n -v
+
+OUT
+test_language_options_are_user_facing_and_ordered ... ok
+test_t_uses_default_when_key_is_missing ... ok
+test_get_language_saved_config_wins_over_system_language ... ok
+test_get_language_uses_system_language_when_config_is_missing ... ok
+test_normalize_language_accepts_supported_regional_aliases ... ok
+test_normalize_language_falls_back_to_english ... ok
+
+Ran 6 tests
+OK
+
+Bash
+IN
+python scripts/check_locales.py
+
+OUT
+Locale check passed: de=773, en=773, es=773, fr=773, zh-CN=773
+
+Bash
+IN
+python -m compileall -q seeed_jetson_develop/gui seeed_jetson_develop/modules
+
+OUT
+(Bash completed with no output)
+
+Bash
+IN
+python -m pip wheel . -w .tmp_wheel --no-deps
+
+OUT
+Wheel build succeeded. Inspection confirmed locales/en、locales/fr、locales/es、locales/de、locales/zh-CN each include 9 JSON files.
+
+d:\Seeed-Jetson-DevelopTool\Seeed-Jetson-DevelopTool\docs\CHANGELOG_LOCAL.md
+Bash
+IN
 grep -n "^class.*Page\|^class.*Widget" \
   "d:/Seeed-Jetson-DevelopTool/Seeed-Jetson-DevelopTool2/seeed_jetson_develop/modules/apps/page.py" \
   "d:/Seeed-Jetson-DevelopTool/Seeed-Jetson-DevelopTool2/seeed_jetson_develop/modules/skills/page.py" \

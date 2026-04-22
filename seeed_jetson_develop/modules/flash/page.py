@@ -1143,7 +1143,7 @@ def build_page() -> QWidget:
             item = rec_guide_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        guide = get_guide(product)
+        guide = get_guide(product, lang=get_language())
         if not guide:
             rec_guide_layout.addWidget(make_label(_ft("flash.recovery.no_guide"), 12, C_TEXT3))
             rec_guide_layout.addStretch()

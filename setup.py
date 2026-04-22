@@ -38,6 +38,7 @@ setup(
     package_data={
         "seeed_jetson_develop": [
             "data/*.json",
+            "locales/*/*.json",
             "assets/images/*",
             "modules/apps/data/*.json",
             "modules/skills/data/*.json",

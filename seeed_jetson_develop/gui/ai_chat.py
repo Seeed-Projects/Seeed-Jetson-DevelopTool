@@ -2,6 +2,7 @@
 
 import os
 import re
+import hashlib
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QObject, QEvent, QPoint, QRect
 from PyQt5.QtWidgets import (
@@ -41,6 +42,23 @@ from seeed_jetson_develop.gui.i18n import get_language, t as _t_raw
 def _t(key: str, **kwargs) -> str:
     """Translate key using current language."""
     return _t_raw(key, lang=get_language(), **kwargs)
+
+
+def _key_slug(value: str) -> str:
+    text = (value or "").strip()
+    slug = re.sub(r"[^a-z0-9]+", "_", text.lower())
+    slug = re.sub(r"_+", "_", slug).strip("_")
+    if slug:
+        return slug
+    return "u_" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:10]
+
+
+def _catalog_text(section: str, item_id: str, field: str, raw: str) -> str:
+    return _t_raw(
+        f"{section}.item.{_key_slug(item_id)}.{field}",
+        lang=get_language(),
+        default=raw,
+    )
 
 
 # 安全命令黑名单：只拦截真正破坏性的操作
@@ -83,7 +101,8 @@ def build_ai_system_prompt(limit: int = 30) -> str:
         from seeed_jetson_develop.modules.skills.engine import load_builtin_skills
         skills = load_builtin_skills()
         skills_text = "\n".join(
-            f"- {s.name}（{s.category}）：{s.desc}"
+            f"- {_catalog_text('skills', s.id, 'name', s.name)}"
+            f"（{s.category}）：{_catalog_text('skills', s.id, 'desc', s.desc)}"
             for s in skills[:limit]
         )
         if skills_text:
@@ -94,7 +113,8 @@ def build_ai_system_prompt(limit: int = 30) -> str:
         from seeed_jetson_develop.modules.apps.registry import load_apps
         apps = load_apps()
         apps_text = "\n".join(
-            f"- {a['name']}（{a['category']}）：{a['desc']}"
+            f"- {_catalog_text('apps', a['id'], 'name', a['name'])}"
+            f"（{a['category']}）：{_catalog_text('apps', a['id'], 'desc', a['desc'])}"
             for a in apps[:20]
         )
         if apps_text:

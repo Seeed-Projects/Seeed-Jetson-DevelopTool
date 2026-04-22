@@ -1,4 +1,4 @@
-﻿{
+{
   "common.ok": "OK",
   "common.yes": "Yes",
   "common.no": "No",
@@ -22,7 +22,8 @@
   "common.status.remote_connected": "Remote Connected",
   "common.status.no_device": "No Device Connected",
   "common.search_placeholder": "Search...",
-  "common.no_data": "No data"
+  "common.no_data": "No data",
+  "common.category": "Category",
+  "common.app_error.title": "Application Error",
+  "common.app_error.body": "An uncaught exception occurred. Details written to:\n{log}\n\n{msg}"
 }
-
-

@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 from seeed_jetson_develop.core.config import (
-    DEFAULT_LANGUAGE,
     get_language as _get_config_language,
     normalize_language,
     set_language as _set_config_language,
@@ -12,18 +11,34 @@ from seeed_jetson_develop.core.config import (
 
 
 _LOCALES_DIR = Path(__file__).resolve().parents[1] / "locales"
-_FALLBACK_LANGUAGE = DEFAULT_LANGUAGE
+_FALLBACK_LANGUAGE = "en"
 _cache: dict[str, dict[str, str]] = {}
+
+LANGUAGE_REGISTRY: tuple[tuple[str, str], ...] = (
+    ("en", "English"),
+    ("fr", "Français"),
+    ("es", "Español"),
+    ("de", "Deutsch"),
+    ("zh-CN", "中文"),
+)
+
+
+def language_options() -> list[tuple[str, str]]:
+    return list(LANGUAGE_REGISTRY)
+
+
+def language_label(lang: str) -> str:
+    normalized = normalize_language(lang)
+    return dict(LANGUAGE_REGISTRY).get(normalized, normalized)
 
 
 def available_languages() -> list[str]:
     if not _LOCALES_DIR.exists():
         return []
-    return sorted(
-        path.name
-        for path in _LOCALES_DIR.iterdir()
-        if path.is_dir()
-    )
+    existing = {path.name for path in _LOCALES_DIR.iterdir() if path.is_dir()}
+    ordered = [code for code, _ in LANGUAGE_REGISTRY if code in existing]
+    extras = sorted(existing - set(ordered))
+    return ordered + extras
 
 
 def _locale_files(lang: str) -> list[Path]:
@@ -73,11 +88,12 @@ def _lookup(key: str, lang: str) -> str | None:
     return load_locale(lang).get(key)
 
 
-def t(key: str, lang: str | None = None, **kwargs) -> str:
+def t(key: str, lang: str | None = None, default: str | None = None, **kwargs) -> str:
     language = normalize_language(lang or get_language())
     text = (
         _lookup(key, language)
         or _lookup(key, _FALLBACK_LANGUAGE)
+        or default
         or key
     )
     if kwargs:
