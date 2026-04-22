@@ -7,7 +7,7 @@
     "desc": "Launch `audiocraft` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "audiocraft",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run audiocraft'"
     ],
@@ -38,7 +38,7 @@
     "desc": "Launch `comfyui` from jetson-examples. Disk 30GB. RAM 15GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0.",
     "source": "jetson-examples",
     "example_name": "comfyui",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run comfyui'"
     ],
@@ -68,7 +68,7 @@
     "desc": "Launch `deep-live-cam` from jetson-examples. Disk 40GB. RAM 20GB. JetPack/L4T 36.3.0.",
     "source": "jetson-examples",
     "example_name": "deep-live-cam",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run deep-live-cam'"
     ],
@@ -96,7 +96,7 @@
     "desc": "Launch `depth-anything` from jetson-examples. Disk 20GB. RAM 4GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0.",
     "source": "jetson-examples",
     "example_name": "depth-anything",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run depth-anything'"
     ],
@@ -126,7 +126,7 @@
     "desc": "Launch `depth-anything-v2` from jetson-examples. Disk 15GB. RAM 4GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0.",
     "source": "jetson-examples",
     "example_name": "depth-anything-v2",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run depth-anything-v2'"
     ],
@@ -186,6 +186,36 @@
     }
   },
   {
+    "id": "jx-gpt-oss",
+    "icon": "LLM",
+    "name": "GPT-OSS",
+    "category": "LLM / GenAI",
+    "desc": "Launch `gpt-oss` from jetson-examples. Disk 50GB. RAM 14GB. JetPack/L4T 36.4.0, 36.4.3, 36.4.4.",
+    "source": "jetson-examples",
+    "example_name": "gpt-oss",
+    "check_cmd": "",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run gpt-oss'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run gpt-oss'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean gpt-oss'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "36.4.0",
+        "36.4.3",
+        "36.4.4"
+      ],
+      "required_disk_gb": 50,
+      "required_mem_gb": 14,
+      "docker_enabled": false
+    }
+  },
+  {
     "id": "jx-llama-factory",
     "icon": "LLM",
     "name": "Llama Factory",
@@ -193,7 +223,7 @@
     "desc": "Launch `llama-factory` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0.",
     "source": "jetson-examples",
     "example_name": "llama-factory",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llama-factory'"
     ],
@@ -223,7 +253,7 @@
     "desc": "Launch `llama3` from jetson-examples. Disk 15GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "llama3",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llama3'"
     ],
@@ -254,7 +284,7 @@
     "desc": "Launch `llama3.2` from jetson-examples. Disk 15GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "llama3.2",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llama3.2'"
     ],
@@ -286,7 +316,7 @@
     "desc": "Launch `llava` from jetson-examples. Disk 15GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "llava",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llava'"
     ],
@@ -317,7 +347,7 @@
     "desc": "Launch `llava-v1.5-7b` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "llava-v1.5-7b",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llava-v1.5-7b'"
     ],
@@ -346,7 +376,7 @@
     "desc": "Launch `llava-v1.6-vicuna-7b` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "llava-v1.6-vicuna-7b",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run llava-v1.6-vicuna-7b'"
     ],
@@ -375,7 +405,7 @@
     "desc": "Launch `nanodb` from jetson-examples. Disk 80GB. RAM 15GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "nanodb",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run nanodb'"
     ],
@@ -404,7 +434,7 @@
     "desc": "Launch `nanoowl` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "nanoowl",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run nanoowl'"
     ],
@@ -426,6 +456,36 @@
     }
   },
   {
+    "id": "jx-nvblox",
+    "icon": "BOT",
+    "name": "NVBlox",
+    "category": "Robotics / ROS 2",
+    "desc": "Launch `nvblox` from jetson-examples. Disk 60GB. RAM 14GB. JetPack/L4T 36.4.0, 36.4.3, 36.4.4.",
+    "source": "jetson-examples",
+    "example_name": "nvblox",
+    "check_cmd": "",
+    "install_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run nvblox'"
+    ],
+    "run_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run nvblox'"
+    ],
+    "clean_cmds": [
+      "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer clean nvblox'"
+    ],
+    "uninstall_cmds": [],
+    "requirements": {
+      "jetpack_versions": [
+        "36.4.0",
+        "36.4.3",
+        "36.4.4"
+      ],
+      "required_disk_gb": 60,
+      "required_mem_gb": 14,
+      "docker_enabled": true
+    }
+  },
+  {
     "id": "jx-ollama",
     "icon": "LLM",
     "name": "Ollama",
@@ -433,7 +493,7 @@
     "desc": "Launch `ollama` from jetson-examples. Disk 15GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "ollama",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run ollama'"
     ],
@@ -457,6 +517,78 @@
     }
   },
   {
+    "id": "jx-ros1-jp6",
+    "icon": "ROS",
+    "name": "ROS 1 Noetic (JP6)",
+    "category": "Robotics / ROS 1",
+    "desc": "Install ROS 1 Noetic Docker image from the built-in OneDrive archive. Import image as `ros:noetic`. Verify with `rosversion -d`. JetPack/L4T 36.4.0, 36.4.3, 36.4.4.",
+    "source": "jetson-examples",
+    "example_name": "ros1-jp6",
+    "check_cmd": "bash -lc 'docker image inspect ros:noetic >/dev/null 2>&1'",
+    "install_only": true,
+    "install_cmds": [
+      "bash -lc 'set -e; echo \"[1/4] Check & install Docker...\"; if ! command -v docker >/dev/null 2>&1; then echo \"Docker not found, installing...\"; curl -fsSL https://get.docker.com | sh; sudo usermod -aG docker $USER; echo \"Docker installed. NOTE: you may need to re-login for group changes to take effect.\"; else echo \"[ok] Docker already installed: $(docker --version)\"; fi'",
+      "bash -lc 'set -e; echo \"[2/4] Ensure docker daemon is running...\"; sudo systemctl start docker; sudo systemctl enable docker; echo \"[ok] Docker daemon running\"'",
+      "bash -lc 'set -e; echo \"[3/4] Download ROS 1 Noetic image archive...\"; if ! command -v aria2c >/dev/null 2>&1; then echo \"[info] aria2 not found, installing...\"; if command -v apt-get >/dev/null 2>&1; then sudo apt-get install -y aria2; elif command -v yum >/dev/null 2>&1; then sudo yum install -y aria2; elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm aria2; else echo \"[warn] cannot auto-install aria2, will fall back to wget\"; fi; fi; CACHE_DIR=$HOME/.cache/seeed-ros1-jp6; mkdir -p $CACHE_DIR; TAR_PATH=$CACHE_DIR/ros-noetic-jp6.tar; TMP_PATH=${TAR_PATH}.part; if [ -f \"$TAR_PATH\" ]; then SIZE=$(stat -c%s \"$TAR_PATH\" 2>/dev/null || echo 0); if [ \"$SIZE\" -lt 1073741824 ]; then echo \"[warn] cached file incomplete ($SIZE bytes < 1GB), re-downloading...\"; rm -f \"$TAR_PATH\"; else echo \"[ok] archive already cached at $TAR_PATH ($SIZE bytes)\"; exit 0; fi; fi; URL=\"https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCOgjRBDytqT4jKdktOzhdIAUf97NfnQJ4lk_DAHpLTaRY?e=qxLcJL&download=1\"; echo \"Downloading from OneDrive (~3GB, please wait)...\"; MAX_RETRY=5; i=0; while [ $i -lt $MAX_RETRY ]; do i=$((i+1)); echo \"[attempt $i/$MAX_RETRY]\"; if command -v aria2c >/dev/null 2>&1; then aria2c -x 16 -s 16 -k 1M --retry-wait=5 --max-tries=3 --user-agent=\"Mozilla/5.0\" --allow-overwrite=true --auto-file-renaming=false -d \"$CACHE_DIR\" -o \"ros-noetic-jp6.tar\" \"$URL\" && break; else wget -c -O \"$TMP_PATH\" --progress=bar:force --tries=3 --waitretry=5 --retry-connrefused --timeout=60 --user-agent=\"Mozilla/5.0\" --no-check-certificate \"$URL\" 2>&1 && mv \"$TMP_PATH\" \"$TAR_PATH\" && break; fi; echo \"[warn] attempt $i failed, retrying in 10s...\"; sleep 10; done; if [ ! -f \"$TAR_PATH\" ]; then rm -f \"$TMP_PATH\"; echo \"Download failed after $MAX_RETRY attempts\"; exit 1; fi; echo \"[ok] downloaded to $TAR_PATH\"'",
+      "bash -lc 'set -e; echo \"[4/4] Load Docker image...\"; TAR_PATH=$HOME/.cache/seeed-ros1-jp6/ros-noetic-jp6.tar; sudo docker load -i \"$TAR_PATH\"; echo \"[ok] Image loaded:\"; sudo docker images ros:noetic; echo; echo \"Verify: sudo docker run --rm ros:noetic rosversion -d\"'"
+    ],
+    "run_cmds": [],
+    "clean_cmds": [
+      "bash -lc 'rm -rf $HOME/.cache/seeed-ros1-jp6 && echo \"[ok] cache cleared\"'"
+    ],
+    "uninstall_cmds": [
+      "bash -lc 'sudo docker image rm ros:noetic 2>/dev/null && echo \"[ok] image removed\" || echo \"[warn] image not found\"'",
+      "bash -lc 'rm -rf $HOME/.cache/seeed-ros1-jp6 && echo \"[ok] cache cleared\"'"
+    ],
+    "requirements": {
+      "jetpack_versions": [
+        "36.4.0",
+        "36.4.3",
+        "36.4.4"
+      ],
+      "required_disk_gb": 10,
+      "required_mem_gb": 4,
+      "docker_enabled": true
+    }
+  },
+  {
+    "id": "jx-ros2-humble-jp6",
+    "icon": "ROS",
+    "name": "ROS 2 Humble (JP6)",
+    "category": "Robotics / ROS 2",
+    "desc": "Install ROS 2 Humble Hawksbill natively via apt on Ubuntu 22.04 (JetPack 6). Installs ros-humble-desktop. Verify with `ros2 --version`. JetPack/L4T 36.4.0, 36.4.3, 36.4.4.",
+    "source": "jetson-examples",
+    "example_name": "ros2-humble-jp6",
+    "check_cmd": "bash -lc 'dpkg -s ros-humble-ros-base >/dev/null 2>&1'",
+    "install_only": true,
+    "install_cmds": [
+      "bash -lc 'set -e; echo \"[1/5] Set locale...\"; if [ -f /etc/apt/sources.list.d/ros2.list ] && ! grep -qE \"^deb \" /etc/apt/sources.list.d/ros2.list 2>/dev/null; then echo \"[warn] removing malformed ros2.list\"; sudo rm -f /etc/apt/sources.list.d/ros2.list; fi; sudo apt-get install -y locales; sudo locale-gen en_US en_US.UTF-8; sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8; echo \"[ok] locale set\"'",
+      "bash -lc 'set -e; echo \"[2/5] Enable Universe repo & add ROS 2 apt source...\"; sudo apt-get install -y software-properties-common curl; sudo add-apt-repository universe -y; sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg; ARCH=$(dpkg --print-architecture); CODENAME=$(lsb_release -cs 2>/dev/null || grep UBUNTU_CODENAME /etc/os-release | cut -d= -f2); echo \"[info] arch=$ARCH codename=$CODENAME\"; sudo rm -f /etc/apt/sources.list.d/ros2.list; sudo bash -c \"echo deb [arch=$ARCH signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $CODENAME main > /etc/apt/sources.list.d/ros2.list\"; echo \"[info] ros2.list: $(cat /etc/apt/sources.list.d/ros2.list)\"; echo \"[ok] ROS 2 apt source added\"'",
+      "bash -lc 'set -e; echo \"[3/5] Update apt cache...\"; sudo apt-get update; echo \"[ok] apt updated\"'",
+      "bash -lc 'set -e; echo \"[4/5] Install ROS 2 Humble Desktop (~2GB, please wait)...\"; sudo apt-get install -y ros-humble-desktop; echo \"[ok] ros-humble-desktop installed\"'",
+      "bash -lc 'set -e; echo \"[5/5] Setup environment & verify...\"; grep -qxF \"source /opt/ros/humble/setup.bash\" $HOME/.bashrc || echo \"source /opt/ros/humble/setup.bash\" >> $HOME/.bashrc; source /opt/ros/humble/setup.bash; ros2 --version; echo; echo \"[ok] ROS 2 Humble installed. Re-login or run: source /opt/ros/humble/setup.bash\"'"
+    ],
+    "run_cmds": [
+      "bash -lc 'source /opt/ros/humble/setup.bash; echo \"ROS_DISTRO=$ROS_DISTRO\"; ros2 --version; echo; echo \"Hint: open two terminals and run talker/listener demo:\"; echo \"  Terminal 1: source /opt/ros/humble/setup.bash && ros2 run demo_nodes_cpp talker\"; echo \"  Terminal 2: source /opt/ros/humble/setup.bash && ros2 run demo_nodes_py listener\"'"
+    ],
+    "clean_cmds": [],
+    "uninstall_cmds": [
+      "bash -lc 'sudo apt-get remove -y ros-humble-* && sudo apt-get autoremove -y && echo \"[ok] ROS 2 Humble removed\"'",
+      "bash -lc 'sudo rm -f /etc/apt/sources.list.d/ros2.list /usr/share/keyrings/ros-archive-keyring.gpg && echo \"[ok] ROS 2 apt source removed\"'",
+      "bash -lc 'sed -i \"/source \\/opt\\/ros\\/humble\\/setup.bash/d\" $HOME/.bashrc && echo \"[ok] removed from .bashrc\"'"
+    ],
+    "requirements": {
+      "jetpack_versions": [
+        "36.4.0",
+        "36.4.3",
+        "36.4.4"
+      ],
+      "required_disk_gb": 5,
+      "required_mem_gb": 2,
+      "docker_enabled": false
+    }
+  },
+  {
     "id": "jx-Sheared-LLaMA-2.7B-ShareGPT",
     "icon": "LLM",
     "name": "Sheared-LLaMA 2.7B ShareGPT",
@@ -464,7 +596,7 @@
     "desc": "Launch `Sheared-LLaMA-2.7B-ShareGPT` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "Sheared-LLaMA-2.7B-ShareGPT",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run Sheared-LLaMA-2.7B-ShareGPT'"
     ],
@@ -493,7 +625,7 @@
     "desc": "Launch `stable-diffusion-webui` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "stable-diffusion-webui",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run stable-diffusion-webui'"
     ],
@@ -522,7 +654,7 @@
     "desc": "Launch `text-generation-webui` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "text-generation-webui",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run text-generation-webui'"
     ],
@@ -551,7 +683,7 @@
     "desc": "Launch `ultralytics-yolo` from jetson-examples. Disk 16GB. RAM 2GB. JetPack/L4T 32.6.1, 35.3.1, 35.4.1, 35.5.0.",
     "source": "jetson-examples",
     "example_name": "ultralytics-yolo",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run ultralytics-yolo'"
     ],
@@ -585,7 +717,7 @@
     "desc": "Launch `whisper` from jetson-examples. Disk 25GB. RAM 7GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "whisper",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run whisper'"
     ],
@@ -614,7 +746,7 @@
     "desc": "Launch `yolov10` from jetson-examples. Disk 20GB. RAM 4GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "yolov10",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run yolov10'"
     ],
@@ -645,7 +777,7 @@
     "desc": "Launch `yolov8-rail-inspection` from jetson-examples. Disk 20GB. RAM 4GB. JetPack/L4T 35.3.1, 35.4.1, 35.5.0, 36.3.0.",
     "source": "jetson-examples",
     "example_name": "yolov8-rail-inspection",
-    "check_cmd": "bash -c 'export PATH=$HOME/.local/bin:$PATH && which reComputer' 2>/dev/null",
+    "check_cmd": "",
     "install_cmds": [
       "bash -c 'export PATH=$HOME/.local/bin:$PATH && reComputer run yolov8-rail-inspection'"
     ],

@@ -87,7 +87,16 @@ class _ResponsiveScrollArea(QScrollArea):
             self._resize_timer.start(100)
 
 
-# Background install status detection thread
+# Background app data loader thread
+class _LoadAppsThread(QThread):
+    loaded = pyqtSignal(list)
+
+    def run(self):
+        from seeed_jetson_develop.modules.apps.registry import load_apps
+        self.loaded.emit(load_apps())
+
+
+
 class _StatusCheckThread(QThread):
     single_result = pyqtSignal(str, str)   # app_id, status
     all_done      = pyqtSignal(dict)
@@ -136,8 +145,41 @@ class _InstallThread(QThread):
     def cancel(self):
         self._cancel = True
 
+    @staticmethod
+    def _ensure_aria2c_windows(log_fn):
+        """On Windows local runner, auto-install aria2c via winget or choco if missing."""
+        import sys
+        import shutil
+        import subprocess
+        if sys.platform != "win32":
+            return
+        if shutil.which("aria2c"):
+            return
+        log_fn("[info] aria2c not found on Windows, attempting auto-install...")
+        # Try winget first (built-in on Windows 10+)
+        for mgr, args in [
+            ("winget", ["winget", "install", "--id", "aria2.aria2", "-e", "--silent", "--accept-package-agreements", "--accept-source-agreements"]),
+            ("choco",  ["choco", "install", "aria2", "-y"]),
+        ]:
+            if shutil.which(mgr):
+                log_fn(f"[info] installing aria2 via {mgr}...")
+                try:
+                    result = subprocess.run(args, capture_output=True, text=True, timeout=120)
+                    if result.returncode == 0:
+                        log_fn("[ok] aria2c installed via " + mgr)
+                        return
+                    log_fn(f"[warn] {mgr} install failed (rc={result.returncode}): {result.stderr.strip()}")
+                except Exception as e:
+                    log_fn(f"[warn] {mgr} install error: {e}")
+        log_fn("[warn] could not auto-install aria2c on Windows, download will use fallback")
+
     def run(self):
         runner = get_runner()
+        # Auto-install aria2c on Windows if needed (local runner only)
+        if not isinstance(runner, SSHRunner) and any(
+            "aria2c" in (c or "") or "Download" in (c or "") for c in self._cmds
+        ):
+            self._ensure_aria2c_windows(self.log.emit)
         # For Depth Anything V3 custom docker flow, upload launcher script only when commands require it.
         needs_da3_launcher_upload = any(
             "run_camera_depth_rtsp.sh" in (c or "") for c in self._cmds
@@ -235,7 +277,8 @@ class _InstallThread(QThread):
                 self.done.emit(False)
                 return
             self.log.emit(f"\n$ {cmd}")
-            rc, _ = runner.run(cmd, timeout=600, on_output=lambda l: self.log.emit(l))
+            _timeout = 7200 if ("Download" in cmd or "wget" in cmd or "aria2c" in cmd or "docker load" in cmd) else 600
+            rc, _ = runner.run(cmd, timeout=_timeout, on_output=lambda l: self.log.emit(l))
             if rc != 0:
                 self.log.emit(f"[failed] rc={rc}")
                 self.log.emit(f"\nCommand failed (rc={rc})")
@@ -265,11 +308,74 @@ class _InstallDialog(QDialog):
         title = title_map.get(mode, _at("apps.action.execute"))
         self.setWindowTitle(f"{title}  {app['name']}")
         self.setMinimumSize(_pt(640), _pt(480))
+        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)
         self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
 
         root_lay = QVBoxLayout(self)
         root_lay.setContentsMargins(0, 0, 0, 0)
         root_lay.setSpacing(0)
+
+        # ── 自定义标题栏 ──
+        titlebar = QWidget()
+        titlebar.setFixedHeight(_pt(42))
+        titlebar.setStyleSheet(f"background:#f0f0f0; border:none;")
+        tb_lay = QHBoxLayout(titlebar)
+        tb_lay.setContentsMargins(16, 0, 8, 0)
+        tb_lay.setSpacing(8)
+        title_lbl = QLabel(f"{title}  {app['name']}")
+        title_lbl.setStyleSheet("color:#222; font-size:13px; font-weight:600; background:transparent;")
+        tb_lay.addWidget(title_lbl, 1)
+
+        # Minimize to background button
+        self._bg_btn = QPushButton("−")
+        self._bg_btn.setFixedSize(_pt(44), _pt(32))
+        self._bg_btn.setEnabled(False)
+        self._bg_btn.setCursor(Qt.PointingHandCursor)
+        self._bg_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #222;
+                font-size: 28px;
+                font-weight: 400;
+                padding-bottom: 6px;
+            }
+            QPushButton:hover { background: rgba(0,0,0,0.10); border-radius: 6px; color: #000; }
+            QPushButton:disabled { color: #aaa; }
+        """)
+        self._bg_btn.clicked.connect(self._send_to_background)
+        tb_lay.addWidget(self._bg_btn)
+
+        close_title_btn = QPushButton("×")
+        close_title_btn.setFixedSize(_pt(44), _pt(32))
+        close_title_btn.setCursor(Qt.PointingHandCursor)
+        close_title_btn.setStyleSheet("""
+            QPushButton {
+                background: transparent;
+                border: none;
+                color: #444;
+                font-size: 22px;
+                font-weight: 400;
+            }
+            QPushButton:hover { background: #e81123; border-radius: 6px; color: #fff; }
+        """)
+        close_title_btn.clicked.connect(self._confirm_close)
+        tb_lay.addWidget(close_title_btn)
+        root_lay.addWidget(titlebar)
+
+        # drag support for frameless dialog
+        self._drag_pos = None
+        def _tb_press(e):
+            if e.button() == Qt.LeftButton:
+                self._drag_pos = e.globalPos() - self.frameGeometry().topLeft()
+        def _tb_move(e):
+            if self._drag_pos and e.buttons() == Qt.LeftButton:
+                self.move(e.globalPos() - self._drag_pos)
+        def _tb_release(e):
+            self._drag_pos = None
+        titlebar.mousePressEvent = _tb_press
+        titlebar.mouseMoveEvent = _tb_move
+        titlebar.mouseReleaseEvent = _tb_release
 
         # ── 可滚动主体 ──
         from PyQt5.QtWidgets import QScrollArea
@@ -406,6 +512,7 @@ class _InstallDialog(QDialog):
         self._ai_btn.setVisible(False)
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
+        self._bg_btn.setEnabled(True)
         t = _InstallThread(self._cmds, app=self._app)
         t.log.connect(self._append)
         t.done.connect(self._on_done)
@@ -416,9 +523,84 @@ class _InstallDialog(QDialog):
         if self._thread:
             self._thread.cancel()
 
+    def _send_to_background(self):
+        """Hide dialog, replace status_dot with a clickable button to restore."""
+        from PyQt5.QtWidgets import QMessageBox
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Minimize to Background")
+        msg.setText(f"<b>{self._app.get('name', '')}</b> will continue running in the background.<br><br>Click the status bar at the top to restore this window.")
+        msg.setIcon(QMessageBox.Information)
+        msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        msg.button(QMessageBox.Ok).setText("Minimize")
+        msg.button(QMessageBox.Cancel).setText("Cancel")
+        if msg.exec_() != QMessageBox.Ok:
+            return
+
+        self._bg_btn.setEnabled(False)
+        self.hide()
+        win = self._find_main_win()
+        if not win:
+            return
+        self._bg_win_ref = win
+        name = self._app.get("name", "")
+        # Replace status_dot text with a clickable indicator
+        win.status_dot.setText(f"⏳ {name}  (click to restore)")
+        win.status_dot.setCursor(Qt.PointingHandCursor)
+        win.status_dot.setStyleSheet(
+            f"color:{C_ORANGE}; font-size:{_pt(11)}pt; background:transparent; padding:0;"
+        )
+        win.status_dot.mousePressEvent = lambda _e: self._restore_from_background()
+
+    def _find_main_win(self):
+        w = self.parent()
+        while w:
+            if hasattr(w, "status_dot"):
+                return w
+            w = w.parent() if callable(getattr(w, "parent", None)) else None
+        return None
+
+    def _restore_from_background(self):
+        """Restore dialog from background and reset status_dot."""
+        win = getattr(self, "_bg_win_ref", None)
+        if win and hasattr(win, "status_dot"):
+            self._reset_status_dot(win)
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        # Re-enable bg button if still running
+        if self._thread and self._thread.isRunning():
+            self._bg_btn.setEnabled(True)
+
+    def _reset_status_dot(self, win):
+        from seeed_jetson_develop.gui.i18n import t as _t2, get_language as _gl
+        win.status_dot.setText(_t2("common.ready", lang=_gl()))
+        win.status_dot.setStyleSheet(
+            f"color:{C_GREEN}; font-size:{_pt(11)}pt; background:transparent; padding:0;"
+        )
+        win.status_dot.setCursor(Qt.ArrowCursor)
+        win.status_dot.mousePressEvent = lambda e: None
+
     def _on_done(self, success: bool):
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
+        self._bg_btn.setEnabled(False)
+
+        win = getattr(self, "_bg_win_ref", None)
+        if win and hasattr(win, "status_dot"):
+            if not self.isVisible():
+                name = self._app.get("name", "")
+                icon = "✅" if success else "❌"
+                win.status_dot.setText(f"{icon} {name}  (click to view)")
+                win.status_dot.setCursor(Qt.PointingHandCursor)
+                win.status_dot.setStyleSheet(
+                    f"color:{C_GREEN if success else C_RED}; font-size:{_pt(11)}pt; background:transparent; padding:0;"
+                )
+                win.status_dot.mousePressEvent = lambda _e: self._restore_from_background()
+                QTimer.singleShot(10000, lambda: self._reset_status_dot(win) if win else None)
+            else:
+                self._reset_status_dot(win)
+        self._bg_win_ref = None
+
         action_text = {
             "install": (_at("apps.dialog.done.install_ok"), _at("apps.dialog.done.install_fail")),
             "uninstall": (_at("apps.dialog.done.uninstall_ok"), _at("apps.dialog.done.uninstall_fail")),
@@ -426,11 +608,42 @@ class _InstallDialog(QDialog):
             "clean": (_at("apps.dialog.done.clean_ok"), _at("apps.dialog.done.clean_fail")),
         }.get(self._mode, (_at("apps.dialog.done.exec_ok"), _at("apps.dialog.done.exec_fail")))
         if success:
-            self._append(f"\n??{action_text[0]}")
+            self._append(f"\n✅{action_text[0]}")
         else:
-            self._append(f"\n??{action_text[1]}")
+            self._append(f"\n❌{action_text[1]}")
             self._ai_btn.setVisible(True)
         self.install_done.emit(self._app["id"], success)
+
+    def _confirm_close(self):
+        if self._thread and self._thread.isRunning():
+            from PyQt5.QtWidgets import QMessageBox
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Cancel Installation?")
+            msg.setText(f"<b>{self._app.get('name', '')}</b> is still installing.<br><br>Closing will stop the process.")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg.button(QMessageBox.Yes).setText("Stop & Close")
+            msg.button(QMessageBox.No).setText("Keep Running")
+            if msg.exec_() != QMessageBox.Yes:
+                return
+            self._thread.cancel()
+        self.accept()
+
+    def closeEvent(self, event):
+        if self._thread and self._thread.isRunning():
+            from PyQt5.QtWidgets import QMessageBox
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Cancel Installation?")
+            msg.setText(f"<b>{self._app.get('name', '')}</b> is still installing.<br><br>Closing will stop the process.")
+            msg.setIcon(QMessageBox.Warning)
+            msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            msg.button(QMessageBox.Yes).setText("Stop & Close")
+            msg.button(QMessageBox.No).setText("Keep Running")
+            if msg.exec_() != QMessageBox.Yes:
+                event.ignore()
+                return
+            self._thread.cancel()
+        event.accept()
 
     def _ask_ai(self):
         host = self.parent().window() if self.parent() else None
@@ -448,13 +661,59 @@ class AppsPage(ListPageBase):
         self._statuses: dict[str, str] = {}
         self._device_meta: dict = {"l4t": None}
         self._check_thread = None
+        self._load_thread = None
         self._status_labels: dict[str, QLabel] = {}  # app_id -> status QLabel for in-place updates
         self._banner_title_lbl: QLabel | None = None
         self._banner_sub_lbl: QLabel | None = None
         super().__init__()
         # Device connection event
         bus.device_connected.connect(lambda _: (self._device_meta.update({"l4t": None}), self._start_check()))
+        # Async load: kick off background thread after UI is shown
+        QTimer.singleShot(0, self._async_load)
+
+    def _async_load(self):
+        """Load app data in background thread to avoid blocking UI."""
+        self._load_thread = _LoadAppsThread()
+        self._load_thread.loaded.connect(self._on_apps_loaded)
+        self._load_thread.start()
+
+    def _on_apps_loaded(self, apps: list):
+        self.items_data = apps
+        for a in apps:
+            self._statuses[a["id"]] = "checking" if a.get("check_cmd") else "available"
+        self._rebuild_tabs()
+        self._rebuild_list()
+        self._update_banner_summary()
         QTimer.singleShot(200, self._start_check)
+
+    def _rebuild_tabs(self):
+        """Rebuild category tab buttons after data is loaded."""
+        # Remove old tab buttons
+        for btn in self.tab_buttons.values():
+            btn.setParent(None)
+            btn.deleteLater()
+        self.tab_buttons.clear()
+
+        from seeed_jetson_develop.gui.theme import make_tab_button
+        cats = self.get_categories()
+        if cats and not self.filter_state["category"]:
+            self.filter_state["category"] = cats[0]
+
+        # Find the tabs layout inside the filter row
+        tabs_widget = self._tabs_widget
+        if tabs_widget is None:
+            return
+        lay = tabs_widget.layout()
+        # Remove stretch
+        while lay.count():
+            lay.takeAt(0)
+        for cat in cats:
+            btn = make_tab_button(self.format_category_label(cat), active=(cat == self.filter_state["category"]))
+            btn.clicked.connect(lambda checked, c=cat: self._on_category_clicked(c))
+            btn.setProperty("category_key", cat)
+            self.tab_buttons[cat] = btn
+            lay.addWidget(btn)
+        lay.addStretch()
 
     def retranslate_ui(self, _lang_code: str | None = None):
         super().retranslate_ui(_lang_code)
@@ -505,10 +764,9 @@ class AppsPage(ListPageBase):
         return t("apps.page.subtitle", lang=get_language())
 
     def load_data(self) -> list:
-        apps = load_apps()
-        for a in apps:
-            self._statuses[a["id"]] = "checking" if a.get("check_cmd") else "available"
-        return apps
+        # Data is loaded asynchronously in _async_load / _on_apps_loaded.
+        # Return empty list so ListPageBase.__init__ renders a blank page immediately.
+        return []
 
     def get_categories(self) -> list[str]:
         cats = ["All"]
@@ -871,11 +1129,11 @@ class AppsPage(ListPageBase):
             b.clicked.connect(lambda _, aid=app["id"]: self._open_uninstall(aid))
             action_row.addWidget(b)
 
-        if (is_example or status == "installed") and self._get_run_cmds(app):
+        if (is_example or status == "installed") and self._get_run_cmds(app) and not app.get("install_only"):
             b = _btn(_at("apps.action.run"), primary=True, small=True)
             b.clicked.connect(lambda _, aid=app["id"]: self._open_run(aid))
             action_row.addWidget(b)
-        elif not is_example and status != "installed":
+        elif status != "installed":
             b = _btn(_at("apps.action.install"), primary=True, small=True)
             b.setEnabled(status != "checking")
             b.clicked.connect(lambda _, aid=app["id"]: self._open_install(aid))

@@ -39,6 +39,9 @@ Thumbs.db
 .codex/
 .codex
 
+# Kiro IDE
+.kiro/
+
 # Temp / broken installs
 =0.20.0
 
