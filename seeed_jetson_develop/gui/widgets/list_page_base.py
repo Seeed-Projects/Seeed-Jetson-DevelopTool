@@ -31,6 +31,8 @@ class ListPageBase(PageBase):
         self.items_data = []
         self.tab_buttons = {}
         self.search_input = None
+        self._tabs_widget = None
+        self._tabs_layout = None
 
         # 调用父类初始化（构建基础结构）
         super().__init__(
@@ -127,6 +129,8 @@ class ListPageBase(PageBase):
         tabs_lay = QHBoxLayout(tabs_widget)
         tabs_lay.setContentsMargins(0, 0, 0, 0)
         tabs_lay.setSpacing(_pt(12))
+        self._tabs_widget = tabs_widget
+        self._tabs_layout = tabs_lay
 
         # 标签页按钮
         categories = self.get_categories()
