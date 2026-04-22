@@ -4,6 +4,56 @@
 
 ---
 
+## [2026-04-22] GUI 多语言翻译完善（French / Spanish / German 内容补齐）
+
+### 背景
+
+多语言框架已落地，但 `fr`、`es`、`de` 的 locale JSON 中约 78% 的字符串仍是英文占位文案，切换语言后用户看到的仍大多是英文，未达到「可交付」状态。术语也没有统一对齐 NVIDIA 本地化页面的用词。
+
+### 方案
+
+在不改动 i18n 框架的前提下，按 NVIDIA Jetson 官方本地化页面的术语基线（`kit de développement` / `kit de desarrollador` / `Entwicklerkit`、`flashage` / `flasheo` / `Flashen`、`mode de récupération` / `modo de recuperación` / `Wiederherstellungsmodus` 等）补齐 `fr`、`es`、`de` 三语 locale JSON。保留产品名、CLI、服务名（Jetson、Orin、reComputer、JetPack、L4T、SSH、VNC/noVNC、Node.js、Ollama、ROS 2、x11vnc 等）不翻译。
+
+### 改动文件
+
+| 文件 | 改动内容 |
+|------|----------|
+| `seeed_jetson_develop/locales/fr/*.json` | 9 个 locale 文件全量补译，约 600 条新增翻译 |
+| `seeed_jetson_develop/locales/es/*.json` | 9 个 locale 文件全量补译，约 600 条新增翻译 |
+| `seeed_jetson_develop/locales/de/*.json` | 9 个 locale 文件全量补译，约 600 条新增翻译 |
+| `docs/i18n/TERMINOLOGY.md` | 扩充术语表（Firmware、Boot Disk、Headless、Subnet、Gateway、Serial Port、Wheel），并说明产品名/服务名/CLI 标识保留原文 |
+
+### 翻译覆盖
+
+| 文件 | fr / es / de 保留英文的条目（含保留不译的技术名词） |
+|------|:---:|
+| `ai_chat.json` | 1 / 1 / 1 |
+| `common.json` | 0 / 1 / 0 |
+| `community.json` | 3 / 3 / 4 |
+| `devices.json` | 5 / 5 / 5 |
+| `flash.json` | 2 / 2 / 5 |
+| `main.json` | 6 / 6 / 7 |
+| `apps.json` | 32 / 31 / 32 |
+| `skills.json` | 9 / 8 / 9 |
+| `remote.json` | 8 / 8 / 12 |
+
+剩余与英文一致的字符串均为产品名、品牌、CLI 命令、协议缩写等有意保留的条目。
+
+### 验证
+
+```bash
+python -m unittest tests.test_i18n -v
+python scripts/check_locales.py
+python -m py_compile seeed_jetson_develop/gui/main_window_v2.py \
+  seeed_jetson_develop/gui/i18n.py \
+  seeed_jetson_develop/gui/runtime_i18n.py \
+  seeed_jetson_develop/core/config.py
+```
+
+`scripts/check_locales.py` 确认 `de` / `en` / `es` / `fr` / `zh-CN` 均为 773 个 key，5 个 locale 完全对齐。Offscreen 烟雾测试在 `en` / `fr` / `es` / `de` 间切换正常，关键文案（侧边栏、Flash 向导、设备连接卡片）均渲染为目标语言。
+
+---
+
 ## [2026-04-22] GUI 多语言本地化（English / French / Spanish / German）
 
 ### 背景

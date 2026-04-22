@@ -26,6 +26,17 @@ NVIDIA localized Jetson pages use these terms for developer kits:
 | Diagnostics | Diagnostic | Diagnóstico | Diagnose |
 | Peripherals | Périphériques | Periféricos | Peripheriegeräte |
 | Deploy | Déployer | Desplegar | Bereitstellen |
+| Firmware | Firmware | Firmware | Firmware |
+| Boot Disk | Disque de démarrage | Disco de arranque | Boot-Datenträger |
+| Headless | Sans écran (headless) | Headless | Headless |
+| Subnet | Sous-réseau | Subred | Subnetz |
+| Gateway | Passerelle | Pasarela | Gateway |
+| Serial Port | Port série | Puerto serie | Serieller Port |
+| Wheel (Python) | wheel | wheel | Wheel |
+
+Product names (Orin Nano, Orin NX, Jetson Nano, reComputer, etc.) are not
+translated. Service names (x11vnc, noVNC, Docker, Ollama, Node.js) and CLI
+identifiers (claude, codex, openclaw, aria2c, lsusb, jtop) are kept verbatim.
 
 ## Sources
 
