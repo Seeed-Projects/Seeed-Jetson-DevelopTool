@@ -1,3 +1,32 @@
+## [2026-04-22] GUI Localization Update
+
+Implemented French, Spanish, and German GUI localization on branch `feat/language-additions`.
+
+### Summary
+
+- Added a central language registry for `English`, `Français`, `Español`, `Deutsch`, and retained `中文`.
+- Extended config language normalization for `fr-FR/fr_FR`, `es-ES/es_ES`, `de-DE/de_DE`, and existing Chinese aliases.
+- Switched the V2 language menu from hard-coded English/Chinese to registry-driven choices with persisted selection.
+- Added `fr`, `es`, and `de` locale directories mirroring the existing JSON files.
+- Added fallback-aware translation lookup with `default=` so app/skill catalog data can localize known entries and still show raw upstream text for new entries.
+- Localized app and skill cards, selected dialog strings, AI chat prompts, and runtime fallback strings.
+- Updated locale validation to scan every locale directory with `utf-8-sig` and report missing/extra keys.
+- Added `docs/i18n/TERMINOLOGY.md` for Jetson/NVIDIA terminology choices.
+- Updated packaging so legacy `setup.py` includes `locales/*/*.json`.
+
+### Validation
+
+```bash
+python -m unittest tests.test_i18n -v
+python scripts/check_locales.py
+python -m compileall -q seeed_jetson_develop/gui seeed_jetson_develop/modules
+python -m pip wheel . -w .tmp_wheel --no-deps
+```
+
+Wheel inspection confirmed `locales/en`, `locales/fr`, `locales/es`, `locales/de`, and `locales/zh-CN` each include 9 JSON files.
+
+---
+
 d:\Seeed-Jetson-DevelopTool\Seeed-Jetson-DevelopTool\docs\CHANGELOG_LOCAL.md
 Bash
 IN

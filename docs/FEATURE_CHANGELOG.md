@@ -4,6 +4,51 @@
 
 ---
 
+## [2026-04-22] GUI 多语言本地化（English / French / Spanish / German）
+
+### 背景
+
+V2 PyQt GUI 原本已有语言切换入口，但菜单只硬编码 `English` / `中文`，locale JSON 也只包含 `en` 和 `zh-CN`。用户安装后无法在 GUI 中选择 French、Spanish、German，也缺少统一的语言注册、系统语言初始化、locale 校验和安装包资源覆盖。
+
+### 方案
+
+沿用现有 JSON i18n 体系，不引入 Qt `.qm` 翻译链路。新增统一语言注册表，扩展配置层语言规范化和系统语言检测，让首次启动按 OS 语言选择支持的 locale，否则回退 English。新增 `fr`、`es`、`de` locale 目录，并保留 `zh-CN` 兼容现有用户。
+
+### 改动文件
+
+| 文件 | 改动内容 |
+|------|----------|
+| `seeed_jetson_develop/core/config.py` | 默认语言改为 `en`；新增 `SUPPORTED_LANGUAGES`；支持 `fr-FR/fr_FR`、`es-ES/es_ES`、`de-DE/de_DE`、`zh-CN/zh_CN` 等别名；未保存语言时读取 OS locale |
+| `seeed_jetson_develop/gui/i18n.py` | 新增语言注册表和显示标签；`t()` 支持 `default=` fallback；locale 读取支持 `utf-8-sig` |
+| `seeed_jetson_develop/gui/main_window_v2.py` | 语言菜单改为注册表驱动；切换后持久化；侧边栏/窗口宽度从 English-only 判断改为非中文长标签布局 |
+| `seeed_jetson_develop/gui/runtime_i18n.py` | 旧运行时翻译层支持规范化语言和 English locale value fallback，兼容 lazy-loaded 页面和旧 widget 文案 |
+| `seeed_jetson_develop/locales/fr`, `es`, `de` | 新增 French、Spanish、German locale JSON，覆盖现有 9 个 locale 文件 |
+| `seeed_jetson_develop/locales/en`, `zh-CN` | 增补 app/skill data-backed keys、后台运行/取消对话框 keys；补齐 `remote.conn.btn.terminal` |
+| `seeed_jetson_develop/modules/apps/page.py` | App 名称、类别、描述改为 key-based lookup，缺失时回退原始 catalog 文案 |
+| `seeed_jetson_develop/modules/skills/page.py` | Skill 名称、描述改为 key-based lookup，缺失时回退原始 catalog 文案 |
+| `seeed_jetson_develop/gui/ai_chat.py` | AI system prompt 按所选语言要求回答；Skills/Apps 上下文使用本地化 catalog 文案 |
+| `seeed_jetson_develop/data/recovery_guides.py` / `modules/flash/page.py` | Recovery guide 对非中文语言使用英文 guide 字段，避免回退到中文 |
+| `scripts/check_locales.py` | 校验所有 locale 目录；支持 UTF-8 BOM；报告 missing/extra keys |
+| `setup.py` | legacy packaging 增加 `locales/*/*.json` |
+| `docs/i18n/TERMINOLOGY.md` | 记录 NVIDIA/Jetson 术语基线和来源链接 |
+| `tests/test_i18n.py` | 增加语言别名、OS fallback、保存语言优先级、translation default fallback 单元测试 |
+
+### 术语基线
+
+- 保留产品、SDK、协议、包名：Jetson、Orin、JetPack、L4T、BSP、CUDA、TensorRT、cuDNN、DeepStream、VPI、Riva、Isaac、NGC、SDK Manager、Docker、PyTorch、Jupyter Lab、VS Code、SSH、VNC/noVNC、RTSP、GMSL、NVMe、HDMI、USB、SHA256、jtop。
+- UI 默认术语：FR `Flashage` / `Mode de récupération` / `Développement à distance`，ES `Flasheo` / `Modo de recuperación` / `Desarrollo remoto`，DE `Flashen` / `Wiederherstellungsmodus` / `Remote-Entwicklung`。
+
+### 验证
+
+```bash
+python -m unittest tests.test_i18n -v
+python scripts/check_locales.py
+python -m compileall -q seeed_jetson_develop/gui seeed_jetson_develop/modules
+python -m pip wheel . -w .tmp_wheel --no-deps
+```
+
+Wheel 检查确认 `en`、`fr`、`es`、`de`、`zh-CN` 每个 locale 目录都包含 9 个 JSON 文件。
+
 ## [2026-04-13] 跨平台 UI 参数分离（PlatformUI）
 
 ### 背景
