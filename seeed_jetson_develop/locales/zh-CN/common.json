@@ -23,5 +23,7 @@
   "common.status.no_device": "未连接设备",
   "common.search_placeholder": "搜索...",
   "common.no_data": "暂无数据",
-  "common.category": "类别"
+  "common.category": "类别",
+  "common.app_error.title": "程序错误",
+  "common.app_error.body": "发生未捕获异常，详情已写入:\n{log}\n\n{msg}"
 }

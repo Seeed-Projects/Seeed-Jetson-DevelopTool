@@ -23,5 +23,7 @@
   "common.status.no_device": "Aucun appareil connecté",
   "common.search_placeholder": "Rechercher...",
   "common.no_data": "Aucune donnée",
-  "common.category": "Catégorie"
+  "common.category": "Catégorie",
+  "common.app_error.title": "Erreur de l’application",
+  "common.app_error.body": "Une exception non gérée est survenue. Détails enregistrés dans :\n{log}\n\n{msg}"
 }

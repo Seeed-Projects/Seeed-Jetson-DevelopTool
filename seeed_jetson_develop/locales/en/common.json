@@ -23,5 +23,7 @@
   "common.status.no_device": "No Device Connected",
   "common.search_placeholder": "Search...",
   "common.no_data": "No data",
-  "common.category": "Category"
+  "common.category": "Category",
+  "common.app_error.title": "Application Error",
+  "common.app_error.body": "An uncaught exception occurred. Details written to:\n{log}\n\n{msg}"
 }

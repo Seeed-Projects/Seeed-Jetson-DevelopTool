@@ -23,5 +23,7 @@
   "common.status.no_device": "Kein Gerät verbunden",
   "common.search_placeholder": "Suchen...",
   "common.no_data": "Keine Daten",
-  "common.category": "Kategorie"
+  "common.category": "Kategorie",
+  "common.app_error.title": "Anwendungsfehler",
+  "common.app_error.body": "Eine nicht behandelte Ausnahme ist aufgetreten. Details wurden geschrieben in:\n{log}\n\n{msg}"
 }

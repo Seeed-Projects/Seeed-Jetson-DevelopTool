@@ -23,5 +23,7 @@
   "common.status.no_device": "Sin dispositivo conectado",
   "common.search_placeholder": "Buscar...",
   "common.no_data": "Sin datos",
-  "common.category": "Categoría"
+  "common.category": "Categoría",
+  "common.app_error.title": "Error de la aplicación",
+  "common.app_error.body": "Se produjo una excepción no controlada. Detalles guardados en:\n{log}\n\n{msg}"
 }
