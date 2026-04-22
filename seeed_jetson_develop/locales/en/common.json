@@ -1,4 +1,4 @@
-﻿{
+{
   "common.ok": "OK",
   "common.yes": "Yes",
   "common.no": "No",
@@ -22,7 +22,6 @@
   "common.status.remote_connected": "Remote Connected",
   "common.status.no_device": "No Device Connected",
   "common.search_placeholder": "Search...",
-  "common.no_data": "No data"
+  "common.no_data": "No data",
+  "common.category": "Category"
 }
-
-

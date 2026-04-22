@@ -19,6 +19,7 @@ from seeed_jetson_develop.gui.runtime_i18n import (
     get_current_lang,
     translate_text,
 )
+from seeed_jetson_develop.core.config import normalize_language
 from seeed_jetson_develop.modules.remote.net_share import (
     detect_wan_interface, list_interfaces,
     enable_nat, disable_nat,
@@ -66,11 +67,13 @@ class _JetsonGatewayThread(QThread):
         super().__init__()
         self._runner = runner
         self._gateway = gateway
-        self._lang = lang
+        self._lang = normalize_language(lang)
         self._lan_iface = lan_iface
 
     def _msg(self, zh: str, en: str) -> str:
-        return zh if self._lang == "zh" else en
+        if self._lang == "zh-CN":
+            return zh
+        return translate_text(en, self._lang)
 
     def _sync_time(self) -> str:
         cmd = build_jetson_time_sync_cmd(self._runner.sudo_password)
@@ -180,7 +183,7 @@ class NetShareDialog(QDialog):
         self._refresh_thread: _RefreshThread | None = None
         self._sharing = False
         self._jetson_ip = jetson_ip
-        self._lang = get_current_lang(parent)
+        self._lang = normalize_language(get_current_lang(parent))
         self._ip_label: QLabel | None = None
 
         self.setWindowTitle("PC 网络共享")
@@ -315,8 +318,8 @@ class NetShareDialog(QDialog):
         self._refresh_ifaces()
 
         # 应用语言翻译
-        if self._lang == "en":
-            apply_language(self, "en")
+        if not self._is_chinese():
+            apply_language(self, self._lang)
 
     def _combo_style(self) -> str:
         return (
@@ -429,8 +432,11 @@ class NetShareDialog(QDialog):
     def _tr(self, text: str) -> str:
         return translate_text(text, self._lang)
 
+    def _is_chinese(self) -> bool:
+        return self._lang == "zh-CN"
+
     def _format_jetson_ip_text(self) -> str:
-        if self._lang == "en":
+        if not self._is_chinese():
             return (
                 f"Current Jetson IP: {self._jetson_ip} "
                 f"(LAN interface auto-matched via SSH connection)"
@@ -439,13 +445,13 @@ class NetShareDialog(QDialog):
 
     def _format_enabled_status(self) -> str:
         wan, lan = self._get_wan(), self._get_lan()
-        if self._lang == "en":
+        if not self._is_chinese():
             return f"Enabled: {wan} -> {lan}"
         return f"已开启：{wan} -> {lan}"
 
     def _format_manual_gateway_log(self) -> tuple[str, str, str]:
         lan_ip = get_interface_ip(self._get_lan())
-        gw = lan_ip or ("<PC LAN interface IP>" if self._lang == "en" else "<PC LAN 网卡 IP>")
+        gw = lan_ip or ("<PC LAN 网卡 IP>" if self._is_chinese() else "<PC LAN interface IP>")
         if lan_ip:
             cmd = (
                 f"sudo ip route replace default via {gw}\n"
@@ -456,7 +462,7 @@ class NetShareDialog(QDialog):
                 "sudo ip route replace default via <PC LAN IP>\n"
                 "echo 'nameserver 8.8.8.8' | sudo tee /etc/resolv.conf"
             )
-        if self._lang == "en":
+        if not self._is_chinese():
             return (
                 "⚠ No SSH connection established. Jetson gateway cannot be configured automatically.",
                 f"Run these commands on Jetson manually (gateway: {gw}):",
@@ -470,12 +476,12 @@ class NetShareDialog(QDialog):
 
     def _format_missing_lan_ip_log(self) -> str:
         lan = self._get_lan()
-        if self._lang == "en":
+        if not self._is_chinese():
             return f"⚠ Unable to get the IP address of LAN interface ({lan}), so Jetson cannot be configured automatically."
         return f"⚠ 无法获取 LAN 网卡 ({lan}) 的 IP 地址，无法自动配置 Jetson。"
 
     def _format_configuring_gateway_log(self, lan_ip: str) -> str:
-        if self._lang == "en":
+        if not self._is_chinese():
             return f"Configuring Jetson gateway via SSH -> {lan_ip}, DNS -> 8.8.8.8 ..."
         return f"正在通过 SSH 配置 Jetson 网关 → {lan_ip}，DNS → 8.8.8.8 …"
 

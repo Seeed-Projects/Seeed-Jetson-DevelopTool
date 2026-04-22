@@ -1,18 +1,43 @@
 """全局配置持久化"""
 import json
 import os
+import locale
 import logging
 from pathlib import Path
 
 _CONFIG_PATH = Path.home() / ".config" / "seeed-jetson-tool" / "config.json"
 log = logging.getLogger("seeed.core.config")
 DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
-DEFAULT_LANGUAGE = "zh-CN"
+DEFAULT_LANGUAGE = "en"
+SUPPORTED_LANGUAGES = ("en", "fr", "es", "de", "zh-CN")
 LANGUAGE_ALIASES = {
+    "en": "en",
     "zh": "zh-CN",
     "zh-cn": "zh-CN",
+    "zh_cn": "zh-CN",
+    "zh-cn.utf-8": "zh-CN",
+    "zh_cn.utf-8": "zh-CN",
     "en-us": "en",
+    "en_us": "en",
+    "en-us.utf-8": "en",
+    "en_us.utf-8": "en",
     "en-gb": "en",
+    "en_gb": "en",
+    "fr": "fr",
+    "fr-fr": "fr",
+    "fr_fr": "fr",
+    "fr-fr.utf-8": "fr",
+    "fr_fr.utf-8": "fr",
+    "es": "es",
+    "es-es": "es",
+    "es_es": "es",
+    "es-es.utf-8": "es",
+    "es_es.utf-8": "es",
+    "de": "de",
+    "de-de": "de",
+    "de_de": "de",
+    "de-de.utf-8": "de",
+    "de_de.utf-8": "de",
 }
 
 
@@ -34,15 +59,58 @@ def save(data: dict):
     _CONFIG_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def normalize_language(lang: str | None) -> str:
+def _canonical_language(lang: str | None) -> str | None:
     value = (lang or "").strip()
     if not value:
-        return DEFAULT_LANGUAGE
-    return LANGUAGE_ALIASES.get(value.lower(), value)
+        return None
+
+    # LANGUAGE may contain a priority list, for example "fr_FR:en_US".
+    value = value.split(":", 1)[0].strip()
+    value = value.split(".", 1)[0].strip()
+    key = value.replace("_", "-").lower()
+    if not key:
+        return None
+
+    if key in LANGUAGE_ALIASES:
+        return LANGUAGE_ALIASES[key]
+
+    primary = key.split("-", 1)[0]
+    if primary in {"en", "fr", "es", "de"}:
+        return primary
+    if primary == "zh":
+        return "zh-CN"
+    return None
+
+
+def normalize_language(lang: str | None) -> str:
+    return _canonical_language(lang) or DEFAULT_LANGUAGE
+
+
+def detect_system_language() -> str:
+    candidates = [
+        os.environ.get("LANGUAGE"),
+        os.environ.get("LC_ALL"),
+        os.environ.get("LC_MESSAGES"),
+        os.environ.get("LANG"),
+    ]
+    try:
+        loc = locale.getlocale()[0]
+    except Exception:
+        loc = None
+    candidates.append(loc)
+
+    for candidate in candidates:
+        normalized = _canonical_language(candidate)
+        if normalized in SUPPORTED_LANGUAGES:
+            return normalized
+    return DEFAULT_LANGUAGE
 
 
 def get_language() -> str:
-    return normalize_language(load().get("language", DEFAULT_LANGUAGE))
+    data = load()
+    if "language" in data:
+        return normalize_language(data.get("language"))
+    return detect_system_language()
 
 
 def set_language(lang: str):

@@ -29,7 +29,7 @@ from .theme import (
 from ..core.platform_detect import is_jetson
 from ..core.events import bus
 from .ai_chat import FloatingAIAssistant, build_ai_system_prompt
-from .i18n import get_language, set_language as _save_language, t
+from .i18n import get_language, language_options, set_language as _save_language, t
 from .runtime_i18n import apply_language
 
 
@@ -341,6 +341,15 @@ class MainWindowV2(QMainWindow):
             app.installEventFilter(self)
         self._init_ui()
 
+    def _uses_wide_language_layout(self) -> bool:
+        return self._lang != "zh-CN"
+
+    def _window_min_width(self) -> int:
+        return 1180 if self._uses_wide_language_layout() else 1080
+
+    def _sidebar_width(self) -> int:
+        return pt(240) if self._uses_wide_language_layout() else pt(200)
+
     def _load_data(self):
         try:
             with open(self.data_path / "l4t_data.json", encoding="utf-8") as f:
@@ -360,7 +369,7 @@ class MainWindowV2(QMainWindow):
 
     def _init_ui(self):
         self.setWindowTitle(t("main.app_title", lang=self._lang))
-        self.setMinimumSize(1120 if self._lang == "en" else 1080, 720)
+        self.setMinimumSize(self._window_min_width(), 720)
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         self.setMouseTracking(True)   # 不按键也能收到 mouseMoveEvent，用于边缘 cursor 更新
 
@@ -476,7 +485,7 @@ class MainWindowV2(QMainWindow):
         self.lang_menu_btn = QToolButton()
         self.lang_menu_btn.setCursor(Qt.PointingHandCursor)
         self.lang_menu_btn.setPopupMode(QToolButton.InstantPopup)
-        self.lang_menu_btn.setFixedSize(pt(124), pt(34))
+        self.lang_menu_btn.setFixedSize(pt(132), pt(34))
         self.lang_menu_btn.setStyleSheet(f"""
             QToolButton {{
                 background: rgba(255,255,255,0.06);
@@ -522,7 +531,7 @@ class MainWindowV2(QMainWindow):
             }}
         """)
         self._lang_actions = {}
-        for code, text in [("en", "English"), ("zh-CN", "中文")]:
+        for code, text in language_options():
             action = self.lang_menu.addAction(text)
             action.setCheckable(True)
             action.triggered.connect(lambda checked=False, lang=code: self._set_language(lang))
@@ -639,7 +648,7 @@ class MainWindowV2(QMainWindow):
         super().mouseReleaseEvent(ev)
 
     def eventFilter(self, src, ev):
-        if self._lang == "en" and ev.type() == QEvent.Show and src is self:
+        if self._uses_wide_language_layout() and ev.type() == QEvent.Show and src is self:
             QTimer.singleShot(0, self._apply_runtime_language)
         if src is getattr(self, "_titlebar", None):
             if ev.type() == QEvent.MouseButtonDblClick:
@@ -657,7 +666,7 @@ class MainWindowV2(QMainWindow):
     # ── 侧边栏 - 带右侧微光分隔线 ──────────────────────
     def _build_sidebar(self):
         sidebar = QWidget()
-        sidebar.setFixedWidth(pt(220) if self._lang == "en" else pt(200))
+        sidebar.setFixedWidth(self._sidebar_width())
         sidebar.setStyleSheet(f"""
             background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
                 stop:0 {C_BG_DEEP}, stop:1 #0D1520);
@@ -725,9 +734,13 @@ class MainWindowV2(QMainWindow):
             self.stack.removeWidget(self._apps_placeholder)
             self.stack.insertWidget(_apps_idx, real_page)
             self._apps_placeholder.deleteLater()
-            if self._lang == "en":
-                from .runtime_i18n import apply_language
-                apply_language(real_page, "en")
+            if hasattr(real_page, "retranslate_ui"):
+                try:
+                    real_page.retranslate_ui(self._lang)
+                except TypeError:
+                    real_page.retranslate_ui()
+            else:
+                apply_language(real_page, self._lang)
         # Skills 页面（index=4）首次访问时懒加载
         if idx == 4 and not self._skills_built:
             try:
@@ -746,9 +759,13 @@ class MainWindowV2(QMainWindow):
             self.stack.removeWidget(self._skills_placeholder)
             self.stack.insertWidget(_skills_idx, real_page)
             self._skills_placeholder.deleteLater()
-            if self._lang == "en":
-                from .runtime_i18n import apply_language
-                apply_language(real_page, "en")
+            if hasattr(real_page, "retranslate_ui"):
+                try:
+                    real_page.retranslate_ui(self._lang)
+                except TypeError:
+                    real_page.retranslate_ui()
+            else:
+                apply_language(real_page, self._lang)
         self._current_page = idx
         self.stack.setCurrentIndex(idx)
         for i, btn in enumerate(self._nav_btns):
@@ -855,9 +872,9 @@ class MainWindowV2(QMainWindow):
 
     def _apply_runtime_language(self):
         apply_language(self, self._lang)
-        self.setMinimumSize(1120 if self._lang == "en" else 1080, 720)
+        self.setMinimumSize(self._window_min_width(), 720)
         if hasattr(self, "_sidebar"):
-            self._sidebar.setFixedWidth(pt(220) if self._lang == "en" else pt(200))
+            self._sidebar.setFixedWidth(self._sidebar_width())
         if hasattr(self, "status_dot"):
             self.status_dot.setText(t("common.ready", lang=self._lang))
         if hasattr(self, "_title_label"):

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 
+from seeed_jetson_develop.core.config import DEFAULT_LANGUAGE, normalize_language
 from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -18,6 +19,26 @@ from PyQt5.QtWidgets import (
     QPushButton,
     QWidget,
 )
+
+_EN_VALUE_TO_KEY: dict[str, str] | None = None
+
+
+def _translate_english_text(source: str, lang: str) -> str:
+    if lang == "en":
+        return source
+    global _EN_VALUE_TO_KEY
+    try:
+        from seeed_jetson_develop.gui.i18n import load_locale, t
+        if _EN_VALUE_TO_KEY is None:
+            _EN_VALUE_TO_KEY = {}
+            for key, value in load_locale("en").items():
+                _EN_VALUE_TO_KEY.setdefault(value, key)
+        key = _EN_VALUE_TO_KEY.get(source)
+        if key:
+            return t(key, lang=lang, default=source)
+    except Exception:
+        pass
+    return source
 
 
 ZH_EN_EXACT = {
@@ -592,19 +613,20 @@ ZH_EN_PATTERNS = [
 
 
 def translate_text(source: str, lang: str) -> str:
-    if not source or lang in {"zh", "zh-CN"}:
+    lang = normalize_language(lang)
+    if not source or lang == "zh-CN":
         return source
 
     exact = ZH_EN_EXACT.get(source)
     if exact is not None:
-        return exact
+        return _translate_english_text(exact, lang)
 
     for pattern, repl in ZH_EN_PATTERNS:
         match = pattern.match(source)
         if match:
-            return repl(match)
+            return _translate_english_text(repl(match), lang)
 
-    return source
+    return _translate_english_text(source, lang)
 
 
 def _translate_property(widget: QWidget, getter_name: str, setter_name: str, prop_name: str, lang: str):
@@ -684,7 +706,7 @@ def apply_language(widget: QWidget, lang: str):
 
 
 def get_current_lang(widget=None) -> str:
-    """从最近的主窗口获取当前语言，找不到则返回 'zh'。"""
+    """从最近的主窗口获取当前语言，找不到则返回默认语言。"""
     try:
         if widget is not None:
             win = widget.window()
@@ -701,11 +723,11 @@ def get_current_lang(widget=None) -> str:
                     return lang
     except Exception:
         pass
-    return "zh"
+    return DEFAULT_LANGUAGE
 
 
 def apply_dialog_language(dialog: QWidget, parent=None):
     """在弹窗显示前调用，自动检测当前语言并翻译弹窗内所有 widget。"""
     lang = get_current_lang(parent or dialog)
-    if lang != "zh":
+    if normalize_language(lang) != "zh-CN":
         apply_language(dialog, lang)

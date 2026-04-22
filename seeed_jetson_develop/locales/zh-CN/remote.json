@@ -60,6 +60,7 @@
   "remote.conn.btn.connecting": "连接中...",
   "remote.conn.btn.scan": "扫描局域网",
   "remote.conn.btn.scanning": "扫描中...",
+  "remote.conn.btn.terminal": "打开终端",
   "remote.scan.scanning_lan": "正在扫描局域网...",
   "remote.scan.progress": "扫描中... {scanned}/{total}",
   "remote.scan.found_prefix": "发现设备：",
@@ -220,8 +221,7 @@
   "remote.agent_install.install_failed": "安装失败（rc={rc}）",
   "remote.agent_install.troubleshooting": "排查建议：",
   "remote.agent_install.tip.network": "  - 确保 Jetson 可联网",
-  "remote.agent_install.tip.permissions": "  - 若 npm 权限不足，请在 Jetson 终端手动重试"
-  ,
+  "remote.agent_install.tip.permissions": "  - 若 npm 权限不足，请在 Jetson 终端手动重试",
   "remote.jetson_init.window_title": "Jetson 初始化",
   "remote.jetson_init.title": "Jetson 初始化",
   "remote.jetson_init.subtitle": "烧录完成后，通过串口完成首次启动配置。",

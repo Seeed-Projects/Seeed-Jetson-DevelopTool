@@ -258,6 +258,8 @@ GUIDES = {
     },
 }
 
+from seeed_jetson_develop.core.config import normalize_language
+
 # product key -> guide key 映射
 PRODUCT_GUIDE_MAP = {
     # mini
@@ -291,15 +293,15 @@ PRODUCT_GUIDE_MAP = {
 }
 
 
-def get_guide(product: str, lang: str = "zh") -> dict | None:
-    """返回指定产品的 Recovery 指南，lang='en' 时返回英文字段。"""
+def get_guide(product: str, lang: str = "zh-CN") -> dict | None:
+    """返回指定产品的 Recovery 指南；非中文语言复用英文字段。"""
     key = PRODUCT_GUIDE_MAP.get(product)
     if not key:
         return None
     g = GUIDES.get(key)
     if not g:
         return None
-    if lang == "en":
+    if normalize_language(lang) != "zh-CN":
         return {
             "title":       g.get("title_en") or g["title"],
             "cable":       g.get("cable_en") or g["cable"],

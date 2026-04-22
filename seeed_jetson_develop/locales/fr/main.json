@@ -1,0 +1,14 @@
+{
+  "main.app_title": "Seeed Jetson Develop Tool",
+  "main.title.tool": "Jetson Develop Tool",
+  "main.brand.workspace": "Espace de travail développeur Jetson",
+  "main.nav.flash": "Flashage",
+  "main.nav.devices": "Appareils",
+  "main.nav.apps": "App Market",
+  "main.nav.skills": "Skills",
+  "main.nav.remote": "Dév. à distance",
+  "main.nav.community": "Communauté",
+  "main.lazy.apps_error_title": "App Market",
+  "main.lazy.skills_error_title": "Skills",
+  "main.lazy.load_error_message": "La page n’a pas pu se charger. Réessayez ou consultez le journal."
+}
