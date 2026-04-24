@@ -6,6 +6,8 @@ product_key -> {
     "image_url", "local_image", "note"
 }
 """
+from __future__ import annotations
+
 
 # USB ID 组合
 NX_IDS = [

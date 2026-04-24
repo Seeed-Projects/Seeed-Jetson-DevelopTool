@@ -4,8 +4,10 @@ include requirements.txt
 include pyproject.toml
 recursive-include seeed_jetson_develop/data *.json
 recursive-include seeed_jetson_develop/locales *.json
+recursive-include seeed_jetson_develop/assets/devices *
 recursive-include seeed_jetson_develop/assets/recovery *
 recursive-include seeed_jetson_develop/modules *.json
+recursive-include seeed_jetson_develop/skills *
 prune seeed_jetson_develop/tmp-refer
 global-exclude __pycache__
 global-exclude *.pyc

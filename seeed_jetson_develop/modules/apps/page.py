@@ -1,4 +1,6 @@
 """App marketplace page."""
+from __future__ import annotations
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton, QLineEdit,
@@ -277,7 +279,7 @@ class _InstallThread(QThread):
                 self.done.emit(False)
                 return
             self.log.emit(f"\n$ {cmd}")
-            _timeout = 7200 if ("Download" in cmd or "wget" in cmd or "aria2c" in cmd or "docker load" in cmd) else 600
+            _timeout = 7200 if ("Download" in cmd or "wget" in cmd or "aria2c" in cmd or "docker load" in cmd or "apt-get install" in cmd) else 600
             rc, _ = runner.run(cmd, timeout=_timeout, on_output=lambda l: self.log.emit(l))
             if rc != 0:
                 self.log.emit(f"[failed] rc={rc}")

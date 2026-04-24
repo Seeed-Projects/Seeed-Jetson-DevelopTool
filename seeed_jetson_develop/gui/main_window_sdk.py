@@ -36,6 +36,7 @@ from ..modules.devices.page import build_page as build_devices_page
 from ..modules.apps.page import build_page as build_apps_page
 from ..modules.skills.page import build_page as build_skills_page
 from ..modules.remote.page import build_page as build_remote_page
+from ..resources import resolve_runtime_path
 import requests
 
 
@@ -530,12 +531,12 @@ class MainWindow(QMainWindow):
         self.stack = QStackedWidget()
         self.stack.setObjectName("MainStack")
         self.stack.addWidget(self.create_flash_page())      # 0
-        self.stack.addWidget(self.create_recovery_page())   # 1
-        self.stack.addWidget(self.create_about_page())      # 2
-        self.stack.addWidget(build_devices_page())          # 3
-        self.stack.addWidget(build_apps_page())             # 4
-        self.stack.addWidget(build_skills_page())           # 5
-        self.stack.addWidget(build_remote_page())           # 6
+        self.stack.addWidget(build_remote_page())           # 1
+        self.stack.addWidget(self.create_recovery_page())   # 2
+        self.stack.addWidget(self.create_about_page())      # 3
+        self.stack.addWidget(build_devices_page())          # 4
+        self.stack.addWidget(build_apps_page())             # 5
+        self.stack.addWidget(build_skills_page())           # 6
         right_layout.addWidget(self.stack, 1)
         self.add_elevation(self.stack, blur=18, y_offset=2, alpha=36)
 
@@ -626,8 +627,8 @@ class MainWindow(QMainWindow):
         self.logo_label.setObjectName("BrandLogo")
         self.logo_label.setAlignment(Qt.AlignCenter)
         self.logo_label.setMinimumHeight(58)
-        logo_path = self.project_root / "assets" / "seeed-logo-blend.png"
-        if logo_path.exists():
+        logo_path = resolve_runtime_path("assets/seeed-logo-blend.png")
+        if logo_path and logo_path.exists():
             pix = QPixmap(str(logo_path))
             if not pix.isNull():
                 scaled = pix.scaled(178, 56, Qt.KeepAspectRatio, Qt.SmoothTransformation)
@@ -648,8 +649,8 @@ class MainWindow(QMainWindow):
         gap.setStyleSheet("background: transparent;")
         layout.addWidget(gap)
 
-        nav_keys = ["nav_flash", "nav_recovery", "nav_about",
-                    "nav_devices", "nav_apps", "nav_skills", "nav_remote"]
+        nav_keys = ["nav_flash", "nav_remote", "nav_recovery", "nav_about",
+                    "nav_devices", "nav_apps", "nav_skills"]
         for idx, key in enumerate(nav_keys):
             btn = QPushButton()
             btn.setCursor(Qt.PointingHandCursor)
@@ -1097,8 +1098,8 @@ class MainWindow(QMainWindow):
     def load_recovery_image(self, url, local_image=""):
         """Load recovery image from bundled assets first, then local cache, then remote."""
         if local_image:
-            local_asset = self.project_root / local_image
-            if local_asset.exists():
+            local_asset = resolve_runtime_path(local_image)
+            if local_asset and local_asset.exists():
                 pixmap = QPixmap(str(local_asset))
                 if not pixmap.isNull():
                     return pixmap

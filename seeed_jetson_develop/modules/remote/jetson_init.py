@@ -959,13 +959,8 @@ class JetsonNetConfigDialog(QDialog):
         self._i18n.apply(self._lang)
 
     def _input_style(self) -> str:
-        return (
-            f"QLineEdit {{"
-            f" background:{C_CARD_LIGHT}; border:none; border-radius:8px;"
-            f" padding:6px 10px; color:{C_TEXT}; font-size:{pt(11)}pt;"
-            f"}}"
-            f" QLineEdit:focus {{ background:#2a3040; }}"
-        )
+        from seeed_jetson_develop.gui.theme import input_qss
+        return input_qss(radius=8, font_size=11)
 
     def _combo_style(self) -> str:
         return (
@@ -1100,12 +1095,41 @@ class JetsonNetConfigDialog(QDialog):
         con_name = f"static-{iface}"
         ip_cidr = f"{ip}/{mask}"
         pwd_escaped = pwd.replace("'", "'\\''")
+        # Build a command that tries nmcli first, then falls back to
+        # systemd-networkd (.network file), and finally to ip+route (runtime-only).
+        # NOTE: avoid real newlines and single-quotes inside the bash -c '...' string.
+        gw_nmcli = f" ipv4.gateway {gw}" if gw else ""
+        gw_route = f"ip route replace default via {gw} dev {iface} 2>/dev/null || true; " if gw else ""
+        # Build networkd file content using echo lines (no newlines or quotes in the shell string)
+        networkd_file = f"/etc/systemd/network/10-{iface}-static.network"
+        networkd_write = (
+            f"echo [Match] > {networkd_file}; "
+            f"echo Name={iface} >> {networkd_file}; "
+            f"echo >> {networkd_file}; "
+            f"echo [Network] >> {networkd_file}; "
+            f"echo Address={ip_cidr} >> {networkd_file}; "
+            + (f"echo Gateway={gw} >> {networkd_file}; " if gw else "")
+        )
         inner = (
-            f"nmcli con delete '{con_name}' 2>/dev/null; "
-            f"nmcli con add type ethernet ifname {iface} con-name '{con_name}' "
-            f"ipv4.method manual ipv4.addresses {ip_cidr}"
-            + (f" ipv4.gateway {gw}" if gw else "")
-            + f" && nmcli con up '{con_name}'"
+            # --- attempt 1: NetworkManager ---
+            f"if systemctl is-active --quiet NetworkManager 2>/dev/null; then "
+            f"nmcli con delete {con_name} 2>/dev/null; "
+            f"nmcli con add type ethernet ifname {iface} con-name {con_name} "
+            f"ipv4.method manual ipv4.addresses {ip_cidr}{gw_nmcli} && "
+            f"nmcli con up {con_name}; "
+            # --- attempt 2: systemd-networkd ---
+            f"elif systemctl is-active --quiet systemd-networkd 2>/dev/null; then "
+            f"{networkd_write}"
+            f"systemctl restart systemd-networkd && "
+            f"echo ok applied via systemd-networkd; "
+            # --- attempt 3: ip command (runtime, no persistence) ---
+            f"else "
+            f"ip addr flush dev {iface} 2>/dev/null || true; "
+            f"ip addr add {ip_cidr} dev {iface}; "
+            f"ip link set {iface} up; "
+            f"{gw_route}"
+            f"echo ok applied via ip command runtime only not persistent; "
+            f"fi"
         )
         command = f"echo '{pwd_escaped}' | sudo -S bash -c '{inner}'"
         self._apply_btn.setEnabled(False)

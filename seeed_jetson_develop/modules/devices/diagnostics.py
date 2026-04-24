@@ -1,4 +1,6 @@
 """Diagnostics definitions for quick checks, peripheral checks, and device info."""
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass
 from typing import Callable
@@ -205,7 +207,7 @@ INFO_CMDS: dict[str, str] = {
     "l4t":     "head -1 /etc/nv_tegra_release 2>/dev/null | awk '{gsub(\",\",\"\",$5); print $2\".\"$5}'",
     "memory":  "free -h | awk 'NR==2{print $3\"/\"$2}'",
     "storage": "df -h / | awk 'NR==2{print $3\"/\"$2\" (\"$5\" used)\"}'",
-    "ip":      "hostname -I 2>/dev/null | awk '{print $1}'",
+    "ip":      "ip -4 -br addr show 2>/dev/null | awk '$1!=\"lo\" && $3~/^192\\./ {printf \"%s %s\\n\", $1, $3}' | sed 's|/[0-9]*||g'",
     "temp":    "cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null | awk '{printf \"%.1f°C\", $1/1000}'",
 }
 

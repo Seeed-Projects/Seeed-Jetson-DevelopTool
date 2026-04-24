@@ -1,4 +1,6 @@
 """全局配置持久化"""
+from __future__ import annotations
+
 import json
 import os
 import logging

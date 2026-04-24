@@ -12,7 +12,7 @@ from seeed_jetson_develop.gui.theme import (
     C_BG, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3,
     apply_shadow, ask_question_message, make_button, make_card,
-    make_label, pt, show_warning_message, DropdownButton,
+    make_label, pt, show_warning_message, DropdownButton, input_qss,
 )
 from seeed_jetson_develop.gui.runtime_i18n import (
     apply_language,
@@ -243,11 +243,7 @@ class NetShareDialog(QDialog):
             self._sudo_edit.setEchoMode(QLineEdit.Password)
             self._sudo_edit.setPlaceholderText("本机管理员密码")
             self._sudo_edit.setFixedWidth(pt(180))
-            self._sudo_edit.setStyleSheet(
-                f"QLineEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:8px;"
-                f" padding:6px 10px; color:{C_TEXT}; font-size:{pt(11)}px; }}"
-                f" QLineEdit:focus {{ background:#2a3040; }}"
-            )
+            self._sudo_edit.setStyleSheet(input_qss(radius=8, font_size=11))
             pwd_row.addWidget(self._sudo_edit)
             pwd_row.addStretch()
             cl.addLayout(pwd_row)

@@ -2,6 +2,8 @@
 
 提供统一的头部、滚动区域、内容容器，适用于所有类型的页面。
 """
+from __future__ import annotations
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QScrollArea
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding

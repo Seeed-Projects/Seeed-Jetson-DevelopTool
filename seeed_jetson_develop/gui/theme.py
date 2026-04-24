@@ -342,15 +342,38 @@ def make_input_field(placeholder: str = "", multiline: bool = False) -> "QWidget
     else:
         w = QLineEdit()
         w.setPlaceholderText(placeholder)
-    w.setStyleSheet(f"""
-        background:{C_CARD_LIGHT};
-        border:none;
-        border-radius:{pt(8)}px;
-        padding:{pt(8)}px {pt(14)}px;
-        color:{C_TEXT};
-        font-size:{pt(12)}pt;
-    """)
+    w.setStyleSheet(input_qss())
     return w
+
+
+def input_qss(radius: int = 8, font_size: int = 12) -> str:
+    """返回统一的 QLineEdit 样式字符串，供各模块内联 setStyleSheet 使用。
+    使用深色背景 + 明显边框，确保输入框在深色主题下清晰可辨。
+    """
+    return (
+        f"QLineEdit {{"
+        f" background:#0D1520;"
+        f" border:1px solid rgba(255,255,255,0.18);"
+        f" border-radius:{radius}px;"
+        f" padding:8px 14px;"
+        f" color:{C_TEXT};"
+        f" font-size:{pt(font_size)}px;"
+        f" selection-background-color:rgba(141,194,31,0.25);"
+        f"}}"
+        f" QLineEdit:hover {{"
+        f" border-color:rgba(255,255,255,0.30);"
+        f" background:#0F1825;"
+        f"}}"
+        f" QLineEdit:focus {{"
+        f" border-color:{C_BORDER_FOCUS};"
+        f" background:#0D1520;"
+        f"}}"
+        f" QLineEdit:disabled {{"
+        f" color:{C_TEXT3};"
+        f" border-color:rgba(255,255,255,0.07);"
+        f" background:#111820;"
+        f"}}"
+    )
 
 
 # ── 应用级 QSS ────────────────────────────────────────────────────────────────
@@ -487,23 +510,26 @@ QTextEdit:focus {{
 }}
 
 QLineEdit {{
-    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-        stop:0 #1A2638, stop:1 {C_CARD_LIGHT});
-    border: 1px solid rgba(255,255,255,0.09);
-    border-top-color: rgba(255,255,255,0.14);
+    background: #0D1520;
+    border: 1px solid rgba(255,255,255,0.18);
     border-radius: 8px;
     padding: 8px 14px;
     color: {C_TEXT};
     font-size: {pt(12)}px;
     selection-background-color: rgba(141,194,31,0.25);
 }}
+QLineEdit:hover {{
+    border-color: rgba(255,255,255,0.30);
+    background: #0F1825;
+}}
 QLineEdit:focus {{
     border-color: {C_BORDER_FOCUS};
-    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-        stop:0 #1C2A3C, stop:1 {C_CARD});
+    background: #0D1520;
 }}
-QLineEdit:hover {{
-    border-color: rgba(255,255,255,0.16);
+QLineEdit:disabled {{
+    color: {C_TEXT3};
+    border-color: rgba(255,255,255,0.07);
+    background: #111820;
 }}
 
 QDialog {{
@@ -1121,6 +1147,9 @@ class DropdownButton(QWidget):
 
     def currentText(self) -> str:
         return self._current
+
+    def currentData(self) -> object:
+        return self._data.get(self._current)
 
     def setCurrentText(self, text: str):
         if text in self._items:

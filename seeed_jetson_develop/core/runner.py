@@ -1,4 +1,6 @@
 """命令执行引擎 — 本地或远程 SSH 执行，统一接口"""
+from __future__ import annotations
+
 import os
 import re
 import shlex
@@ -125,15 +127,20 @@ class SSHRunner(Runner):
         self.port     = port
 
     def _build_remote_shell_command(self, cmd: str) -> str:
+        """将用户命令包装成可在远端 SSH 执行的 bash 命令。
+
+        sudo 密码注入：将密码 base64 编码后在远端解码，存入 SEEED_SUDO_PASSWORD。
+        脚本里需要 root 权限时定义本地 _S() 函数使用：
+            _S() { printf '%s\\n' "$SEEED_SUDO_PASSWORD" | command sudo -S -p '' "$@" 2>&1; return $?; }
+        """
         wrapper_parts = ["export TERM=${TERM:-xterm-256color};"]
         if self.sudo_password:
-            # Do not rely on SSH environment passthrough, which may be blocked by server policy.
-            wrapper_parts.append(f"SEEED_SUDO_PASSWORD={shlex.quote(self.sudo_password)}; export SEEED_SUDO_PASSWORD;")
-        wrapper_parts.extend([
-            "if [ -n \"${SEEED_SUDO_PASSWORD:-}\" ]; then "
-            "sudo() { printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S -p '' \"$@\"; }; "
-            "export -f sudo; fi;",
-        ])
+            import base64
+            pwd_b64 = base64.b64encode(self.sudo_password.encode()).decode()
+            wrapper_parts.append(
+                f"SEEED_SUDO_PASSWORD=\"$(printf '%s' {pwd_b64} | base64 -d)\"; "
+                f"export SEEED_SUDO_PASSWORD; "
+            )
         wrapper_parts.append(cmd)
         wrapper = " ".join(wrapper_parts)
         return f"bash -lc {shlex.quote(wrapper)}"
@@ -181,7 +188,6 @@ class SSHRunner(Runner):
                 try:
                     _, stdout, stderr = client.exec_command(
                         safe_cmd,
-                        timeout=timeout,
                         get_pty=True,
                     )
                 except TypeError:
@@ -191,7 +197,6 @@ class SSHRunner(Runner):
                     )
                     _, stdout, stderr = client.exec_command(
                         safe_cmd,
-                        timeout=timeout,
                     )
                 ch = stdout.channel
                 out_buf = b""

@@ -3,12 +3,12 @@
 An all-in-one AI development workbench for Seeed Studio Jetson products — covering everything from firmware flashing to app deployment.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg)]()
 
-[中文文档](README_zh.md)
+[中文文档](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/README_zh.md)
 
-![UI Preview](assets/Reference-UI.png)
+![UI Preview](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
 ---
 
@@ -30,7 +30,7 @@ An all-in-one AI development workbench for Seeed Studio Jetson products — cove
 ## Requirements
 
 - **Host OS**: Ubuntu 20.04 / 22.04 / 24.04 (Linux recommended for flashing)
-- **Python**: 3.10+
+- **Python**: 3.8+
 - **Dependencies**: PyQt5, paramiko, requests
 
 ---
@@ -38,12 +38,24 @@ An all-in-one AI development workbench for Seeed Studio Jetson products — cove
 ## Installation
 
 ```bash
-git clone https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool.git
-cd Seeed-Jetson-DevelopTool
-pip install -r requirements.txt
+pip install seeed-jetson-developer
 ```
 
 Launch the GUI:
+
+```bash
+seeed-jetson-developer
+```
+
+Install from source:
+
+```bash
+git clone https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool.git
+cd Seeed-Jetson-DevelopTool
+pip install .
+```
+
+Or run directly from the repository:
 
 ```bash
 python3 run_v2.py
@@ -138,23 +150,17 @@ Community skills in [OpenClaw](https://github.com/Seeed-Studio/openclaw) format 
 ## CLI
 
 ```bash
-# List supported products
-python3 -m seeed_jetson_develop.cli list-products
-
-# Show Recovery guide for a device
-python3 -m seeed_jetson_develop.cli recovery -p j4012mini
-
-# Flash firmware
-python3 -m seeed_jetson_develop.cli flash -p j4012mini -l 36.3.0
+# Launch the packaged GUI entry point
+python3 -m seeed_jetson_develop.cli
 ```
 
 ---
 
 ## Documentation
 
-- [docs/QUICKSTART.md](docs/QUICKSTART.md) — Quick start guide
-- [docs/USAGE.md](docs/USAGE.md) — CLI reference
-- [docs/GUI_GUIDE.md](docs/GUI_GUIDE.md) — GUI user guide
+- [Quick Start](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/docs/QUICKSTART.md) — Quick start guide
+- [Usage](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/docs/USAGE.md) — CLI reference
+- [GUI Guide](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/docs/GUI_GUIDE.md) — GUI user guide
 
 ---
 

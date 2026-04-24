@@ -1,4 +1,6 @@
 """Device management page with info cards, quick diagnostics, and peripheral checks."""
+from __future__ import annotations
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton,
@@ -17,7 +19,7 @@ from seeed_jetson_develop.gui.theme import (
     C_TEXT, C_TEXT2, C_TEXT3,
     pt as _pt, make_label as _lbl, make_button as _btn,
     make_card as _card, make_input_card as _input_card,
-    apply_shadow as _shadow, DropdownButton,
+    apply_shadow as _shadow, DropdownButton, input_qss,
 )
 from seeed_jetson_develop.modules.remote.jetson_init import open_jetson_init_dialog
 from .diagnostics import DIAG_ITEMS, PERIPH_ITEMS, run_all, run_periph, collect_info
@@ -118,14 +120,14 @@ class _SerialCredDialog(QDialog):
 
         # Username.
         self.user_edit = QLineEdit("seeed")
-        self.user_edit.setStyleSheet(f"background:{C_CARD_LIGHT}; color:{C_TEXT}; border:none; border-radius:6px; padding:6px 10px;")
+        self.user_edit.setStyleSheet(input_qss(radius=6, font_size=12))
         form.addRow(_lbl(t("devices.serial_cred.username", lang=lang), 12, C_TEXT2), self.user_edit)
 
         # Password.
         self.pass_edit = QLineEdit()
         self.pass_edit.setEchoMode(QLineEdit.Password)
         self.pass_edit.setPlaceholderText(t("devices.serial_cred.password_placeholder", lang=lang))
-        self.pass_edit.setStyleSheet(f"background:{C_CARD_LIGHT}; color:{C_TEXT}; border:none; border-radius:6px; padding:6px 10px;")
+        self.pass_edit.setStyleSheet(input_qss(radius=6, font_size=12))
         form.addRow(_lbl(t("devices.serial_cred.password", lang=lang), 12, C_TEXT2), self.pass_edit)
 
         lay.addLayout(form)
@@ -456,12 +458,39 @@ class DevicesPage(PageBase):
             cl.setContentsMargins(16, 14, 16, 14)
             cl.setSpacing(6)
             cl.addWidget(_lbl(icon, 20))
-            val_lbl = _lbl("—", 14, C_TEXT2, bold=False)
-            val_lbl.setWordWrap(True)
-            cl.addWidget(val_lbl)
+
+            if key == "ip":
+                # Scrollable multi-line IP list
+                from PyQt5.QtWidgets import QScrollArea
+                scroll = QScrollArea()
+                scroll.setWidgetResizable(True)
+                scroll.setFrameShape(QScrollArea.NoFrame)
+                scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+                scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+                scroll.setFixedHeight(_pt(72))
+                scroll.setStyleSheet("background:transparent; border:none;")
+                ip_container = QWidget()
+                ip_container.setStyleSheet("background:transparent;")
+                ip_layout = QVBoxLayout(ip_container)
+                ip_layout.setContentsMargins(0, 0, 0, 0)
+                ip_layout.setSpacing(2)
+                scroll.setWidget(ip_container)
+                val_lbl = _lbl("—", 13, C_TEXT2, bold=False)
+                val_lbl.setWordWrap(True)
+                ip_layout.addWidget(val_lbl)
+                ip_layout.addStretch()
+                # Store both the scroll container layout and the placeholder label
+                self._info_cards[key] = val_lbl
+                self._info_cards["_ip_layout"] = ip_layout
+                cl.addWidget(scroll, 1)
+            else:
+                val_lbl = _lbl("—", 14, C_TEXT2, bold=False)
+                val_lbl.setWordWrap(True)
+                cl.addWidget(val_lbl)
+                self._info_cards[key] = val_lbl
+
             cap_lbl = _lbl(_tt(label_key), 11, C_TEXT3)
             cl.addWidget(cap_lbl)
-            self._info_cards[key] = val_lbl
             self._info_caption_labels[key] = cap_lbl
             _shadow(c, blur=16)
             info_grid.addWidget(c, idx // 2, idx % 2)
@@ -602,8 +631,44 @@ class DevicesPage(PageBase):
 
     def _on_info(self, info: dict):
         for key, lbl in self._info_cards.items():
-            lbl.setText(info.get(key, "—"))
-            lbl.setStyleSheet(f"color:{C_TEXT}; font-size:{_pt(14)}px; background:transparent; font-weight:600;")
+            if key.startswith("_"):
+                continue
+            if key == "ip":
+                # Render each "iface ip" line as a separate label in the scroll container
+                ip_layout = self._info_cards.get("_ip_layout")
+                if ip_layout is not None:
+                    # Clear existing items (keep stretch at end)
+                    while ip_layout.count() > 1:
+                        item = ip_layout.takeAt(0)
+                        if item.widget():
+                            item.widget().deleteLater()
+                    raw = info.get("ip", "—").strip()
+                    lines = [l.strip() for l in raw.splitlines() if l.strip()] if raw != "—" else []
+                    if lines:
+                        for line in lines:
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                iface, ip = parts[0], parts[1]
+                                row_w = QWidget()
+                                row_w.setStyleSheet("background:transparent;")
+                                row_l = QHBoxLayout(row_w)
+                                row_l.setContentsMargins(0, 0, 0, 0)
+                                row_l.setSpacing(8)
+                                ip_lbl = _lbl(ip, 13, C_TEXT)
+                                ip_lbl.setStyleSheet(f"color:{C_TEXT}; font-size:{_pt(13)}px; background:transparent; font-weight:600;")
+                                iface_lbl = _lbl(iface, 10, C_TEXT3)
+                                iface_lbl.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(10)}px; background:transparent;")
+                                row_l.addWidget(ip_lbl)
+                                row_l.addWidget(iface_lbl)
+                                row_l.addStretch()
+                                ip_layout.insertWidget(ip_layout.count() - 1, row_w)
+                    else:
+                        lbl.setText("—")
+                        lbl.setStyleSheet(f"color:{C_TEXT}; font-size:{_pt(13)}px; background:transparent; font-weight:600;")
+                        ip_layout.insertWidget(0, lbl)
+            else:
+                lbl.setText(info.get(key, "—"))
+                lbl.setStyleSheet(f"color:{C_TEXT}; font-size:{_pt(14)}px; background:transparent; font-weight:600;")
         for key, lbl in self._sys_labels.items():
             lbl.setText(info.get(key, "—"))
         self._l4t_ver = info.get("l4t", "R36")

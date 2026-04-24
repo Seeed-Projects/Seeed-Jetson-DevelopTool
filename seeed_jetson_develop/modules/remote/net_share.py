@@ -320,6 +320,8 @@ def _enable_nat_linux_safe(wan: str, lan: str, sudo_password: str) -> tuple[bool
         return False, str(exc)
 
     logs: list[str] = []
+
+    # 1. 开启 ip_forward
     rc, out = _run(
         "grep -q 'net.ipv4.ip_forward=1' /etc/sysctl.conf 2>/dev/null || "
         "echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf; "
@@ -332,6 +334,22 @@ def _enable_nat_linux_safe(wan: str, lan: str, sudo_password: str) -> tuple[bool
     if rc != 0:
         return False, "\n".join(logs) + f"\n\ncommand failed (rc={rc})"
 
+    # 2. 确保 FORWARD 链默认策略为 ACCEPT（ufw/firewalld 可能设为 DROP）
+    _run_argv(["iptables", "-P", "FORWARD", "ACCEPT"], sudo_password)
+    logs.append("$ iptables -P FORWARD ACCEPT")
+
+    # 3. 如果 ufw 在运行，允许转发并重载
+    rc_ufw, _ = _run_argv(["ufw", "status"], sudo_password)
+    if rc_ufw == 0:
+        _run(
+            "sed -i 's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY=\"ACCEPT\"/' "
+            "/etc/default/ufw 2>/dev/null || true",
+            sudo_password,
+        )
+        _run_argv(["ufw", "reload"], sudo_password)
+        logs.append("$ ufw: set DEFAULT_FORWARD_POLICY=ACCEPT and reload")
+
+    # 4. NAT MASQUERADE
     ok, rc = _ensure_iptables_rule(
         ["-t", "nat", "-C", "POSTROUTING", "-o", wan, "-j", "MASQUERADE"],
         ["-t", "nat", "-A", "POSTROUTING", "-o", wan, "-j", "MASQUERADE"],
@@ -341,6 +359,7 @@ def _enable_nat_linux_safe(wan: str, lan: str, sudo_password: str) -> tuple[bool
     if not ok:
         return False, "\n".join(logs) + f"\n\nfailed to ensure NAT rule (rc={rc})"
 
+    # 5. FORWARD LAN -> WAN
     ok, rc = _ensure_iptables_rule(
         ["-C", "FORWARD", "-i", lan, "-o", wan, "-j", "ACCEPT"],
         ["-A", "FORWARD", "-i", lan, "-o", wan, "-j", "ACCEPT"],
@@ -350,6 +369,7 @@ def _enable_nat_linux_safe(wan: str, lan: str, sudo_password: str) -> tuple[bool
     if not ok:
         return False, "\n".join(logs) + f"\n\nfailed to ensure FORWARD LAN->WAN rule (rc={rc})"
 
+    # 6. FORWARD WAN -> LAN (established)
     ok, rc = _ensure_iptables_rule(
         ["-C", "FORWARD", "-i", wan, "-o", lan, "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
         ["-A", "FORWARD", "-i", wan, "-o", lan, "-m", "state", "--state", "RELATED,ESTABLISHED", "-j", "ACCEPT"],
@@ -404,14 +424,19 @@ def configure_jetson_dns_via_serial(
     port: str, username: str, password: str,
     gateway: str, dns: str = "8.8.8.8",
 ) -> str:
-    """通过串口给 Jetson 配置默认网关和 DNS（返回要执行的命令）。"""
+    """通过串口给 Jetson 配置默认网关和 DNS（返回要执行的命令）。
+    兼容 JetPack 4/5/6，不依赖 nmcli。
+    """
+    gw_q = shlex.quote(gateway)
+    dns_q = shlex.quote(dns)
     pwd_escaped = password.replace("'", "'\\''")
-    inner = (
-        f"nmcli con mod $(nmcli -t -f NAME con show --active | head -1) "
-        f"ipv4.gateway {gateway} ipv4.dns '{dns}'"
-        f" && nmcli con up $(nmcli -t -f NAME con show --active | head -1)"
+    script = (
+        f"GW={gw_q}; DNS={dns_q}; "
+        f"ip route replace default via \"$GW\" 2>/dev/null || ip route add default via \"$GW\"; "
+        f"printf 'nameserver %s\\n' \"$DNS\" | tee /etc/resolv.conf > /dev/null; "
+        f"echo ok"
     )
-    return f"echo '{pwd_escaped}' | sudo -S bash -c '{inner}'"
+    return f"echo '{pwd_escaped}' | sudo -S bash -c '{script}'"
 
 
 def get_interface_ip(iface_name: str) -> str | None:
@@ -444,11 +469,12 @@ def build_jetson_gateway_cmd(
     sudo_password: str, gateway: str, dns: str = "8.8.8.8",
 ) -> str:
     """生成在 Jetson 上通过 SSH 配置默认网关和 DNS 的命令。
-    SSHRunner 已通过 _wrap_with_sudo_password 自动注入 sudo 密码，直接用 sudo 即可。
+    SSHRunner 通过 _build_remote_shell_command 将 sudo 包装为自动注入密码的函数，
+    但该函数只在外层 bash 进程中有效，sudo bash -lc 会启动新进程导致函数失效。
+    因此直接返回脚本内容，由 SSHRunner 的 wrapper 包裹执行，不再套 sudo bash -lc。
     sudo_password 参数保留以兼容调用方，不再使用。
     """
-    script = _build_jetson_gateway_script(gateway, dns)
-    return f"sudo bash -lc {shlex.quote(script)}"
+    return _build_jetson_gateway_script(gateway, dns)
 
 
 def build_jetson_gateway_manual_cmd(gateway: str, dns: str = "8.8.8.8") -> str:
@@ -458,17 +484,19 @@ def build_jetson_gateway_manual_cmd(gateway: str, dns: str = "8.8.8.8") -> str:
 
 def build_jetson_time_sync_cmd(sudo_password: str) -> str:
     """生成在 Jetson 上通过 SSH 执行的时间同步命令。
-    SSHRunner 已通过 _wrap_with_sudo_password 自动注入 sudo 密码，直接用 sudo 即可。
+    SSHRunner 通过 _build_remote_shell_command 将 sudo 包装为自动注入密码的函数，
+    直接返回脚本内容由 SSHRunner wrapper 包裹，不再套 sudo bash -lc（会导致 sudo 函数失效）。
     sudo_password 参数保留以兼容调用方，不再使用。
     """
-    script = r"""
-set -e
+    return r"""
+_S() { printf '%s\n' "$SEEED_SUDO_PASSWORD" | command sudo -S -p '' "$@" 2>&1; return $?; }
+
 if command -v timedatectl >/dev/null 2>&1; then
-  timedatectl set-ntp true >/dev/null 2>&1 || true
+  _S timedatectl set-ntp true >/dev/null 2>&1 || true
 fi
 
 if command -v systemctl >/dev/null 2>&1; then
-  systemctl restart systemd-timesyncd >/dev/null 2>&1 || true
+  _S systemctl restart systemd-timesyncd >/dev/null 2>&1 || true
 fi
 
 synced=""
@@ -490,59 +518,63 @@ else
   echo "time_sync=unknown now=$date_now"
 fi
 """.strip()
-    return f"sudo bash -lc {shlex.quote(script)}"
 
 
 def _build_jetson_gateway_script(gateway: str, dns: str = "8.8.8.8") -> str:
     gateway_q = shlex.quote(gateway)
     dns_q = shlex.quote(dns)
     return f"""
-set -e
 GW={gateway_q}
 DNS_LIST={dns_q}
+_S() {{ printf '%s\\n' "$SEEED_SUDO_PASSWORD" | command sudo -S -p '' "$@" 2>&1; return $?; }}
+
+echo "[1/4] detect iface for gateway $GW"
 IFACE="$(ip -4 route get "$GW" 2>/dev/null | awk '{{for(i=1;i<=NF;i++) if($i=="dev") {{print $(i+1); exit}}}}')"
 if [ -z "$IFACE" ]; then
   IFACE="$(ip -4 -o addr show | awk -v gw="$GW" '
-    function same24(ip, gw, a, b) {{
-      split(ip, a, ".");
-      split(gw, b, ".");
+    function same24(ip, gw,   a, b) {{
+      split(ip, a, "."); split(gw, b, ".");
       return a[1]==b[1] && a[2]==b[2] && a[3]==b[3];
     }}
     $4 ~ /^[0-9.]+\\/[0-9]+$/ {{
       split($4, parts, "/");
-      if (same24(parts[1], gw)) {{
-        print $2;
-        exit;
-      }}
+      if (same24(parts[1], gw)) {{ print $2; exit; }}
     }}
   ')"
 fi
+echo "[info] iface=${{IFACE:-unknown}}"
 
-ip route replace default via "$GW"
+echo "[2/4] set default route via $GW"
+_S ip route replace default via "$GW" && echo "[ok] route set" || echo "[warn] route set failed, trying add"
+_S ip route add default via "$GW" 2>/dev/null || true
 
-if command -v nmcli >/dev/null 2>&1 && [ -n "$IFACE" ]; then
-  CON="$(nmcli -t -f NAME,DEVICE connection show --active | awk -F: -v dev="$IFACE" '$2==dev {{print $1; exit}}')"
-  if [ -n "$CON" ]; then
-    nmcli connection modify "$CON" \
-      ipv4.gateway "$GW" \
-      ipv4.ignore-auto-dns yes \
-      ipv4.dns "$DNS_LIST" >/dev/null
-    nmcli connection up "$CON" >/dev/null || nmcli device reapply "$IFACE" >/dev/null || true
+echo "[3/4] configure DNS"
+if command -v resolvectl >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet systemd-resolved 2>/dev/null && [ -n "$IFACE" ]; then
+  _S resolvectl dns "$IFACE" $DNS_LIST >/dev/null 2>&1 && echo "[ok] resolvectl dns set" || echo "[warn] resolvectl failed"
+  _S resolvectl domain "$IFACE" '~.' >/dev/null 2>&1 || true
+  _S ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf 2>/dev/null || true
+else
+  if [ -L /etc/resolv.conf ] && readlink /etc/resolv.conf 2>/dev/null | grep -q 'stub-resolv.conf'; then
+    _S rm -f /etc/resolv.conf
   fi
+  printf '' | _S tee /etc/resolv.conf > /dev/null 2>&1 || true
+  for _dns in $DNS_LIST; do
+    printf 'nameserver %s\\n' "$_dns" | _S tee -a /etc/resolv.conf > /dev/null 2>&1 || true
+  done
+  echo "[ok] /etc/resolv.conf written"
 fi
 
-if command -v resolvectl >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet systemd-resolved && [ -n "$IFACE" ]; then
-  resolvectl dns "$IFACE" $DNS_LIST >/dev/null || true
-  resolvectl domain "$IFACE" '~.' >/dev/null || true
-  ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
-else
-  if [ -L /etc/resolv.conf ] && readlink /etc/resolv.conf | grep -q 'stub-resolv.conf'; then
-    rm -f /etc/resolv.conf
+echo "[4/4] persist via nmcli (if available)"
+if command -v nmcli >/dev/null 2>&1 && [ -n "$IFACE" ]; then
+  CON="$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: -v dev="$IFACE" '$2==dev {{print $1; exit}}')"
+  if [ -n "$CON" ]; then
+    _S nmcli connection modify "$CON" ipv4.gateway "$GW" ipv4.ignore-auto-dns yes ipv4.dns "$DNS_LIST" >/dev/null 2>&1 && echo "[ok] nmcli modified" || echo "[warn] nmcli modify failed"
+    _S nmcli connection up "$CON" >/dev/null 2>&1 || _S nmcli device reapply "$IFACE" >/dev/null 2>&1 || true
+  else
+    echo "[info] no active nmcli connection on $IFACE, skip"
   fi
-  : > /etc/resolv.conf
-  for dns in $DNS_LIST; do
-    printf 'nameserver %s\\n' "$dns" >> /etc/resolv.conf
-  done
+else
+  echo "[info] nmcli not available or iface unknown, skip"
 fi
 
 echo "gateway=$GW dns=$DNS_LIST iface=${{IFACE:-unknown}} configured"
@@ -643,18 +675,15 @@ def build_jetson_proxy_cmd(proxy_host: str, proxy_port: int) -> str:
     """生成在 Jetson 上配置 http_proxy/https_proxy 的命令（写入 /etc/environment 持久化）。"""
     proxy_url = f"http://{proxy_host}:{proxy_port}"
     return f"""
-set -e
+_S() {{ printf '%s\\n' "$SEEED_SUDO_PASSWORD" | command sudo -S -p '' "$@" 2>&1; return $?; }}
 PROXY_URL={shlex.quote(proxy_url)}
 ENV_FILE=/etc/environment
 
-# 删除旧的代理配置行
-sudo sed -i '/^http_proxy=/d;/^https_proxy=/d;/^HTTP_PROXY=/d;/^HTTPS_PROXY=/d;/^no_proxy=/d;/^NO_PROXY=/d' "$ENV_FILE" 2>/dev/null || true
+_S sed -i '/^http_proxy=/d;/^https_proxy=/d;/^HTTP_PROXY=/d;/^HTTPS_PROXY=/d;/^no_proxy=/d;/^NO_PROXY=/d' "$ENV_FILE" 2>/dev/null || true
 
-# 写入新配置
 printf 'http_proxy=%s\\nhttps_proxy=%s\\nHTTP_PROXY=%s\\nHTTPS_PROXY=%s\\nno_proxy=localhost,127.0.0.1\\nNO_PROXY=localhost,127.0.0.1\\n' \\
-  "$PROXY_URL" "$PROXY_URL" "$PROXY_URL" "$PROXY_URL" | sudo tee -a "$ENV_FILE" >/dev/null
+  "$PROXY_URL" "$PROXY_URL" "$PROXY_URL" "$PROXY_URL" | _S tee -a "$ENV_FILE" >/dev/null
 
-# 同时对当前 shell 生效（供后续命令使用）
 export http_proxy="$PROXY_URL" https_proxy="$PROXY_URL" HTTP_PROXY="$PROXY_URL" HTTPS_PROXY="$PROXY_URL"
 export no_proxy=localhost,127.0.0.1 NO_PROXY=localhost,127.0.0.1
 
@@ -665,7 +694,8 @@ echo "proxy_set=$PROXY_URL"
 def build_jetson_clear_proxy_cmd() -> str:
     """生成在 Jetson 上清除代理配置的命令。"""
     return (
-        "sudo sed -i '/^http_proxy=/d;/^https_proxy=/d;/^HTTP_PROXY=/d;"
+        "_S() { printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S -p '' \"$@\" 2>&1; return $?; }; "
+        "_S sed -i '/^http_proxy=/d;/^https_proxy=/d;/^HTTP_PROXY=/d;"
         "/^HTTPS_PROXY=/d;/^no_proxy=/d;/^NO_PROXY=/d' /etc/environment 2>/dev/null || true; "
         "echo 'proxy_cleared'"
     )

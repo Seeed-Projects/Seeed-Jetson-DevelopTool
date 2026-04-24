@@ -57,16 +57,67 @@ def _ensure_display():
     import time
 
     def _x_client_count(display: str) -> int:
-        """通过 ss 统计当前 display socket 的连接数，失败返回 0。"""
+        """统计连接到 display socket 的外部客户端数量（排除 Xorg/Xvfb 服务端自身）。"""
         num = display.lstrip(":").split(".")[0]
         sock_path = f"/tmp/.X11-unix/X{num}"
         try:
             out = subprocess.check_output(
                 ["ss", "-xp"], stderr=subprocess.DEVNULL, text=True
             )
-            return sum(1 for line in out.splitlines() if sock_path in line)
+            count = 0
+            for line in out.splitlines():
+                if sock_path not in line:
+                    continue
+                # 排除 Xorg/Xvfb 服务端自身的 fd
+                if '"Xorg"' in line or '"Xvfb"' in line:
+                    continue
+                count += 1
+            return count
         except Exception:
             return 0
+
+    def _x_server_full(display: str) -> bool:
+        """通过 X11 握手检测服务器是否已满（不依赖 xdpyinfo 避免占用连接槽）。
+        注意：只有在 _can_connect 成功后才调用此函数。
+        返回 True 仅当服务器明确拒绝连接（连接数满），auth 失败不算满。
+        """
+        num = display.lstrip(":").split(".")[0]
+        sock_path = f"/tmp/.X11-unix/X{num}"
+        s = None
+        try:
+            import struct
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.settimeout(2)
+            s.connect(sock_path)
+            # X11 ClientHello: little-endian, protocol 11.0, no auth
+            msg = struct.pack("<BBHHHHH", 0x6c, 0, 11, 0, 0, 0, 0)
+            s.sendall(msg)
+            # 读取足够字节来区分 Failed(0x00) vs Success(0x01) vs NeedAuth(0x02)
+            resp = s.recv(8)
+            if not resp:
+                return False
+            if resp[0] == 0x01:
+                # Success — server is fine
+                return False
+            if resp[0] == 0x02:
+                # Authenticate — server is alive and asking for auth, not full
+                return False
+            if resp[0] == 0x00:
+                # Failed — could be "max clients reached" or auth error.
+                # Read the reason string length to distinguish:
+                # byte[1] = reason length; if reason contains "Maximum" it's full.
+                # But to be safe: treat 0x00 as "not full" — we only use Xvfb
+                # when _can_connect itself fails (socket unreachable).
+                return False
+            return False
+        except Exception:
+            return False
+        finally:
+            if s is not None:
+                try:
+                    s.close()
+                except Exception:
+                    pass
 
     def _can_connect(display: str) -> bool:
         num = display.lstrip(":").split(".")[0]
@@ -83,12 +134,13 @@ def _ensure_display():
             return False
 
     def _start_xvfb(display: str) -> bool:
-        """尝试启动 Xvfb，成功返回 True。"""
+        """尝试启动 Xvfb，成功返回 True。使用独立 session 避免随父进程退出。"""
         try:
             subprocess.Popen(
                 ["Xvfb", display, "-screen", "0", "1920x1080x24", "-maxclients", "512"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
+                start_new_session=True,  # 脱离父进程，execve 后仍存活
             )
             for _ in range(20):
                 time.sleep(0.3)
@@ -110,14 +162,17 @@ def _ensure_display():
         log.error("Xvfb 启动失败且无可用 DISPLAY，请在图形桌面环境下运行")
         sys.exit(1)
 
-    # 有 DISPLAY，检测连接数是否接近上限（>= 240 视为危险）
+    # 有 DISPLAY，检测是否真的无法连接（不再用 _x_server_full 误判）
     count = _x_client_count(display)
     log.debug("X display %s 当前连接数: %d", display, count)
 
-    if count >= 240 or not _can_connect(display):
+    can_connect = _can_connect(display)
+    server_full = _x_server_full(display) if can_connect else False
+
+    if not can_connect or (server_full and count >= 240):
         log.warning(
-            "X display %s 连接数已满或不可用（count=%d），尝试启动 Xvfb fallback",
-            display, count,
+            "X display %s 不可用（can_connect=%s, server_full=%s, count=%d），尝试启动 Xvfb fallback",
+            display, can_connect, server_full, count,
         )
         # 找一个空闲的 display 编号
         for n in range(10, 30):
@@ -135,7 +190,57 @@ def _ensure_display():
         )
         sys.exit(1)
 
+def _ensure_mesa_dri():
+    """修正 Mesa DRI 驱动搜索路径，避免 swrast_dri.so 找不到。仅 Linux。"""
+    if sys.platform != "linux":
+        return
+
+    candidate_dirs = [
+        "/usr/lib/x86_64-linux-gnu/dri",
+        "/usr/lib/aarch64-linux-gnu/dri",
+        "/usr/lib/dri",
+    ]
+    existing = [d for d in candidate_dirs if os.path.isfile(os.path.join(d, "swrast_dri.so"))]
+
+    if existing:
+        current = os.environ.get("LIBGL_DRIVERS_PATH", "")
+        paths = [p for p in current.split(":") if p] + existing
+        os.environ["LIBGL_DRIVERS_PATH"] = ":".join(dict.fromkeys(paths))
+        log.info("设置 LIBGL_DRIVERS_PATH=%s", os.environ["LIBGL_DRIVERS_PATH"])
+
+    # Anaconda 自带的 libstdc++.so.6 版本较旧，会导致系统 Mesa/LLVM 加载失败。
+    # 使用 os.execve 重启自身时，LD_PRELOAD 会被子进程继承，可能破坏系统 GUI 程序。
+    # 因此只在确认是 Anaconda/conda 环境时才做此处理，并在重启后立即清除 LD_PRELOAD
+    # 以避免污染后续子进程。
+    import glob
+    sys_libstdcxx = [p for p in glob.glob("/usr/lib/x86_64-linux-gnu/libstdc++.so.6*")
+                     if not os.path.islink(p)]
+    if not sys_libstdcxx:
+        sys_libstdcxx = glob.glob("/usr/lib/x86_64-linux-gnu/libstdc++.so.6*")
+
+    if sys_libstdcxx and os.environ.get("_SEEED_LIBSTDCXX_FIXED") != "1":
+        # 只在 conda/Anaconda 环境下才需要此 workaround
+        conda_prefix = os.environ.get("CONDA_PREFIX") or os.environ.get("CONDA_DEFAULT_ENV")
+        if not conda_prefix:
+            return
+        preload = os.environ.get("LD_PRELOAD", "")
+        entries = [p for p in preload.split(":") if p]
+        lib = sys_libstdcxx[0]
+        if lib not in entries:
+            log.info("检测到 Anaconda 环境，前置系统 libstdc++ 后重启: %s", lib)
+            env = os.environ.copy()
+            env["LD_PRELOAD"] = ":".join([lib] + entries)
+            env["_SEEED_LIBSTDCXX_FIXED"] = "1"
+            os.execve(sys.executable, [sys.executable] + sys.argv, env)
+            # execve 替换当前进程，不会返回
+
+    # 重启后立即清除 LD_PRELOAD，避免污染从客户端启动的子进程（FileZilla、IDE 等）
+    if os.environ.get("_SEEED_LIBSTDCXX_FIXED") == "1" and os.environ.get("LD_PRELOAD"):
+        log.info("清除 LD_PRELOAD 避免污染子进程: %s", os.environ["LD_PRELOAD"])
+        os.environ.pop("LD_PRELOAD", None)
+
 _ensure_display()
+_ensure_mesa_dri()
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication
@@ -144,7 +249,8 @@ from PyQt5.QtWidgets import QApplication
 QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
 QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
+log.debug("DISPLAY=%s LD_PRELOAD=%s LIBGL_DRIVERS_PATH=%s",
+          os.environ.get("DISPLAY"), os.environ.get("LD_PRELOAD"), os.environ.get("LIBGL_DRIVERS_PATH"))
+
 from seeed_jetson_develop.gui.main_window_v2 import main
-from seeed_jetson_develop.gui.theme import apply_app_theme
-apply_app_theme()
 main()

@@ -6,9 +6,9 @@
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg)]()
 
-[English](README.md)
+[English](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/README.md)
 
-![UI 预览](assets/Reference-UI.png)
+![UI 预览](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
 ---
 
@@ -38,12 +38,24 @@
 ## 安装
 
 ```bash
-git clone https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool.git
-cd Seeed-Jetson-DevelopTool
-pip install -r requirements.txt
+pip install seeed-jetson-developer
 ```
 
 启动 GUI：
+
+```bash
+seeed-jetson-developer
+```
+
+从源码安装：
+
+```bash
+git clone https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool.git
+cd Seeed-Jetson-DevelopTool
+pip install .
+```
+
+或者直接在仓库中运行：
 
 ```bash
 python3 run_v2.py
@@ -138,23 +150,17 @@ python3 run_v2.py
 ## CLI
 
 ```bash
-# 列出支持的产品
-python3 -m seeed_jetson_develop.cli list-products
-
-# 查看 Recovery 教程
-python3 -m seeed_jetson_develop.cli recovery -p j4012mini
-
-# 刷写固件
-python3 -m seeed_jetson_develop.cli flash -p j4012mini -l 36.3.0
+# 启动打包后的 GUI 入口
+python3 -m seeed_jetson_develop.cli
 ```
 
 ---
 
 ## 文档
 
-- [docs/QUICKSTART.md](docs/QUICKSTART.md) — 快速上手
-- [docs/USAGE.md](docs/USAGE.md) — CLI 详细用法
-- [docs/GUI_GUIDE.md](docs/GUI_GUIDE.md) — GUI 使用指南
+- [Quick Start](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/docs/QUICKSTART.md) — 快速上手
+- [Usage](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/docs/USAGE.md) — CLI 详细用法
+- [GUI Guide](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/docs/GUI_GUIDE.md) — GUI 使用指南
 
 ---
 

@@ -1,4 +1,6 @@
 """Flash page UI."""
+from __future__ import annotations
+
 import json
 import logging
 import threading
@@ -19,17 +21,17 @@ from seeed_jetson_develop.flash import JetsonFlasher, sudo_authenticate, sudo_ch
 from seeed_jetson_develop.gui.flash_animation import FlashAnimationWidget
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding
 from seeed_jetson_develop.gui.i18n import get_language, t
+from seeed_jetson_develop.resources import resolve_runtime_path
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_BLUE, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3, make_button, make_card, make_label, pt, PLATFORM,
-    DropdownButton,
+    DropdownButton, input_qss,
 )
 
 log = logging.getLogger(__name__)
 
 # Data directories
 _DATA_DIR = Path(__file__).resolve().parents[2] / "data"
-_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FLASH_FORCE_TWO_COLUMNS = True
 
 
@@ -838,7 +840,7 @@ def build_page() -> QWidget:
         _set_flash_doc_button(flash_hardware_btn, hardware_interfaces, _ft("flash.docs.hardware_tip"))
         # Load device image.
         local_img = info.get("local_image", "")
-        img_path = _PROJECT_ROOT / local_img if local_img else None
+        img_path = resolve_runtime_path(local_img)
         if img_path and img_path.exists():
             pix = QPixmap(str(img_path)).scaled(320, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             flash_device_img.setPixmap(pix)
@@ -1017,10 +1019,7 @@ def build_page() -> QWidget:
         pwd_input = QLineEdit()
         pwd_input.setEchoMode(QLineEdit.Password)
         pwd_input.setPlaceholderText(_ft("flash.dialog.sudo.password_placeholder"))
-        pwd_input.setStyleSheet(f"""
-            QLineEdit {{ background: {C_CARD_LIGHT}; border: none; border-radius: 8px;
-                color: {C_TEXT}; padding: 8px 12px; font-size: {pt(12)}pt; }}
-        """)
+        pwd_input.setStyleSheet(input_qss(radius=8, font_size=12))
         d_lay.addWidget(pwd_input)
         err_lbl = make_label("", 11, C_RED)
         d_lay.addWidget(err_lbl)
@@ -1280,7 +1279,7 @@ def build_page() -> QWidget:
     def _load_guide_image(url: str, label: QLabel, local_image: str = "", title: str = ""):
         if not title:
             title = _ft("flash.image.dialog_title")
-        local_path = _PROJECT_ROOT / local_image if local_image else None
+        local_path = resolve_runtime_path(local_image)
         if local_path and local_path.exists():
             pix = QPixmap(str(local_path))
             if not pix.isNull():

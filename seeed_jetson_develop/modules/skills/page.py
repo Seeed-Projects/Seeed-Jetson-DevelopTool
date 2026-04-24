@@ -1,4 +1,6 @@
 """Skills center page."""
+from __future__ import annotations
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import (
@@ -38,6 +40,7 @@ from seeed_jetson_develop.gui.theme import (
     make_card as _card, make_input_card as _input_card,
     apply_shadow as _shadow,
     show_info_message as _show_info_message,
+    input_qss,
 )
 
 
@@ -551,11 +554,7 @@ class SkillsPage(PageBase):
         # Search box
         search_edit = QLineEdit()
         search_edit.setPlaceholderText("🔍  " + _t("skills.search.placeholder"))
-        search_edit.setStyleSheet(
-            f"QLineEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:24px;"
-            f"padding:8px 20px; color:{C_TEXT}; font-size:{_pt(12)}pt; }}"
-            f"QLineEdit:focus {{ background:{C_CARD}; }}"
-        )
+        search_edit.setStyleSheet(input_qss(radius=24, font_size=12))
         search_edit.setFixedHeight(_pt(40))
         search_edit.textChanged.connect(
             lambda t: (self._filter.update({"search": t}), self._rebuild())

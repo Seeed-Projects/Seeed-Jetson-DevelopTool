@@ -1,4 +1,6 @@
 """Reusable AI chat panel and floating assistant entry."""
+from __future__ import annotations
+
 
 import os
 import re

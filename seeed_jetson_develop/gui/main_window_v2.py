@@ -28,6 +28,7 @@ from .theme import (
 )
 from ..core.platform_detect import is_jetson
 from ..core.events import bus
+from ..resources import resolve_runtime_path
 from .ai_chat import FloatingAIAssistant, build_ai_system_prompt
 from .i18n import get_language, set_language as _save_language, t
 from .runtime_i18n import apply_language
@@ -441,8 +442,8 @@ class MainWindowV2(QMainWindow):
         # Logo
         logo_lbl = QLabel()
         logo_lbl.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-        logo_path = self.project_root / "assets" / "seeed-logo-blend.png"
-        if logo_path.exists():
+        logo_path = resolve_runtime_path("assets/seeed-logo-blend.png")
+        if logo_path and logo_path.exists():
             target_h = max(28, pt(38))
             source = QPixmap(str(logo_path))
             pix = source.scaledToHeight(target_h, Qt.SmoothTransformation)

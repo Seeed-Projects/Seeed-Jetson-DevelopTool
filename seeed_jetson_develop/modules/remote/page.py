@@ -1,6 +1,9 @@
 """Remote development page."""
+from __future__ import annotations
+
 
 import re
+import shutil
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
@@ -43,6 +46,7 @@ from seeed_jetson_develop.gui.theme import (
     show_info_message as _show_info_message,
     show_warning_message as _show_warning_message,
     apply_shadow as _shadow,
+    input_qss,
 )
 from seeed_jetson_develop.gui.widgets.page_base import PageBase
 from seeed_jetson_develop.modules.remote import connector
@@ -170,7 +174,7 @@ class _ApiKeyDialog(QDialog):
         self._key_edit.setPlaceholderText("sk-ant-api03-...")
         self._key_edit.setEchoMode(QLineEdit.Password)
         self._key_edit.setStyleSheet(
-            f"QLineEdit {{background:{C_CARD_LIGHT}; border:none; border-radius:10px; padding:10px 16px; color:{C_TEXT}; font-size:{_pt(12)}px;}}"
+            input_qss(radius=10, font_size=12)
         )
         self._toggle_btn = _btn("👁", small=True)
         self._toggle_btn.setFixedWidth(_pt(50))
@@ -185,7 +189,7 @@ class _ApiKeyDialog(QDialog):
         self._url_edit = QLineEdit()
         self._url_edit.setPlaceholderText("https://api.anthropic.com")
         self._url_edit.setStyleSheet(
-            f"QLineEdit {{background:{C_CARD_LIGHT}; border:none; border-radius:10px; padding:10px 16px; color:{C_TEXT}; font-size:{_pt(11)}px;}}"
+            input_qss(radius=10, font_size=11)
         )
         lay.addWidget(self._url_edit)
 
@@ -598,7 +602,7 @@ def build_page() -> QWidget:
     ip_label = _lbl(_tt("remote.conn.ip_label"), 12, C_TEXT)
     ip_input = QLineEdit(conn_cfg.get("remote_last_host", ""))
     ip_input.setPlaceholderText(_tt("remote.conn.ip_placeholder"))
-    ip_input.setStyleSheet(f"QLineEdit {{background:{C_CARD_LIGHT}; border:none; border-radius:10px; padding:8px 16px; color:{C_TEXT}; font-size:{_pt(12)}px;}}")
+    ip_input.setStyleSheet(input_qss(radius=10, font_size=12))
     ip_input.setFixedHeight(_pt(44))
     ssh_btn = _btn(_tt("remote.conn.btn.connect"), primary=True, small=True)
     scan_btn = _btn(_tt("remote.conn.btn.scan"), small=True)
@@ -620,7 +624,7 @@ def build_page() -> QWidget:
     pass_input.setEchoMode(QLineEdit.Password)
     for e in (user_input, pass_input):
         e.setFixedHeight(_pt(40))
-        e.setStyleSheet(f"QLineEdit {{background:{C_CARD_LIGHT}; border:none; border-radius:8px; padding:6px 12px; color:{C_TEXT}; font-size:{_pt(11)}px;}}")
+        e.setStyleSheet(input_qss(radius=8, font_size=11))
     auth_row = QHBoxLayout()
     auth_row.addWidget(user_label)
     auth_row.addWidget(user_input)
@@ -736,6 +740,7 @@ def build_page() -> QWidget:
     ssh_btn.clicked.connect(_do_ssh)
 
     def _open_ssh_terminal():
+        import os
         import platform
         import subprocess
 
@@ -751,7 +756,25 @@ def build_page() -> QWidget:
         try:
             system = platform.system()
             if system == "Linux":
-                # Try common Linux terminals
+                # Inherit current env and ensure DISPLAY is set
+                env = os.environ.copy()
+                display = env.get("DISPLAY", "")
+
+                # If DISPLAY is missing or X server is unreachable, try :0 then :99
+                if not display:
+                    for candidate in (":0", ":99", ":1"):
+                        sock = f"/tmp/.X11-unix/X{candidate.lstrip(':')}"
+                        if os.path.exists(sock):
+                            env["DISPLAY"] = candidate
+                            display = candidate
+                            break
+
+                if not display:
+                    _show_warning_message(page, _tt("common.notice"),
+                        "No X display available. Please run in a desktop environment.")
+                    return
+
+                # Try common Linux terminals, passing explicit env
                 terminals = [
                     ("gnome-terminal", ["gnome-terminal", "--", "bash", "-c", f"{ssh_cmd}; exec bash"]),
                     ("konsole", ["konsole", "-e", "bash", "-c", f"{ssh_cmd}; exec bash"]),
@@ -760,7 +783,7 @@ def build_page() -> QWidget:
                 ]
                 for term_name, cmd in terminals:
                     if shutil.which(term_name):
-                        subprocess.Popen(cmd)
+                        subprocess.Popen(cmd, env=env)
                         return
                 _show_warning_message(page, _tt("common.notice"), "No terminal emulator found. Please install gnome-terminal, konsole, xfce4-terminal, or xterm.")
             elif system == "Windows":

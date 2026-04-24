@@ -1,4 +1,6 @@
 """Skills execution engine."""
+from __future__ import annotations
+
 import json
 import re
 from dataclasses import dataclass, field
@@ -7,7 +9,7 @@ from typing import Callable, Optional
 from seeed_jetson_develop.core.runner import Runner
 
 _DATA        = Path(__file__).parent / "data" / "skills.json"
-_SKILLS_ROOT = Path(__file__).parent.parent.parent.parent / "skills"
+_SKILLS_ROOT = Path(__file__).resolve().parents[2] / "skills"
 _OPENCLAW    = _SKILLS_ROOT / "openclaw"
 _CLAUDE      = _SKILLS_ROOT / "claude"
 _CODEX       = _SKILLS_ROOT / "codex"

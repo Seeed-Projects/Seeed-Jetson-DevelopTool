@@ -3,6 +3,8 @@
 提供筛选、标签页、批量渲染等通用功能，用于 apps/skills 等列表页面。
 继承自 PageBase，复用统一的页面结构。
 """
+from __future__ import annotations
+
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
 from PyQt5.QtCore import Qt, QTimer
 from seeed_jetson_develop.gui.widgets.page_base import PageBase
@@ -31,6 +33,7 @@ class ListPageBase(PageBase):
         self.items_data = []
         self.tab_buttons = {}
         self.search_input = None
+        self._tabs_widget = None
 
         # 调用父类初始化（构建基础结构）
         super().__init__(
@@ -127,6 +130,7 @@ class ListPageBase(PageBase):
         tabs_lay = QHBoxLayout(tabs_widget)
         tabs_lay.setContentsMargins(0, 0, 0, 0)
         tabs_lay.setSpacing(_pt(12))
+        self._tabs_widget = tabs_widget  # expose for dynamic tab rebuild
 
         # 标签页按钮
         categories = self.get_categories()
