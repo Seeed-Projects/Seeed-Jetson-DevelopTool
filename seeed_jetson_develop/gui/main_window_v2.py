@@ -6,6 +6,7 @@ import json
 import logging
 import re
 import sys
+import threading
 import traceback
 from pathlib import Path
 
@@ -30,6 +31,7 @@ from ..core.platform_detect import is_jetson
 from ..core.events import bus
 from ..resources import resolve_runtime_path
 from .ai_chat import FloatingAIAssistant, build_ai_system_prompt
+from ..data_update import load_json_data, update_bsp_links_from_github
 from .i18n import get_language, set_language as _save_language, t
 from .runtime_i18n import apply_language
 
@@ -337,6 +339,10 @@ class MainWindowV2(QMainWindow):
         self._is_jetson = is_jetson()
         self._remote_connected = False
 
+        refreshed = update_bsp_links_from_github(timeout=(1, 2))
+        if not refreshed:
+            self._start_bsp_data_refresh()
+
         bus.device_connected.connect(self._on_remote_connected)
         bus.device_disconnected.connect(self._on_remote_disconnected)
 
@@ -352,20 +358,24 @@ class MainWindowV2(QMainWindow):
 
     def _load_data(self):
         try:
-            with open(self.data_path / "l4t_data.json", encoding="utf-8") as f:
-                self.l4t_data = json.load(f)
+            self.l4t_data = load_json_data("l4t_data.json", [])
             for item in self.l4t_data:
                 p = item["product"]
                 self.products.setdefault(p, []).append(item["l4t"])
         except Exception: pass
         try:
-            with open(self.data_path / "product_images.json", encoding="utf-8") as f:
-                self.product_images = json.load(f)
+            self.product_images = load_json_data("product_images.json", {})
         except Exception: pass
         try:
-            with open(self.data_path / "recovery_guides.json", encoding="utf-8") as f:
-                self.recovery_guides = json.load(f)
+            self.recovery_guides = load_json_data("recovery_guides.json", {})
         except Exception: pass
+
+    def _start_bsp_data_refresh(self):
+        def _refresh():
+            update_bsp_links_from_github()
+
+        thread = threading.Thread(target=_refresh, name="bsp-data-refresh", daemon=True)
+        thread.start()
 
     def _init_ui(self):
         self.setWindowTitle(t("main.app_title", lang=self._lang))

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "seeed-jetson-developer"
-version = "0.1.4"
+version = "0.1.5"
 description = "Seeed Jetson Developer Tool — Flash, device management, app market, skills, and remote development"
 readme = "README.md"
 license = { text = "MIT" }

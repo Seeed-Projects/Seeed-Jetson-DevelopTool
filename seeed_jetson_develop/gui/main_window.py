@@ -9,7 +9,9 @@ from PyQt5.QtWidgets import (
     QCheckBox, QFrame, QScrollArea
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from .. import __version__
 from .styles import MAIN_STYLE, SEEED_GREEN, SEEED_BLUE
+from ..data_update import load_json_data
 from ..flash import JetsonFlasher
 
 
@@ -66,14 +68,9 @@ class MainWindow(QMainWindow):
     
     def load_data(self):
         """加载数据"""
-        with open(self.data_path / "l4t_data.json", 'r', encoding='utf-8') as f:
-            self.l4t_data = json.load(f)
-        
-        with open(self.data_path / "product_images.json", 'r', encoding='utf-8') as f:
-            self.product_images = json.load(f)
-        
-        with open(self.data_path / "recovery_guides.json", 'r', encoding='utf-8') as f:
-            self.recovery_guides = json.load(f)
+        self.l4t_data = load_json_data("l4t_data.json", [])
+        self.product_images = load_json_data("product_images.json", {})
+        self.recovery_guides = load_json_data("recovery_guides.json", {})
         
         self.products = {}
         for item in self.l4t_data:
@@ -127,7 +124,7 @@ class MainWindow(QMainWindow):
         
         header_layout.addStretch()
         
-        version = QLabel("v0.1.0")
+        version = QLabel(f"v{__version__}")
         version.setStyleSheet("color: white; font-size: 14px;")
         header_layout.addWidget(version)
         
@@ -266,7 +263,7 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
         
-        version = QLabel("版本 0.1.0")
+        version = QLabel(f"版本 {__version__}")
         version.setAlignment(Qt.AlignCenter)
         layout.addWidget(version)
         

@@ -28,6 +28,7 @@ from seeed_jetson_develop.flash import (
 from seeed_jetson_develop.gui.flash_animation import FlashAnimationWidget
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding
 from seeed_jetson_develop.gui.i18n import get_language, t
+from seeed_jetson_develop.data_update import load_json_data
 from seeed_jetson_develop.resources import resolve_runtime_path
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_BLUE, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
@@ -37,8 +38,6 @@ from seeed_jetson_develop.gui.theme import (
 
 log = logging.getLogger(__name__)
 
-# Data directories
-_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 FLASH_FORCE_TWO_COLUMNS = True
 
 
@@ -82,16 +81,14 @@ def _load_flash_data():
     product_images = {}
     products = {}
     try:
-        with open(_DATA_DIR / "l4t_data.json", encoding="utf-8") as f:
-            l4t_data = json.load(f)
+        l4t_data = load_json_data("l4t_data.json", [])
         for item in l4t_data:
             p = item["product"]
             products.setdefault(p, []).append(item["l4t"])
     except Exception:
         pass
     try:
-        with open(_DATA_DIR / "product_images.json", encoding="utf-8") as f:
-            product_images = json.load(f)
+        product_images = load_json_data("product_images.json", {})
     except Exception:
         pass
     return l4t_data, products, product_images
@@ -141,6 +138,7 @@ def build_page() -> QWidget:
         "lang": _flash_lang(),
         "active_status_label": None,
         "active_progress": None,
+        "device_pixmap": None,
     }
 
     # Custom QWidget for adaptive resize behavior.
@@ -164,6 +162,7 @@ def build_page() -> QWidget:
     scroll.setWidgetResizable(True)
     scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     inner = QWidget()
     inner.setStyleSheet(f"background:{C_BG};")
     inner.setMinimumWidth(0)
@@ -279,7 +278,7 @@ def build_page() -> QWidget:
     flash_left_stack = QStackedWidget()
     flash_left_stack.setContentsMargins(0, 0, 0, 0)
     flash_left_stack.setMinimumWidth(0)
-    flash_left_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+    flash_left_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.MinimumExpanding)
     flash_left_stack.setFrameShape(QFrame.NoFrame)
     flash_left_stack.setLineWidth(0)
     flash_left_stack.setStyleSheet("QStackedWidget { background:transparent; border:none; margin:0; padding:0; }")
@@ -323,7 +322,9 @@ def build_page() -> QWidget:
     # Device image
     flash_device_img = QLabel()
     flash_device_img.setFixedSize(320 if PLATFORM.win_min_w > 1024 else 280, 200 if PLATFORM.win_min_w > 1024 else 160)
+    flash_device_img.setMinimumSize(pt(160), pt(100))
     flash_device_img.setAlignment(Qt.AlignCenter)
+    flash_device_img.setScaledContents(False)
     flash_device_img.setStyleSheet(f"""
         background: {C_CARD_LIGHT};
         border: none;
@@ -378,7 +379,7 @@ def build_page() -> QWidget:
     opt_title_lbl = make_label(_ft("flash.options.title"), 14, C_TEXT, bold=True)
     opt_lay.addWidget(opt_title_lbl)
     skip_verify_cb = QCheckBox(_ft("flash.options.skip_verify"))
-    skip_verify_cb.setChecked(True)
+    skip_verify_cb.setChecked(False)
     opt_lay.addWidget(skip_verify_cb)
     left_col.addWidget(opt_card)
     left_col.addStretch()
@@ -389,6 +390,7 @@ def build_page() -> QWidget:
     left_page0.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     left_page0.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     left_page0.setFrameShape(QFrame.NoFrame)
+    left_page0.setMinimumHeight(pt(420))
     left_page0.setStyleSheet(
         "QScrollArea { background:transparent; border:none; }"
         "QScrollBar:vertical { background:transparent; width:6px; border-radius:3px; }"
@@ -410,6 +412,7 @@ def build_page() -> QWidget:
     rec_guide_scroll.setWidgetResizable(True)
     rec_guide_scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     rec_guide_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    rec_guide_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     rec_guide_scroll.setStyleSheet("background:transparent; border:none;")
 
     rec_guide_content = QWidget()
@@ -441,6 +444,7 @@ def build_page() -> QWidget:
     guide_scroll.setWidgetResizable(True)
     guide_scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     guide_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    guide_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     guide_scroll.setStyleSheet("background:transparent; border:none;")
 
     guide_content = QWidget()
@@ -528,7 +532,7 @@ def build_page() -> QWidget:
     flash_right_panel = QWidget()
     flash_right_panel.setStyleSheet("background:transparent;")
     flash_right_panel.setMinimumWidth(0)
-    flash_right_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+    flash_right_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.MinimumExpanding)
     right_col = QVBoxLayout(flash_right_panel)
     right_col.setContentsMargins(0, 0, 0, 0)
     right_col.setSpacing(pt(20))
@@ -536,7 +540,7 @@ def build_page() -> QWidget:
     flash_step_stack = QStackedWidget()
     flash_step_stack.setContentsMargins(0, 0, 0, 0)
     flash_step_stack.setMinimumWidth(0)
-    flash_step_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+    flash_step_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.MinimumExpanding)
     flash_step_stack.setFrameShape(QFrame.NoFrame)
     flash_step_stack.setLineWidth(0)
     flash_step_stack.setStyleSheet("QStackedWidget { background:transparent; border:none; margin:0; padding:0; }")
@@ -563,6 +567,7 @@ def build_page() -> QWidget:
 
     flash_prepare_scene = FlashAnimationWidget()
     flash_prepare_scene.setFixedHeight(160)
+    flash_prepare_scene.setMinimumHeight(pt(120))
     task_lay.addWidget(flash_prepare_scene)
 
     btn_row = QHBoxLayout()
@@ -714,6 +719,7 @@ def build_page() -> QWidget:
 
     flash_scene = FlashAnimationWidget()
     flash_scene.setFixedHeight(160)
+    flash_scene.setMinimumHeight(pt(120))
     run_lay.addWidget(flash_scene)
 
     run_btn_row = QHBoxLayout()
@@ -844,9 +850,33 @@ def build_page() -> QWidget:
         flash_cols.setStretch(1, 1)
         if compact_visual:
             flash_device_img.setFixedSize(pt(200), pt(126))
+            flash_prepare_scene.setFixedHeight(pt(120))
+            flash_scene.setFixedHeight(pt(120))
+            flash_done_scene.setFixedHeight(pt(120))
         else:
             flash_device_img.setFixedSize(pt(320), pt(200))
+            flash_prepare_scene.setFixedHeight(pt(160))
+            flash_scene.setFixedHeight(pt(160))
+            flash_done_scene.setFixedHeight(pt(160))
+        _rescale_device_image()
         flash_log.setMinimumHeight(pt(120) if compact_visual else pt(200))
+
+    def _rescale_device_image():
+        pix = _state.get("device_pixmap")
+        if pix is None or pix.isNull():
+            return
+        target = flash_device_img.size()
+        scaled = pix.scaled(target, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        flash_device_img.setPixmap(scaled)
+        flash_device_img.setText("")
+
+    def _set_device_image(pix):
+        _state["device_pixmap"] = pix
+        if pix is None or pix.isNull():
+            flash_device_img.clear()
+            flash_device_img.setText(_ft("flash.product_summary.no_image"))
+            return
+        _rescale_device_image()
 
     def _set_flash_doc_button(button, url: str, tooltip: str):
         url = (url or "").strip()
@@ -875,14 +905,12 @@ def build_page() -> QWidget:
         local_img = info.get("local_image", "")
         img_path = resolve_runtime_path(local_img)
         if img_path and img_path.exists():
-            pix = QPixmap(str(img_path)).scaled(320, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            flash_device_img.setPixmap(pix)
-            flash_device_img.setText("")
+            pix = QPixmap(str(img_path))
+            _set_device_image(pix if not pix.isNull() else None)
         else:
             image_url = info.get("image_url", "")
             if image_url:
-                flash_device_img.clear()
-                flash_device_img.setText(t("flash.product_summary.no_image", lang=get_language()))
+                _set_device_image(None)
                 def _fetch_device_img(url=image_url):
                     try:
                         import requests as _req
@@ -893,15 +921,13 @@ def build_page() -> QWidget:
                             p = QPixmap()
                             p.loadFromData(data)
                             if not p.isNull():
-                                flash_device_img.setPixmap(p.scaled(320, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-                                flash_device_img.setText("")
+                                _set_device_image(p)
                         QTimer.singleShot(0, _update)
                     except Exception:
                         pass
                 threading.Thread(target=_fetch_device_img, daemon=True).start()
             else:
-                flash_device_img.clear()
-                flash_device_img.setText(t("flash.product_summary.no_image", lang=get_language()))
+                _set_device_image(None)
         _update_cache_label()
 
     def _update_cache_label():

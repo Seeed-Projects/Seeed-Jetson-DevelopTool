@@ -16,6 +16,8 @@ from pathlib import Path
 import requests
 from tqdm import tqdm
 
+from seeed_jetson_develop.data_update import get_data_file
+
 
 def _is_windows_host() -> bool:
     return platform.system() == "Windows"
@@ -97,7 +99,7 @@ class JetsonFlasher:
         self.progress_callback = progress_callback
         self.should_cancel = should_cancel
         self.skip_verify = skip_verify
-        self.data_path = Path(__file__).parent / "data" / "l4t_data.json"
+        self.data_path = get_data_file("l4t_data.json")
         self._fmt = log_formatter or (lambda key, **kw: key)
         self.firmware_info = self._load_firmware_info()
         if download_dir:

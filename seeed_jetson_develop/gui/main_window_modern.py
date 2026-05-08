@@ -23,6 +23,8 @@ from PyQt5.QtWidgets import (
     QWidget,
 )
 
+from .. import __version__
+from ..data_update import load_json_data
 from .styles import MAIN_STYLE
 from .theme import show_info_message, show_warning_message, show_error_message, ask_question_message
 from ..flash import JetsonFlasher
@@ -105,20 +107,17 @@ class MainWindow(QMainWindow):
         errors = []
 
         try:
-            with open(self.data_path / "l4t_data.json", "r", encoding="utf-8") as file:
-                self.l4t_data = json.load(file)
+            self.l4t_data = load_json_data("l4t_data.json", [])
         except Exception as exc:
             errors.append(f"l4t_data.json 加载失败: {exc}")
 
         try:
-            with open(self.data_path / "product_images.json", "r", encoding="utf-8") as file:
-                self.product_images = json.load(file)
+            self.product_images = load_json_data("product_images.json", {})
         except Exception as exc:
             errors.append(f"product_images.json 加载失败: {exc}")
 
         try:
-            with open(self.data_path / "recovery_guides.json", "r", encoding="utf-8") as file:
-                self.recovery_guides = json.load(file)
+            self.recovery_guides = load_json_data("recovery_guides.json", {})
         except Exception as exc:
             errors.append(f"recovery_guides.json 加载失败: {exc}")
 
@@ -206,7 +205,7 @@ class MainWindow(QMainWindow):
         hint_label.setStyleSheet("padding: 8px 4px;")
         layout.addWidget(hint_label)
 
-        footer = QLabel("v0.1.0")
+        footer = QLabel(f"v{__version__}")
         footer.setObjectName("BrandSubtitle")
         layout.addWidget(footer)
 
