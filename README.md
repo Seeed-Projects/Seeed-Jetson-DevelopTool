@@ -117,7 +117,7 @@ python3 run_v2.py
 4. Click **Detect Device** to confirm USB connection
 5. Click **Start Flash** — takes 2–10 minutes
 
-> Flashing requires a Linux host. Windows users can use WSL2 with USB passthrough.
+> Flashing is most reliable on a native Linux host. On Windows, the tool can guide a WSL2 + usbipd workflow, but native Ubuntu is still recommended if USB passthrough is unstable.
 
 ---
 

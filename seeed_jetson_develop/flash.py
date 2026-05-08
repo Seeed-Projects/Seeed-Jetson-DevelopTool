@@ -59,16 +59,65 @@ def sudo_check_cached() -> bool:
         return False
 
 
+def find_recovery_device_line() -> str | None:
+    """Return a host-specific recovery-device description line."""
+    if _is_windows_host():
+        from seeed_jetson_develop.wsl_flash import find_nvidia_apx_device
+
+        device = find_nvidia_apx_device()
+        return device.raw.strip() if device else None
+
+    nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623"}
+    result = subprocess.run(
+        ["lsusb"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=5,
+    )
+    for line in result.stdout.splitlines():
+        line_lower = line.lower()
+        if "0955:" not in line_lower and "nvidia" not in line_lower:
+            continue
+        parts = line.split("ID ")
+        if len(parts) <= 1:
+            continue
+        pid = parts[1].split()[0].split(":")[-1].lower()
+        if pid in nvidia_apx_ids:
+            return line.strip()
+    return None
+
+
 class JetsonFlasher:
     def __init__(self, product, l4t_version, progress_callback=None, should_cancel=None,
-                 download_dir: Path | None = None):
+                 download_dir: Path | None = None, log_formatter=None, skip_verify: bool = False):
         self.product = product
         self.l4t_version = l4t_version
         self.progress_callback = progress_callback
         self.should_cancel = should_cancel
+        self.skip_verify = skip_verify
         self.data_path = Path(__file__).parent / "data" / "l4t_data.json"
+        self._fmt = log_formatter or (lambda key, **kw: key)
         self.firmware_info = self._load_firmware_info()
-        self.download_dir = Path(download_dir) if download_dir else Path.home() / "jetson_firmware"
+        if download_dir:
+            self.download_dir = Path(download_dir)
+        elif _is_windows_host():
+            windows_dir = Path.home() / "jetson_firmware"
+            filename = self.firmware_info["filename"]
+            try:
+                from seeed_jetson_develop.wsl_flash import get_wsl_download_dir
+                wsl_dir = get_wsl_download_dir()
+            except Exception:
+                wsl_dir = None
+            if (windows_dir / filename).exists():
+                self.download_dir = windows_dir
+            elif wsl_dir and (wsl_dir / filename).exists():
+                self.download_dir = wsl_dir
+            else:
+                self.download_dir = windows_dir
+        else:
+            self.download_dir = Path.home() / "jetson_firmware"
         self.download_dir.mkdir(parents=True, exist_ok=True)
     
     def _load_firmware_info(self):
@@ -80,7 +129,7 @@ class JetsonFlasher:
             if item['product'] == self.product and item['l4t'] == self.l4t_version:
                 return item
         
-        raise ValueError(f"未找到 {self.product} L4T {self.l4t_version} 的固件信息")
+        raise ValueError(self._fmt("flash.flasher.firmware_not_found", product=self.product, l4t=self.l4t_version))
 
     @staticmethod
     def _with_download_flag(url):
@@ -161,34 +210,160 @@ class JetsonFlasher:
                 pass
 
     @staticmethod
-    def _safe_extract_path(base_dir: Path, member_name: str) -> Path:
-        """防止 tar 成员路径逃逸到目标目录之外。"""
-        base = base_dir.resolve()
-        target = (base_dir / member_name).resolve()
-        if target == base:
-            return target
-        if not str(target).startswith(str(base) + os.sep):
-            raise ValueError(f"压缩包包含不安全路径: {member_name}")
-        return target
+    def _clean_process_output(text: str) -> str:
+        return (text or "").replace("\x00", "").strip()
 
     def _extract_archive_portable(self, filepath: Path, extract_dir: Path):
-        """跨平台解压归档，并按真实字节数上报进度。"""
-        with tarfile.open(filepath, "r:*") as tar:
-            members = tar.getmembers()
-            total_bytes = sum(m.size for m in members if m.isfile())
-            extracted_bytes = 0
-            total_members = max(1, len(members))
+        """Extract archive. On Windows, delegates to WSL tar to avoid Python tarfile
+        recursion limits on large .tar.gz files and to preserve Linux file attributes."""
+        if _is_windows_host():
+            self._extract_via_wsl(filepath, extract_dir)
+        else:
+            self._extract_via_tarfile(filepath, extract_dir)
 
-            for idx, member in enumerate(members, start=1):
+    def _extract_via_wsl(self, filepath: Path, extract_dir: Path):
+        """Use WSL tar to extract the archive, reporting progress via file count."""
+        from seeed_jetson_develop.wsl_flash import (
+            WslFlashManager,
+            WslFlashError,
+            _windows_path_to_wsl,
+            _wsl_exe,
+        )
+
+        wsl = _wsl_exe()
+        if not wsl or not Path(wsl).exists():
+            raise WslFlashError("wsl.exe was not found. Please update Windows and enable WSL.")
+
+        manager = WslFlashManager(
+            self.product,
+            self.l4t_version,
+            self.firmware_info,
+            self.download_dir,
+            progress_callback=self.progress_callback,
+            should_cancel=self.should_cancel,
+            verify_archive_sha256=not self.skip_verify,
+        )
+        manager._prefer_archive_distro()
+        manager._ensure_wsl()
+        distro = manager.distro
+
+        # Convert paths to WSL-internal paths
+        archive_str = str(filepath.resolve())
+        if archive_str.lower().startswith(f"\\\\wsl$\\{distro.lower()}\\"):
+            rel = archive_str[len(f"\\\\wsl$\\{distro}\\"):]
+            archive_wsl = "/" + rel.replace("\\", "/")
+        else:
+            archive_wsl = _windows_path_to_wsl(filepath)
+
+        extract_str = str(extract_dir.resolve())
+        if extract_str.lower().startswith(f"\\\\wsl$\\{distro.lower()}\\"):
+            rel = extract_str[len(f"\\\\wsl$\\{distro}\\"):]
+            extract_wsl = "/" + rel.replace("\\", "/")
+        else:
+            extract_wsl = _windows_path_to_wsl(extract_dir)
+
+        import shlex as _shlex
+        archive_q = _shlex.quote(archive_wsl)
+        extract_q = _shlex.quote(extract_wsl)
+
+        # Emit an indeterminate start so the UI shows something immediately
+        self._emit_progress("extract", 0, 0)
+
+        script = (
+            "set -o pipefail; "
+            f"mkdir -p {extract_q}; "
+            f"test -f {archive_q} || "
+            f"(echo '[WSL] Archive not found: {archive_wsl}' >&2; exit 41); "
+            f"tar xpf {archive_q} -C {extract_q} --checkpoint=500 "
+            "--checkpoint-action=echo=#CKPT"
+        )
+
+        # Run tar extraction with checkpoints every 500 records for progress ticks.
+        # We don't pre-scan (tar tf) because that would decompress the whole archive twice.
+        process = subprocess.Popen(
+            [wsl, "-d", distro, "-u", "root", "--",
+             "bash", "-lc", script],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", bufsize=1,
+        )
+        checkpoints = 0
+        output_tail: list[str] = []
+        try:
+            for line in process.stdout:
+                line = line.rstrip()
+                if line:
+                    output_tail.append(line)
+                    if len(output_tail) > 40:
+                        output_tail.pop(0)
                 self._check_cancel()
-                self._safe_extract_path(extract_dir, member.name)
-                tar.extract(member, path=extract_dir, set_attrs=not _is_windows_host())
-                if member.isfile():
-                    extracted_bytes += max(0, member.size)
-                if total_bytes > 0:
-                    self._emit_progress("extract", extracted_bytes, total_bytes)
-                else:
-                    self._emit_progress("extract", idx, total_members)
+                normalized = self._clean_process_output(line)
+                if normalized == "#CKPT" or normalized.endswith(": #CKPT"):
+                    checkpoints += 1
+                    # emit (checkpoints, 0) — thread.py treats total==0 as indeterminate
+                    # but still increments the counter so the log updates
+                    self._emit_progress("extract", checkpoints, 0)
+                elif normalized:
+                    self._emit_log(normalized)
+            process.wait()
+        except InterruptedError:
+            try:
+                process.terminate()
+                process.wait(timeout=3)
+            except Exception:
+                process.kill()
+            raise
+
+        if process.returncode != 0:
+            detail = self._clean_process_output("\n".join(output_tail))
+            lowered = detail.lower()
+            if "wsl_e_distro_not_found" in lowered:
+                raise WslFlashError(
+                    f"WSL distro {distro} is not installed or registered. "
+                    "Restart Windows if WSL was just installed, then run Download / Extract again."
+                )
+            if (
+                "unexpected eof" in lowered
+                or "unexpected end of file" in lowered
+                or "not in gzip format" in lowered
+                or "this does not look like a tar archive" in lowered
+            ):
+                raise WslFlashError(
+                    "Firmware archive looks incomplete or corrupted. "
+                    "Please use Force re-download, then extract again."
+                )
+            message = f"WSL tar failed in {distro} (exit {process.returncode})."
+            if detail:
+                message += f"\nLast WSL output:\n{detail}"
+            raise WslFlashError(message)
+
+    def _extract_via_tarfile(self, filepath: Path, extract_dir: Path):
+        """Extract using Python tarfile (Linux/native path only)."""
+        import sys
+        old_limit = sys.getrecursionlimit()
+        sys.setrecursionlimit(max(old_limit, 5000))
+        try:
+            with tarfile.open(filepath, "r:*") as tar:
+                members = tar.getmembers()
+                total_bytes = sum(m.size for m in members if m.isfile())
+                extracted_bytes = 0
+                total_members = max(1, len(members))
+
+                for idx, member in enumerate(members, start=1):
+                    self._check_cancel()
+                    # path traversal guard
+                    base = str(extract_dir.resolve())
+                    target = str((extract_dir / member.name).resolve())
+                    if target != base and not target.startswith(base + os.sep):
+                        raise ValueError(self._fmt("flash.flasher.unsafe_path", path=member.name))
+                    tar.extract(member, path=extract_dir, set_attrs=True)
+                    if member.isfile():
+                        extracted_bytes += max(0, member.size)
+                    if total_bytes > 0:
+                        self._emit_progress("extract", extracted_bytes, total_bytes)
+                    else:
+                        self._emit_progress("extract", idx, total_members)
+        finally:
+            sys.setrecursionlimit(old_limit)
 
     def _download_from_url(self, url, filepath, filename):
         """从指定 URL 下载到目标文件，支持多线程分片并行下载和断点续传。"""
@@ -209,10 +384,10 @@ class JetsonFlasher:
         use_multipart = accept_ranges and total_size >= MIN_MULTIPART_SIZE
 
         if use_multipart:
-            print(f"启用多线程分片下载: {NUM_PARTS} 线程, 总大小 {total_size // 1024 // 1024} MB")
+            print(self._fmt("flash.flasher.multipart_enabled", parts=NUM_PARTS, size_mb=total_size // 1024 // 1024))
             self._download_multipart(url, filepath, filename, total_size, NUM_PARTS)
         else:
-            print("使用单线程下载")
+            print(self._fmt("flash.flasher.singlethread"))
             self._download_single(url, filepath, filename)
 
     def _download_single(self, url, filepath, filename):
@@ -223,13 +398,13 @@ class JetsonFlasher:
         headers = {}
         if resume_pos > 0:
             headers["Range"] = f"bytes={resume_pos}-"
-            print(f"断点续传: 从 {resume_pos} 字节继续")
+            print(self._fmt("flash.flasher.resume", pos=resume_pos))
 
         response = requests.get(url, stream=True, timeout=(15, 600),
                                 allow_redirects=True, headers=headers)
 
         if resume_pos > 0 and response.status_code == 200:
-            print("服务器不支持断点续传，重新下载")
+            print(self._fmt("flash.flasher.no_resume"))
             resume_pos = 0
             tmp_path.unlink(missing_ok=True)
 
@@ -249,9 +424,9 @@ class JetsonFlasher:
                 break
 
         if not first_chunk:
-            raise ValueError("下载内容为空")
+            raise ValueError(self._fmt("flash.flasher.empty_download"))
         if resume_pos == 0 and self._looks_like_html(content_type, first_chunk):
-            raise ValueError("下载链接返回网页内容，非固件文件")
+            raise ValueError(self._fmt("flash.flasher.html_response"))
 
         written = resume_pos + len(first_chunk)
         open_mode = "ab" if resume_pos > 0 else "wb"
@@ -268,7 +443,7 @@ class JetsonFlasher:
                     self._emit_progress("download", written, total_size)
 
         if written < 1024 * 1024:
-            raise ValueError(f"下载文件异常偏小: {written} bytes")
+            raise ValueError(self._fmt("flash.flasher.file_too_small", size=written))
 
         tmp_path.replace(filepath)
 
@@ -354,10 +529,10 @@ class JetsonFlasher:
         # 检查是否有分片失败
         failed = [(i, e) for i, e in enumerate(part_errors) if e is not None]
         if failed:
-            raise Exception(f"分片下载失败: {', '.join(f'part{i}: {e}' for i, e in failed)}")
+            raise Exception(self._fmt("flash.flasher.part_failed", detail=', '.join(f'part{i}: {e}' for i, e in failed)))
 
-        # 合并分片
-        print("合并分片...")
+        # merge parts
+        print(self._fmt("flash.flasher.merge_parts"))
         tmp_path = filepath.with_suffix(filepath.suffix + ".part")
         with open(tmp_path, "wb") as out:
             for idx, start, end, part_file in parts:
@@ -367,15 +542,98 @@ class JetsonFlasher:
 
         actual_size = tmp_path.stat().st_size
         if actual_size < 1024 * 1024:
-            raise ValueError(f"合并后文件异常偏小: {actual_size} bytes")
+            raise ValueError(self._fmt("flash.flasher.merge_too_small", size=actual_size))
 
         tmp_path.replace(filepath)
-        print(f"下载完成，文件大小: {actual_size // 1024 // 1024} MB")
+        print(self._fmt("flash.flasher.download_complete_size", size_mb=actual_size // 1024 // 1024))
     
     def firmware_cached(self) -> bool:
         """检查固件压缩包是否已缓存（文件存在且大小正常）。"""
         filepath = self.download_dir / self.firmware_info['filename']
         return filepath.exists() and filepath.stat().st_size > 1024 * 1024
+
+    def _unc_to_wsl_path(self, unc: Path) -> tuple[str, str] | None:
+        r"""Convert \\wsl$\<distro>\... to (distro, /internal/path). Returns None if not a WSL UNC path."""
+        # Do not call Path.resolve() for \\wsl$ paths. Windows tries to access
+        # the target first, which fails for root-owned Linux directories before
+        # we can delegate the operation to WSL as root.
+        s = str(unc)
+        lower = s.lower()
+        prefix = "\\\\wsl$\\"
+        if not lower.startswith(prefix):
+            s = str(unc.resolve())
+            lower = s.lower()
+            if not lower.startswith(prefix):
+                return None
+        rest = s[len(prefix):]
+        parts = rest.split("\\", 1)
+        if len(parts) < 2:
+            return None
+        distro, rel = parts
+        return distro, "/" + rel.replace("\\", "/")
+
+    def _wsl_read_marker(self, marker_unc: Path) -> str | None:
+        """Read a marker file inside WSL via wsl cat. Returns stripped content or None."""
+        parsed = self._unc_to_wsl_path(marker_unc)
+        if parsed is None:
+            try:
+                return marker_unc.read_text().strip()
+            except Exception:
+                return None
+        distro, wsl_path = parsed
+        from seeed_jetson_develop.wsl_flash import _wsl_exe
+        import shlex
+        try:
+            result = subprocess.run(
+                [_wsl_exe(), "-d", distro, "-u", "root", "--",
+                 "bash", "-c", f"cat {shlex.quote(wsl_path)} 2>/dev/null"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+            )
+            return result.stdout.strip() if result.returncode == 0 else None
+        except Exception:
+            return None
+
+    def _wsl_write_marker(self, marker_unc: Path, content: str):
+        """Write a marker file inside WSL via wsl bash. Silently ignores errors."""
+        parsed = self._unc_to_wsl_path(marker_unc)
+        if parsed is None:
+            try:
+                marker_unc.write_text(content)
+            except Exception:
+                pass
+            return
+        distro, wsl_path = parsed
+        from seeed_jetson_develop.wsl_flash import _wsl_exe
+        import shlex
+        try:
+            subprocess.run(
+                [_wsl_exe(), "-d", distro, "-u", "root", "--",
+                 "bash", "-c", f"echo -n {shlex.quote(content)} > {shlex.quote(wsl_path)}"],
+                capture_output=True, timeout=10,
+            )
+        except Exception:
+            pass
+
+    def _wsl_rmtree(self, path: Path):
+        """Delete a directory tree inside WSL via wsl rm -rf (handles root-owned files)."""
+        parsed = self._unc_to_wsl_path(path)
+        if parsed is None:
+            self._rmtree_privileged(path)
+            return
+        distro, wsl_path = parsed
+        from seeed_jetson_develop.wsl_flash import _wsl_exe
+        import shlex
+        result = subprocess.run(
+            [_wsl_exe(), "-d", distro, "-u", "root", "--",
+             "bash", "-c", f"rm -rf {shlex.quote(wsl_path)}"],
+            capture_output=True, timeout=120,
+        )
+        if result.returncode != 0:
+            raise PermissionError(f"wsl rm -rf failed (exit {result.returncode})")
 
     def firmware_extracted(self) -> bool:
         """检查当前产品+版本的固件是否已解压且内容匹配。
@@ -388,16 +646,11 @@ class JetsonFlasher:
         if actual is None:
             return False
         marker = actual / ".seeed_flash_marker"
-        if marker.exists():
-            try:
-                content = marker.read_text().strip()
-                return content == f"{self.product}|{self.l4t_version}"
-            except Exception:
-                return False
-        # 无标记文件时：只有目录名与当前产品的 foldername 精确匹配才认为已解压
-        # 避免兜底逻辑把其他产品的目录误判为当前产品已解压
-        foldername = self.firmware_info.get('foldername', '')
-        return bool(foldername) and actual.name == foldername
+        content = self._wsl_read_marker(marker)
+        if content is not None:
+            return content == f"{self.product}|{self.l4t_version}"
+        # 无 marker 文件视为未完成解压
+        return False
 
     def clear_cache(self, clear_archive=True, clear_extracted=True):
         """清除本地缓存。返回已删除路径列表。
@@ -421,7 +674,7 @@ class JetsonFlasher:
                 # 只删精确匹配当前产品 foldername 的目录，绝不误删其他产品的目录
                 actual = extract_dir / foldername
                 if actual.exists():
-                    self._rmtree_privileged(actual)
+                    self._wsl_rmtree(actual)
                     removed.append(str(actual))
         return removed
 
@@ -442,14 +695,17 @@ class JetsonFlasher:
         except PermissionError:
             if not _is_linux_host():
                 raise
-            print(f"普通删除失败，尝试 sudo rm -rf: {path}")
+            print(self._fmt("flash.flasher.rmtree_sudo", path=path))
             result = subprocess.run(
                 ["sudo", "rm", "-rf", str(path)],
-                capture_output=True, text=True
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
             )
             if result.returncode != 0:
                 raise PermissionError(
-                    f"sudo rm -rf 失败 (exit {result.returncode}): {result.stderr.strip()}"
+                    self._fmt("flash.flasher.rmtree_sudo_fail", code=result.returncode, error=result.stderr.strip())
                 )
 
     def download_firmware(self, force_redownload: bool = False):
@@ -460,13 +716,13 @@ class JetsonFlasher:
         if not force_redownload and filepath.exists():
             size = filepath.stat().st_size
             if size > 1024 * 1024:
-                print(f"固件已存在: {filepath}")
+                print(self._fmt("flash.flasher.firmware_exists", path=filepath))
                 return True
-            print(f"检测到已有文件异常偏小({size} bytes)，将重新下载: {filepath}")
+            print(self._fmt("flash.flasher.file_too_small_redownload", size=size, path=filepath))
             filepath.unlink()
 
         if force_redownload and filepath.exists():
-            print(f"强制重新下载，删除缓存: {filepath}")
+            print(self._fmt("flash.flasher.force_redownload", path=filepath))
             filepath.unlink()
             part_path = filepath.with_suffix(filepath.suffix + ".part")
             if part_path.exists():
@@ -475,25 +731,23 @@ class JetsonFlasher:
             for part_file in self.download_dir.glob(filepath.name + ".part[0-9]*"):
                 part_file.unlink(missing_ok=True)
         
-        print(f"正在下载固件: {filename}")
+        print(self._fmt("flash.flasher.downloading", filename=filename))
         urls = self._candidate_urls()
 
         last_error = None
         for idx, url in enumerate(urls, start=1):
-            print(f"下载链接({idx}/{len(urls)}): {url}")
+            print(self._fmt("flash.flasher.download_url", idx=idx, total=len(urls), url=url))
             self._emit_progress("download", 0, 0)
             try:
                 self._download_from_url(url, filepath, filename)
-                print(f"下载完成: {filepath}")
                 return True
             except InterruptedError:
                 raise
             except Exception as e:
                 last_error = e
-                print(f"当前链接下载失败: {e}")
-                # 保留 .part 文件，下次可断点续传
+                print(self._fmt("flash.flasher.url_failed", error=e))
 
-        print(f"下载失败: {last_error}")
+        print(self._fmt("flash.flasher.download_failed", error=last_error))
         return False
     
     def verify_firmware(self):
@@ -504,8 +758,8 @@ class JetsonFlasher:
         expected_sha256 = self.firmware_info['sha256'].lower()
         total_size = filepath.stat().st_size if filepath.exists() else 0
         
-        print(f"正在校验固件: {filename}")
-        
+        print(self._fmt("flash.flasher.verifying", filename=filename))
+
         sha256_hash = hashlib.sha256()
         processed = 0
         with open(filepath, "rb") as f:
@@ -515,16 +769,16 @@ class JetsonFlasher:
                 processed += len(byte_block)
                 if total_size > 0:
                     self._emit_progress("verify", processed, total_size)
-        
+
         actual_sha256 = sha256_hash.hexdigest().lower()
-        
+
         if actual_sha256 == expected_sha256:
-            print("✓ SHA256 校验通过")
+            print(self._fmt("flash.flasher.verify_ok"))
             return True
         else:
-            print(f"✗ SHA256 校验失败")
-            print(f"  期望: {expected_sha256}")
-            print(f"  实际: {actual_sha256}")
+            print(self._fmt("flash.flasher.verify_fail"))
+            print(self._fmt("flash.flasher.verify_expected", hash=expected_sha256))
+            print(self._fmt("flash.flasher.verify_actual", hash=actual_sha256))
             return False
     
     def _detect_extracted_dir(self, extract_dir: Path) -> Path | None:
@@ -555,22 +809,21 @@ class JetsonFlasher:
         if self.firmware_extracted():
             existing = self._detect_extracted_dir(extract_dir)
             self._extracted_dir = existing
-            print(f"固件已解压，跳过解压步骤: {existing}")
+            print(self._fmt("flash.flasher.already_extracted", path=existing))
             return True
 
-        # 目录存在但内容不匹配（切换了版本），先清理当前产品的目录
         foldername = self.firmware_info.get('foldername', '')
         if foldername:
             target = extract_dir / foldername
             if target.exists():
-                print(f"检测到旧解压目录（版本不匹配），清理: {target}")
+                print(self._fmt("flash.flasher.old_dir_cleanup", path=target))
                 self._rmtree_privileged(target)
 
-        print(f"正在解压固件: {filename}")
-        
+        print(self._fmt("flash.flasher.extracting", filename=filename))
+
         try:
             if not (filename.endswith('.tar.gz') or filename.endswith('.tar')):
-                print(f"不支持的文件格式: {filename}")
+                print(self._fmt("flash.flasher.unsupported_format", filename=filename))
                 return False
 
             self._extract_archive_portable(filepath, extract_dir)
@@ -578,32 +831,44 @@ class JetsonFlasher:
             actual_dir = self._detect_extracted_dir(extract_dir)
             if actual_dir:
                 self._extracted_dir = actual_dir
-                # 写入标记文件，记录当前 product+l4t
-                try:
-                    marker = actual_dir / ".seeed_flash_marker"
-                    marker.write_text(f"{self.product}|{self.l4t_version}")
-                except Exception:
-                    pass
-                print(f"解压完成: {actual_dir}")
+                marker = actual_dir / ".seeed_flash_marker"
+                self._wsl_write_marker(marker, f"{self.product}|{self.l4t_version}")
+                print(self._fmt("flash.flasher.extract_done", path=actual_dir))
             else:
-                print(f"解压完成，但无法确定顶层目录: {extract_dir}")
+                print(self._fmt("flash.flasher.extract_done_unknown_dir", path=extract_dir))
                 self._extracted_dir = None
             return True
         
         except InterruptedError:
             raise
-        except subprocess.CalledProcessError as e:
-            print(f"解压失败: {e}")
+        except Exception as e:
+            print(self._fmt("flash.flasher.extract_failed", error=e))
             return False
     
     def flash_firmware(self):
         """刷写固件（需已解压，设备已进入 Recovery 模式）。"""
         self._check_cancel()
         if _is_windows_host():
-            msg = "Windows 主机当前仅支持下载/校验/解压与 Recovery 检测；原生刷写仍需 Linux 或已配置 USB 透传的 WSL2。"
-            print(msg)
-            self._emit_log(msg)
-            return False
+            try:
+                from seeed_jetson_develop.wsl_flash import WslFlashManager
+
+                manager = WslFlashManager(
+                    self.product,
+                    self.l4t_version,
+                    self.firmware_info,
+                    self.download_dir,
+                    progress_callback=self.progress_callback,
+                    should_cancel=self.should_cancel,
+                    verify_archive_sha256=not self.skip_verify,
+                )
+                return manager.flash()
+            except InterruptedError:
+                raise
+            except Exception as exc:
+                msg = f"WSL2 flash failed: {exc}"
+                print(msg)
+                self._emit_log(msg)
+                return False
 
         extract_dir = self.download_dir / "extracted"
 
@@ -611,27 +876,27 @@ class JetsonFlasher:
         if actual_dir is None:
             actual_dir = self._detect_extracted_dir(extract_dir)
         if actual_dir is None:
-            print(f"未找到解压目录，请检查: {extract_dir}")
+            print(self._fmt("flash.flasher.no_extracted_dir", path=extract_dir))
             return False
 
         flash_script = actual_dir / "tools" / "kernel_flash" / "l4t_initrd_flash.sh"
         if not flash_script.exists():
-            print(f"未找到刷写脚本: {flash_script}")
+            print(self._fmt("flash.flasher.no_flash_script", path=flash_script))
             return False
 
-        print(f"工作目录: {actual_dir}")
-        print(f"刷写脚本: {flash_script}")
-        print("开始刷写，过程约 2-10 分钟，请勿断开 USB 或断电...")
+        print(self._fmt("flash.flasher.workdir", path=actual_dir))
+        print(self._fmt("flash.flasher.flash_script", path=flash_script))
+        print(self._fmt("flash.flasher.flash_start"))
 
         try:
             args = ["sudo", "./tools/kernel_flash/l4t_initrd_flash.sh",
                     "--flash-only", "--massflash", "1",
                     "--network", "usb0", "--showlogs"]
             self._run_cancelable_process(args, cwd=str(actual_dir))
-            print("✓ 刷写完成")
+            print(self._fmt("flash.flasher.flash_ok"))
             return True
         except InterruptedError:
             raise
         except subprocess.CalledProcessError as e:
-            print(f"✗ 刷写失败 (exit {e.returncode})")
+            print(self._fmt("flash.flasher.flash_fail", code=e.returncode))
             return False

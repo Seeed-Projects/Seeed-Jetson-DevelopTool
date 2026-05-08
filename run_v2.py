@@ -46,6 +46,7 @@ sys.excepthook = _excepthook
 # DBUS_SESSION_BUS_ADDRESS 保持不动，避免影响其他进程
 os.environ["NO_AT_BRIDGE"]    = "1"
 os.environ["QT_ACCESSIBILITY"] = "0"
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.fonts=false")
 
 # ── X display 健康检测 + 自动 Xvfb fallback（仅 Linux）─────────────────────
 def _ensure_display():
@@ -242,8 +243,17 @@ def _ensure_mesa_dri():
 _ensure_display()
 _ensure_mesa_dri()
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QtMsgType, qInstallMessageHandler
 from PyQt5.QtWidgets import QApplication
+
+def _qt_message_handler(msg_type, context, message):
+    if msg_type == QtMsgType.QtWarningMsg and "DirectWrite: CreateFontFaceFromHDC() failed" in message:
+        return
+    stream = sys.stderr
+    stream.write(message + "\n")
+    stream.flush()
+
+qInstallMessageHandler(_qt_message_handler)
 
 # 高 DPI 支持（必须在 QApplication 创建之前设置）
 QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)

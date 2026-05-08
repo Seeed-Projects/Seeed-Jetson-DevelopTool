@@ -117,7 +117,7 @@ python3 run_v2.py
 4. 点击**检测设备**确认 USB 连接
 5. 点击**开始刷写** — 约需 2–10 分钟
 
-> 烧录需要 Linux 主机。Windows 用户可使用配置了 USB 透传的 WSL2。
+> 烧录在原生 Linux 主机上最稳定。Windows 下本工具可引导 WSL2 + usbipd 流程，但如果 USB 透传不稳定，仍建议使用原生 Ubuntu。
 
 ---
 

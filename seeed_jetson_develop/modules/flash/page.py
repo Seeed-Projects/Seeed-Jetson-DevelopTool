@@ -3,21 +3,28 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import platform as py_platform
 import threading
 from datetime import datetime
 from pathlib import Path
 
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap, QTextCursor, QDesktopServices
+from PyQt5.QtGui import QPixmap, QTextCursor, QDesktopServices, QTextOption
 from PyQt5.QtWidgets import (
     QApplication, QBoxLayout, QCheckBox, QComboBox, QDialog,
     QDialogButtonBox, QFileDialog, QFrame, QHBoxLayout, QLabel,
-    QLineEdit, QMessageBox, QProgressBar, QPushButton, QScrollArea,
+    QLineEdit, QMessageBox, QProgressBar, QPushButton, QAbstractScrollArea, QScrollArea,
     QSizePolicy, QStackedWidget, QTextEdit, QVBoxLayout, QWidget,
 )
 
 from seeed_jetson_develop.core.events import bus
-from seeed_jetson_develop.flash import JetsonFlasher, sudo_authenticate, sudo_check_cached
+from seeed_jetson_develop.flash import (
+    JetsonFlasher,
+    find_recovery_device_line,
+    sudo_authenticate,
+    sudo_check_cached,
+)
 from seeed_jetson_develop.gui.flash_animation import FlashAnimationWidget
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding
 from seeed_jetson_develop.gui.i18n import get_language, t
@@ -155,9 +162,12 @@ def build_page() -> QWidget:
 
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
+    scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     inner = QWidget()
     inner.setStyleSheet(f"background:{C_BG};")
+    inner.setMinimumWidth(0)
+    inner.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     inner_lay = QVBoxLayout(inner)
     inner_lay.setContentsMargins(pt(28), pt(24), pt(28), pt(24))
     inner_lay.setSpacing(pt(24))
@@ -268,6 +278,8 @@ def build_page() -> QWidget:
     # Left stacked panel
     flash_left_stack = QStackedWidget()
     flash_left_stack.setContentsMargins(0, 0, 0, 0)
+    flash_left_stack.setMinimumWidth(0)
+    flash_left_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     flash_left_stack.setFrameShape(QFrame.NoFrame)
     flash_left_stack.setLineWidth(0)
     flash_left_stack.setStyleSheet("QStackedWidget { background:transparent; border:none; margin:0; padding:0; }")
@@ -373,6 +385,7 @@ def build_page() -> QWidget:
 
     left_page0 = QScrollArea()
     left_page0.setWidgetResizable(True)
+    left_page0.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     left_page0.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     left_page0.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     left_page0.setFrameShape(QFrame.NoFrame)
@@ -395,11 +408,14 @@ def build_page() -> QWidget:
 
     rec_guide_scroll = QScrollArea()
     rec_guide_scroll.setWidgetResizable(True)
+    rec_guide_scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     rec_guide_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     rec_guide_scroll.setStyleSheet("background:transparent; border:none;")
 
     rec_guide_content = QWidget()
     rec_guide_content.setStyleSheet("background:transparent;")
+    rec_guide_content.setMinimumWidth(0)
+    rec_guide_content.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     rec_guide_layout = QVBoxLayout(rec_guide_content)
     rec_guide_layout.setContentsMargins(0, 0, pt(8), 0)
     rec_guide_layout.setSpacing(pt(12))
@@ -423,6 +439,7 @@ def build_page() -> QWidget:
 
     guide_scroll = QScrollArea()
     guide_scroll.setWidgetResizable(True)
+    guide_scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     guide_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     guide_scroll.setStyleSheet("background:transparent; border:none;")
 
@@ -510,13 +527,16 @@ def build_page() -> QWidget:
     # Right column
     flash_right_panel = QWidget()
     flash_right_panel.setStyleSheet("background:transparent;")
-    flash_right_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+    flash_right_panel.setMinimumWidth(0)
+    flash_right_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     right_col = QVBoxLayout(flash_right_panel)
     right_col.setContentsMargins(0, 0, 0, 0)
     right_col.setSpacing(pt(20))
 
     flash_step_stack = QStackedWidget()
     flash_step_stack.setContentsMargins(0, 0, 0, 0)
+    flash_step_stack.setMinimumWidth(0)
+    flash_step_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     flash_step_stack.setFrameShape(QFrame.NoFrame)
     flash_step_stack.setLineWidth(0)
     flash_step_stack.setStyleSheet("QStackedWidget { background:transparent; border:none; margin:0; padding:0; }")
@@ -719,11 +739,15 @@ def build_page() -> QWidget:
     done_lay.setSpacing(pt(16))
     step4_title_lbl = make_label(_ft("flash.step4.title"), 14, C_TEXT, bold=True)
     done_lay.addWidget(step4_title_lbl)
-    flash_done_status_lbl = make_label(_ft("flash.status.done"), 13, C_GREEN)
+    flash_done_status_lbl = make_label(_ft("flash.status.done"), 13, C_GREEN, wrap=True)
+    flash_done_status_lbl.setMinimumWidth(0)
+    flash_done_status_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     done_lay.addWidget(flash_done_status_lbl)
 
     flash_done_scene = FlashAnimationWidget()
     flash_done_scene.setFixedHeight(160)
+    flash_done_scene.setMinimumWidth(0)
+    flash_done_scene.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
     flash_done_scene.set_mode("success")
     done_lay.addWidget(flash_done_scene)
 
@@ -758,7 +782,12 @@ def build_page() -> QWidget:
     log_lay_inner.addLayout(hdr)
     flash_log = QTextEdit()
     flash_log.setReadOnly(True)
+    flash_log.setLineWrapMode(QTextEdit.WidgetWidth)
+    flash_log.setWordWrapMode(QTextOption.WrapAnywhere)
+    flash_log.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+    flash_log.setMinimumWidth(0)
     flash_log.setMinimumHeight(200)
+    flash_log.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
     log_lay_inner.addWidget(flash_log)
     right_col.addWidget(log_card, 1)
 
@@ -767,6 +796,8 @@ def build_page() -> QWidget:
     flash_cols.setStretch(1, 1)
     flash_cols_host = QWidget()
     flash_cols_host.setStyleSheet("background:transparent;")
+    flash_cols_host.setMinimumWidth(0)
+    flash_cols_host.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     flash_cols_host.setLayout(flash_cols)
     inner_lay.addWidget(flash_cols_host)
     inner_lay.addStretch()
@@ -806,9 +837,11 @@ def build_page() -> QWidget:
 
     def _update_adaptive_layout():
         width = flash_cols_host.width() or page.width()
-        if FLASH_FORCE_TWO_COLUMNS:
-            flash_cols.setDirection(QBoxLayout.LeftToRight)
         compact_visual = width < 1100
+        if flash_cols.direction() != QBoxLayout.LeftToRight:
+            flash_cols.setDirection(QBoxLayout.LeftToRight)
+        flash_cols.setStretch(0, 1)
+        flash_cols.setStretch(1, 1)
         if compact_visual:
             flash_device_img.setFixedSize(pt(200), pt(126))
         else:
@@ -877,10 +910,21 @@ def build_page() -> QWidget:
         if not product or not l4t:
             return
         try:
+            needs_archive_for_windows = py_platform.system() == "Windows"
             flasher = JetsonFlasher(product, l4t)
             has_archive = flasher.firmware_cached()
             has_extracted = flasher.firmware_extracted()
-            if has_extracted:
+            if has_extracted and needs_archive_for_windows and not has_archive:
+                flash_cache_lbl.setText(t("flash.cache.windows_archive_required", lang=get_language()))
+                flash_cache_lbl.setStyleSheet(f"""
+                    color: {C_ORANGE}; font-size: {pt(11)}pt;
+                    background: rgba(245,166,35,0.10); border-radius: 6px; padding: 4px 10px;
+                """)
+                if not flash_cancel_btn.isVisible():
+                    flash_prepare_scene.set_mode("idle")
+                    flash_prepare_scene.set_download_progress(0.0)
+                _set_next_enabled(False)
+            elif has_extracted:
                 flash_cache_lbl.setText(t("flash.cache.extracted_ready", lang=get_language()))
                 flash_cache_lbl.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(11)}pt; background:transparent;")
                 flash_prepare_scene.set_mode("idle")
@@ -895,8 +939,8 @@ def build_page() -> QWidget:
                 flash_cache_lbl.setStyleSheet(f"color:{C_BLUE}; font-size:{pt(11)}pt; background:transparent;")
                 if not flash_cancel_btn.isVisible():
                     flash_prepare_scene.set_mode("idle")
-                    flash_prepare_scene.set_download_progress(0.0)
-                _set_next_enabled(False)
+                    flash_prepare_scene.set_download_progress(1.0 if needs_archive_for_windows else 0.0)
+                _set_next_enabled(needs_archive_for_windows)
             else:
                 flash_cache_lbl.setText(t("flash.cache.no_local", lang=get_language()))
                 flash_cache_lbl.setStyleSheet(f"""
@@ -1054,7 +1098,12 @@ def build_page() -> QWidget:
             _flash_log_append(f"[ERR] {e}")
             return
 
-        if has_extracted:
+        needs_archive_for_windows = py_platform.system() == "Windows"
+
+        if has_extracted and needs_archive_for_windows and not has_archive:
+            _flash_log_append(_ft("flash.cache.windows_archive_required"))
+            _run_flash_thread(product, l4t, force_redownload=False, prepare_only=True)
+        elif has_extracted:
             msg = QMessageBox(page.window())
             msg.setWindowTitle(_ft("flash.dialog.extracted_exists.title"))
             msg.setText(_ft("flash.dialog.extracted_exists.text"))
@@ -1142,19 +1191,27 @@ def build_page() -> QWidget:
             item = rec_guide_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
-        guide = get_guide(product)
+        guide_lang = "en" if _flash_lang().startswith("en") else "zh"
+        guide = get_guide(product, lang=guide_lang)
         if not guide:
             rec_guide_layout.addWidget(make_label(_ft("flash.recovery.no_guide"), 12, C_TEXT3))
             rec_guide_layout.addStretch()
             return
         title_lbl = make_label(guide["title"], 13, C_TEXT, bold=True)
         title_lbl.setWordWrap(True)
+        title_lbl.setMinimumWidth(0)
+        title_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         rec_guide_layout.addWidget(title_lbl)
-        rec_guide_layout.addWidget(make_label(_ft("flash.recovery.required_cable", cable=guide["cable"]), 11, C_TEXT2))
+        cable_lbl = make_label(_ft("flash.recovery.required_cable", cable=guide["cable"]), 11, C_TEXT2, wrap=True)
+        cable_lbl.setMinimumWidth(0)
+        cable_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        rec_guide_layout.addWidget(cable_lbl)
         if guide.get("image_url") or guide.get("local_image"):
             img_lbl = QLabel()
             img_lbl.setAlignment(Qt.AlignCenter)
             img_lbl.setFixedHeight(280)
+            img_lbl.setMinimumWidth(0)
+            img_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
             img_lbl.setText(_ft("flash.image.loading"))
             img_lbl.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:8px; font-size:{pt(10)}pt;")
             rec_guide_layout.addWidget(img_lbl)
@@ -1163,36 +1220,49 @@ def build_page() -> QWidget:
         for i, step in enumerate(guide["steps"], 1):
             row = QHBoxLayout()
             row.setSpacing(pt(8))
+            row.setContentsMargins(0, 0, 0, 0)
             num = QLabel(str(i))
             num.setFixedSize(pt(22), pt(22))
             num.setAlignment(Qt.AlignCenter)
             num.setStyleSheet(f"background: {C_BLUE}; color: #fff; border-radius: {pt(11)}px; font-size: {pt(10)}pt; font-weight: 700;")
             step_lbl = QLabel(step)
             step_lbl.setWordWrap(True)
+            step_lbl.setMinimumWidth(0)
+            step_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
             step_lbl.setStyleSheet(f"color:{C_TEXT2}; font-size:{pt(11)}pt; background:transparent;")
             row.addWidget(num, alignment=Qt.AlignTop)
             row.addWidget(step_lbl, 1)
             container = QWidget()
             container.setStyleSheet("background:transparent;")
+            container.setMinimumWidth(0)
+            container.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
             container.setLayout(row)
             rec_guide_layout.addWidget(container)
         rec_guide_layout.addWidget(make_label(_ft("flash.recovery.usb_ids"), 12, C_TEXT, bold=True))
         for name, uid in guide["usb_ids"]:
             id_lbl = QLabel(f"  {name}: {uid}")
+            id_lbl.setMinimumWidth(0)
+            id_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
             id_lbl.setStyleSheet(f"color:{C_TEXT2}; font-size:{pt(11)}pt; font-family:monospace; background:transparent;")
             rec_guide_layout.addWidget(id_lbl)
         if guide.get("note"):
             note_lbl = QLabel(guide["note"])
             note_lbl.setWordWrap(True)
+            note_lbl.setMinimumWidth(0)
+            note_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
             note_lbl.setStyleSheet(f"color: {C_ORANGE}; background: rgba(245,166,35,0.10); border-radius: 6px; padding: 8px 10px; font-size: {pt(11)}pt;")
             rec_guide_layout.addWidget(note_lbl)
         rec_guide_layout.addStretch()
 
     def _set_guide_image_preview(label: QLabel, pix: QPixmap, title: str):
-        target_w = label.width() - 16 if label.width() > 16 else 560
+        viewport_w = rec_guide_scroll.viewport().width() - rec_guide_layout.contentsMargins().right() - 16
+        label_w = label.width() - 16 if label.width() > 16 else 0
+        target_w = max(180, min(label_w or 560, viewport_w if viewport_w > 0 else 560))
         target_h = label.height() - 8 if label.height() > 8 else 272
         preview = pix.scaled(target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         label.setPixmap(preview)
+        label.setMinimumWidth(0)
+        label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
         label.setStyleSheet(f"background:{C_CARD_LIGHT}; border-radius:8px; padding:4px;")
         label.setText("")
         label.setCursor(Qt.PointingHandCursor)
@@ -1308,21 +1378,10 @@ def build_page() -> QWidget:
         threading.Thread(target=fetch, daemon=True).start()
 
     def _detect_recovery():
-        import subprocess
-        NVIDIA_APX_IDS = {"7023", "7223", "7323", "7423", "7523", "7623"}
         try:
-            result = subprocess.run(["lsusb"], capture_output=True, text=True, timeout=5)
-            found = False
-            for line in result.stdout.splitlines():
-                if "0955:" in line.lower() or "nvidia" in line.lower():
-                    parts = line.split("ID ")
-                    if len(parts) > 1:
-                        pid = parts[1].split()[0].split(":")[-1].lower()
-                        if pid in NVIDIA_APX_IDS:
-                            found = True
-                            _flash_log_append(_ft("flash.detect.log_found", line=line.strip()))
-                            break
-            if found:
+            line = find_recovery_device_line()
+            if line:
+                _flash_log_append(_ft("flash.detect.log_found", line=line))
                 rec_status_lbl.setText(_ft("flash.detect.status_found"))
                 rec_status_lbl.setStyleSheet(f"color:{C_GREEN}; background:transparent;")
                 rec_flash_btn.setEnabled(True)
@@ -1433,13 +1492,17 @@ def build_page() -> QWidget:
             flash_scene.set_download_progress(value / 100)
 
     def _on_download_progress(downloaded: int, total: int):
+        downloaded = int(downloaded or 0)
+        total = int(total or 0)
         bar = _state["active_progress"]
         def _fmt(b):
             if b >= 1024 ** 3: return f"{b / 1024 ** 3:.1f} GB"
             if b >= 1024 ** 2: return f"{b / 1024 ** 2:.0f} MB"
             return f"{b / 1024:.0f} KB"
         if total > 0:
-            pct = int(downloaded / total * 100)
+            downloaded = max(0, downloaded)
+            total = max(1, total)
+            pct = max(0, min(100, int(downloaded / total * 100)))
             bar.setRange(0, 100)
             bar.setValue(pct)
             label_text = _ft(
@@ -1451,6 +1514,7 @@ def build_page() -> QWidget:
             if flash_step_stack.currentIndex() == 0:
                 flash_prepare_scene.set_download_progress(pct / 100)
         else:
+            downloaded = max(0, downloaded)
             bar.setRange(0, 0)
             label_text = _ft("flash.status.downloading", downloaded=_fmt(downloaded))
         _state["active_status_label"].setText(label_text)
@@ -1493,15 +1557,20 @@ def build_page() -> QWidget:
             flash_done_status_lbl.setStyleSheet(f"color:{C_GREEN}; background:transparent;")
             flash_step_stack.setCurrentIndex(3)
             flash_left_stack.setCurrentIndex(2)
+            QTimer.singleShot(0, _update_adaptive_layout)
         elif was_actual_flash and not ok:
             flash_step_stack.setCurrentIndex(2)
             flash_left_stack.setCurrentIndex(1)
             flash_run_retry_btn.setVisible(True)
             flash_run_back_btn.setVisible(True)
+            QTimer.singleShot(0, _update_adaptive_layout)
         if ok and not was_flash_only:
             try:
                 flasher = JetsonFlasher(flash_product_combo.currentText(), flash_l4t_combo.currentText())
-                _set_next_enabled(flasher.firmware_extracted())
+                ready = flasher.firmware_extracted()
+                if py_platform.system() == "Windows":
+                    ready = ready or flasher.firmware_cached()
+                _set_next_enabled(ready)
             except Exception:
                 pass
         _update_cache_label()
@@ -1589,7 +1658,26 @@ def build_page() -> QWidget:
             _FLASH_LANG_OVERRIDE = lang
             _state["lang"] = lang
         i18n.apply(lang)
+        if flash_left_stack.currentIndex() == 1:
+            _build_recovery_guide(flash_product_combo.currentText())
     page.retranslate_ui = _retranslate_ui
+
+    def _show_flash_done_test_state():
+        msg = os.environ.get("SEEED_FLASH_TEST_DONE_MESSAGE", "Flash completed!")
+        _set_wizard_step(3)
+        flash_step_stack.setCurrentIndex(3)
+        flash_left_stack.setCurrentIndex(2)
+        flash_scene.set_mode("success")
+        flash_scene.set_download_progress(1.0)
+        flash_done_scene.set_mode("success")
+        flash_done_scene.set_download_progress(1.0)
+        flash_done_status_lbl.setText(f"\u2713 {msg}")
+        flash_done_status_lbl.setStyleSheet(f"color:{C_GREEN}; background:transparent;")
+        flash_log.clear()
+        _flash_log_append("[DEV] SEEED_FLASH_TEST_DONE=1: showing completion UI without flashing.")
+        _flash_log_append("[OK] " + msg)
+        bus.status_idle.emit(_ft("flash.status.ready"))
+        QTimer.singleShot(0, _update_adaptive_layout)
 
     # Signal wiring.
     flash_product_combo.currentTextChanged.connect(_on_flash_product_changed)
@@ -1600,5 +1688,7 @@ def build_page() -> QWidget:
     if flash_product_combo.currentText():
         _on_flash_product_changed(flash_product_combo.currentText())
     QTimer.singleShot(0, _update_adaptive_layout)
+    if os.environ.get("SEEED_FLASH_TEST_DONE") == "1":
+        QTimer.singleShot(0, _show_flash_done_test_state)
 
     return page

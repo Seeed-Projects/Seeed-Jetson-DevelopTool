@@ -8,6 +8,8 @@ product_key -> {
 """
 from __future__ import annotations
 
+from seeed_jetson_develop.gui.i18n import t
+
 
 # USB ID 组合
 NX_IDS = [
@@ -293,6 +295,28 @@ PRODUCT_GUIDE_MAP = {
 }
 
 
+def _guide_locale(lang: str) -> str:
+    return "en" if str(lang).startswith("en") else "zh-CN"
+
+
+def _guide_text(guide_key: str, field: str, lang: str, default: str | None = None) -> str | None:
+    locale_key = f"recovery.guides.{guide_key}.{field}"
+    text = t(locale_key, lang=_guide_locale(lang))
+    if text == locale_key:
+        return default
+    return text
+
+
+def _guide_steps(guide_key: str, lang: str, defaults: list[str]) -> list[str]:
+    locale = _guide_locale(lang)
+    steps: list[str] = []
+    for idx, default in enumerate(defaults, start=1):
+        locale_key = f"recovery.guides.{guide_key}.steps.{idx}"
+        text = t(locale_key, lang=locale)
+        steps.append(default if text == locale_key else text)
+    return steps
+
+
 def get_guide(product: str, lang: str = "zh") -> dict | None:
     """返回指定产品的 Recovery 指南，lang='en' 时返回英文字段。"""
     key = PRODUCT_GUIDE_MAP.get(product)
@@ -302,21 +326,29 @@ def get_guide(product: str, lang: str = "zh") -> dict | None:
     if not g:
         return None
     if lang == "en":
+        title = g.get("title_en") or g["title"]
+        cable = g.get("cable_en") or g["cable"]
+        steps = g.get("steps_en") or g["steps"]
+        note = g.get("note_en") or g.get("note")
         return {
-            "title":       g.get("title_en") or g["title"],
-            "cable":       g.get("cable_en") or g["cable"],
-            "steps":       g.get("steps_en") or g["steps"],
+            "title":       _guide_text(key, "title", lang, title),
+            "cable":       _guide_text(key, "cable", lang, cable),
+            "steps":       _guide_steps(key, lang, steps),
             "usb_ids":     g["usb_ids"],
             "image_url":   g.get("image_url", ""),
             "local_image": g.get("local_image", ""),
-            "note":        g.get("note_en") or g.get("note"),
+            "note":        _guide_text(key, "note", lang, note),
         }
+    title = g["title"]
+    cable = g["cable"]
+    steps = g["steps"]
+    note = g.get("note")
     return {
-        "title":       g["title"],
-        "cable":       g["cable"],
-        "steps":       g["steps"],
+        "title":       _guide_text(key, "title", lang, title),
+        "cable":       _guide_text(key, "cable", lang, cable),
+        "steps":       _guide_steps(key, lang, steps),
         "usb_ids":     g["usb_ids"],
         "image_url":   g.get("image_url", ""),
         "local_image": g.get("local_image", ""),
-        "note":        g.get("note"),
+        "note":        _guide_text(key, "note", lang, note),
     }
