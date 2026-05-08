@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import platform
 
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -149,7 +150,8 @@ class FlashThread(QThread):
     progress_msg = pyqtSignal(str)
     progress_val = pyqtSignal(int)
     progress_log = pyqtSignal(str)
-    download_progress = pyqtSignal(int, int)
+    # Large firmware packages can exceed 2GB, so use Python objects to avoid Qt int overflow.
+    download_progress = pyqtSignal(object, object)
     finished = pyqtSignal(bool, str)
 
     def __init__(
@@ -176,7 +178,8 @@ class FlashThread(QThread):
         self.lang = lang or get_language()
         self._cancel = False
         self._flash_progress = _FlashProgressEstimator()
-        self._last_log_pct = -1   # 上次打印日志时的进度百分比
+        self._last_log_pct = -1
+        self._last_extract_pct = -1
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = t(key, lang=self.lang, **kwargs)
@@ -194,6 +197,8 @@ class FlashThread(QThread):
                 progress_callback=self._on_dl,
                 should_cancel=lambda: self._cancel,
                 download_dir=self.download_dir,
+                log_formatter=lambda key, **kw: self._tr(key, key, **kw),
+                skip_verify=self.skip_verify,
             )
             self.progress_msg.emit(self._tr("flash.thread.initializing", "Initializing..."))
             self.progress_val.emit(2)
@@ -210,7 +215,7 @@ class FlashThread(QThread):
 
             if self.force_redownload or not flasher.firmware_cached():
                 self.progress_msg.emit(self._tr("flash.thread.downloading", "Downloading firmware..."))
-                self.progress_val.emit(5)
+                self.progress_val.emit(0)
                 if not flasher.download_firmware(force_redownload=self.force_redownload):
                     self.finished.emit(False, self._tr("flash.thread.download_failed", "Firmware download failed"))
                     return
@@ -229,6 +234,17 @@ class FlashThread(QThread):
             if self.download_only:
                 self.progress_val.emit(100)
                 self.finished.emit(True, self._tr("flash.thread.download_only_done", "Firmware download completed (not flashed)"))
+                return
+
+            if self.prepare_only and platform.system() == "Windows":
+                self.progress_val.emit(100)
+                self.finished.emit(
+                    True,
+                    self._tr(
+                        "flash.thread.prepare_only_done",
+                        "Firmware download completed. WSL will extract it during flashing.",
+                    ),
+                )
                 return
 
             self.progress_msg.emit(self._tr("flash.thread.extracting", "Extracting firmware..."))
@@ -261,10 +277,10 @@ class FlashThread(QThread):
 
     def _on_dl(self, stage, cur, total):
         if stage == "download":
-            self.download_progress.emit(int(cur), int(total))
+            self.download_progress.emit(cur, total)
             if total:
-                pct = int(cur / total * 100)
-                self.progress_val.emit(int(5 + (cur / total) * 45))
+                display_cur = max(0, min(cur, total))
+                pct = int(display_cur / total * 100)
                 # 每变化 2% 才打印一次，避免刷屏
                 if pct >= self._last_log_pct + 2 or pct == 100:
                     self._last_log_pct = pct
@@ -272,10 +288,14 @@ class FlashThread(QThread):
                         if b >= 1024 ** 3: return f"{b / 1024 ** 3:.2f} GB"
                         if b >= 1024 ** 2: return f"{b / 1024 ** 2:.1f} MB"
                         return f"{b / 1024:.0f} KB"
-                    remaining = total - cur
-                    log_line = (
-                        f"[下载] {_fmt(cur)} / {_fmt(total)} ({pct}%)"
-                        f"  剩余 {_fmt(remaining)}"
+                    remaining = max(0, total - display_cur)
+                    log_line = self._tr(
+                        "flash.thread.download_progress",
+                        "[Download] {cur} / {total} ({pct}%)  Remaining {remaining}",
+                        cur=_fmt(display_cur),
+                        total=_fmt(total),
+                        pct=pct,
+                        remaining=_fmt(remaining),
                     )
                     self.progress_log.emit(log_line)
         elif stage == "verify":
@@ -283,7 +303,27 @@ class FlashThread(QThread):
                 self.progress_val.emit(int(50 + (cur / total) * 10))
         elif stage == "extract":
             if total:
+                pct = int(cur / total * 100)
                 self.progress_val.emit(int(60 + (cur / total) * 20))
+                if pct >= self._last_extract_pct + 5 or pct == 100:
+                    self._last_extract_pct = pct
+                    log_line = self._tr(
+                        "flash.log.extracting_pct",
+                        "[Extract] {pct}%",
+                        pct=pct,
+                    )
+                    self.progress_log.emit(log_line)
+            else:
+                # indeterminate — cur is checkpoint count (each = 500 tar records)
+                files_approx = cur * 500
+                if files_approx >= self._last_extract_pct + 500 or cur == 1:
+                    self._last_extract_pct = files_approx
+                    log_line = self._tr(
+                        "flash.log.extracting_files",
+                        "[Extract] ~{files} files processed...",
+                        files=files_approx,
+                    )
+                    self.progress_log.emit(log_line)
         elif stage == "log":
             line = str(cur)
             self.progress_log.emit(line)

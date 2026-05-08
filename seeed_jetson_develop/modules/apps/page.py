@@ -45,6 +45,21 @@ from seeed_jetson_develop.gui.theme import (
 )
 
 
+_CATEGORY_LABEL_KEYS = {
+    "Audio": "apps.category.audio",
+    "CV / Vision": "apps.category.cv_vision",
+    "LLM / GenAI": "apps.category.llm_genai",
+    "RAG / Vector DB": "apps.category.rag_vector_db",
+    "Robotics / ROS 1": "apps.category.robotics_ros1",
+    "Robotics / ROS 2": "apps.category.robotics_ros2",
+    "开发工具": "apps.category.devtools",
+}
+
+_CATEGORY_ALIASES = {
+    "역랙묏야": "开发工具",
+}
+
+
 def _ask_yes_no_localized(parent: QWidget, title: str, text: str) -> int:
     msg = QMessageBox(parent)
     msg.setIcon(QMessageBox.Question)
@@ -773,18 +788,25 @@ class AppsPage(ListPageBase):
     def get_categories(self) -> list[str]:
         cats = ["All"]
         for a in self.items_data:
-            cat = a.get("category") or "Other"
+            cat = self.normalize_category(a.get("category") or "Other")
             if cat not in cats:
                 cats.append(cat)
         cats.append("Installed")
         return cats
 
+    def normalize_category(self, category: str) -> str:
+        return _CATEGORY_ALIASES.get(category, category)
+
     def format_category_label(self, category: str) -> str:
         lang = get_language()
+        category = self.normalize_category(category)
         if category == "All":
             return t("apps.category.all", lang=lang)
         if category == "Installed":
             return t("apps.category.installed", lang=lang)
+        key = _CATEGORY_LABEL_KEYS.get(category)
+        if key:
+            return t(key, lang=lang)
         return category
 
     def filter_item(self, item: dict) -> bool:
@@ -793,7 +815,7 @@ class AppsPage(ListPageBase):
         cat_ok = (
             cat == "All"
             or (cat == "Installed" and self._statuses.get(item["id"]) == "installed")
-            or item.get("category") == cat
+            or self.normalize_category(item.get("category") or "Other") == cat
         )
         kw_ok = not kw or any(
             kw in (item.get(f) or "").lower() for f in ("name", "desc", "id")
@@ -861,7 +883,7 @@ class AppsPage(ListPageBase):
         return app.get("clean_cmds") or []
 
     def _get_ai_details(self, app: dict) -> list[str]:
-        details = [f"Category: {app.get('category', '-')}"]
+        details = [f"Category: {self.format_category_label(app.get('category', '-'))}"]
         req = app.get("requirements") or {}
         if req.get("jetpack_versions"):
             details.append(f"L4T：{', '.join(req['jetpack_versions'])}")
@@ -1100,7 +1122,7 @@ class AppsPage(ListPageBase):
         title_lbl = _lbl(_tr(app["name"], _lang), 13, C_TEXT, bold=True)
         title_lbl.setWordWrap(True)
         name_row.addWidget(title_lbl, 1)
-        cat_lbl = QLabel(_tr(app.get("category", "App"), _lang))
+        cat_lbl = QLabel(self.format_category_label(app.get("category", "App")))
         cat_lbl.setStyleSheet(f"""
             background:rgba(44,123,229,0.10); color:{C_BLUE};
             border:none; border-radius:4px; padding:2px 10px; font-size:{_pt(9)}pt;

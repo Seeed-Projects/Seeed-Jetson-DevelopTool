@@ -9,7 +9,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QPoint, QEvent, QTimer
+from PyQt5.QtCore import Qt, QPoint, QRect, QEvent, QTimer, QtMsgType, qInstallMessageHandler
 from PyQt5.QtGui import QColor, QPixmap, QPainter
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame,
@@ -35,6 +35,13 @@ from .runtime_i18n import apply_language
 
 
 log = logging.getLogger("seeed")
+
+
+def _qt_message_handler(msg_type, context, message):
+    if msg_type == QtMsgType.QtWarningMsg and "DirectWrite: CreateFontFaceFromHDC() failed" in message:
+        return
+    sys.stderr.write(message + "\n")
+    sys.stderr.flush()
 
 
 # ─────────────────────────────────────────────
@@ -324,6 +331,7 @@ class MainWindowV2(QMainWindow):
         self._resize_edge = None   # 当前拖拽的边缘方向
         self._resize_start_pos = None
         self._resize_start_geom = None
+        self._normal_geometry = None
         self._nav_btns = []
         self._current_page = 0
         self._is_jetson = is_jetson()
@@ -562,7 +570,30 @@ class MainWindowV2(QMainWindow):
         return bar
 
     def _toggle_max(self):
-        self.showNormal() if self.isMaximized() else self.showMaximized()
+        if self.isMaximized():
+            self.showNormal()
+            if self._normal_geometry:
+                self.setGeometry(self._normal_geometry)
+            return
+        self._normal_geometry = self.geometry()
+        self.showMaximized()
+
+    def _restore_from_maximized_for_drag(self, global_pos):
+        if not self.isMaximized():
+            return
+        geo = self._normal_geometry or QRect(0, 0, max(self.minimumWidth(), 1280), max(self.minimumHeight(), 800))
+        width = max(self.minimumWidth(), geo.width())
+        height = max(self.minimumHeight(), geo.height())
+        screen = QApplication.screenAt(global_pos)
+        available = screen.availableGeometry() if screen else QApplication.primaryScreen().availableGeometry()
+        frame = self.frameGeometry()
+        x_ratio = max(0.15, min(0.85, (global_pos.x() - frame.x()) / max(1, frame.width())))
+        x = global_pos.x() - int(width * x_ratio)
+        y = available.y()
+        x = max(available.x(), min(x, available.right() - width + 1))
+        self.showNormal()
+        self.setGeometry(x, y, width, height)
+        self._drag_pos = global_pos - self.frameGeometry().topLeft()
 
     def _get_resize_edge(self, pos):
         """检测鼠标是否在窗口边缘（用于 resize），返回方向字符串或 None"""
@@ -647,9 +678,13 @@ class MainWindowV2(QMainWindow):
                 self._toggle_max(); return True
             if ev.type() == QEvent.MouseButtonPress and ev.button() == Qt.LeftButton:
                 self._drag = True
+                if not self.isMaximized():
+                    self._normal_geometry = self.geometry()
                 self._drag_pos = ev.globalPos() - self.frameGeometry().topLeft()
                 return True
-            if ev.type() == QEvent.MouseMove and self._drag and not self.isMaximized():
+            if ev.type() == QEvent.MouseMove and self._drag:
+                if self.isMaximized():
+                    self._restore_from_maximized_for_drag(ev.globalPos())
                 self.move(ev.globalPos() - self._drag_pos); return True
             if ev.type() == QEvent.MouseButtonRelease:
                 self._drag = False; return True
@@ -905,6 +940,7 @@ class MainWindowV2(QMainWindow):
 # ─────────────────────────────────────────────
 def main():
     from PyQt5.QtGui import QFont
+    qInstallMessageHandler(_qt_message_handler)
     app = QApplication(sys.argv)
     app.setApplicationName("Seeed Jetson Develop Tool")
     
@@ -923,14 +959,16 @@ def main():
     # 窗口大小基于屏幕可用区域
     if screen:
         geo = screen.availableGeometry()
-        w = max(1080, min(int(geo.width()  * 0.85), 1920))
-        h = max(720, min(int(geo.height() * 0.88), 1080))
+        min_w, min_h = win.minimumWidth(), win.minimumHeight()
+        w = min(max(min_w, 1360), max(min_w, int(geo.width() * 0.78)))
+        h = min(max(min_h, 860), max(min_h, int(geo.height() * 0.80)))
         win.resize(w, h)
         # 居中
         win.move(
             geo.x() + (geo.width()  - w) // 2,
             geo.y() + (geo.height() - h) // 2,
         )
+        win._normal_geometry = win.geometry()
 
     win.show()
     sys.exit(app.exec_())
