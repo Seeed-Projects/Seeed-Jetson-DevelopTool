@@ -22,6 +22,7 @@ def _sanitize_cmd_for_log(cmd: str | list[str]) -> str:
     else:
         text = str(cmd or "")
     text = re.sub(r"echo\s+(['\"]).*?\1\s*\|\s*sudo\s+-S", "echo '***' | sudo -S", text, flags=re.IGNORECASE)
+    text = re.sub(r"SUDO_PASS=(['\"]).*?\1", "SUDO_PASS='***'", text)
     text = re.sub(r"(--password\s+)(\S+)", r"\1***", text, flags=re.IGNORECASE)
     return text
 

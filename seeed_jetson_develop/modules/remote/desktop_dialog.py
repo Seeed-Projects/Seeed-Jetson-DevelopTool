@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtWidgets import (
+    QComboBox,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -14,6 +15,7 @@ from PyQt5.QtWidgets import (
 )
 
 from seeed_jetson_develop.core.runner import SSHRunner
+from seeed_jetson_develop.core.runner import _sanitize_cmd_for_log
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding
 from seeed_jetson_develop.gui.i18n import get_language, t
 from seeed_jetson_develop.gui.theme import (
@@ -51,7 +53,7 @@ class _SshCmdThread(QThread):
 
     def run(self):
         for cmd, timeout in self._commands:
-            self.line_out.emit(f"$ {cmd}")
+            self.line_out.emit(f"$ {_sanitize_cmd_for_log(cmd)}")
             rc, out = self._runner.run(cmd, timeout=timeout, on_output=lambda l: self.line_out.emit(l))
             self._last_out = out
             if rc != 0:
@@ -76,6 +78,7 @@ class _StatusThread(QThread):
                 "vnc_pid": dr.check_vnc_running(self._runner)[1],
                 "novnc_running": dr.check_novnc_running(self._runner)[0],
                 "novnc_pid": dr.check_novnc_running(self._runner)[1],
+                "headless_active": dr.check_headless_active(self._runner),
             }
         )
 
@@ -127,6 +130,15 @@ class DesktopRemoteDialog(QDialog):
         novnc_row.addStretch()
         sc.addLayout(novnc_row)
 
+        # Headless virtual desktop status row
+        headless_status_row = QHBoxLayout()
+        self._headless_status_lbl = make_label(_tt("remote.desktop.headless_service"), 12, C_TEXT2)
+        headless_status_row.addWidget(self._headless_status_lbl)
+        self._headless_status = make_label(_tt("remote.desktop.status.checking"), 12, C_TEXT3)
+        headless_status_row.addWidget(self._headless_status)
+        headless_status_row.addStretch()
+        sc.addLayout(headless_status_row)
+
         addr_row = QHBoxLayout()
         self._browser_access_lbl = make_label(_tt("remote.desktop.browser_access"), 11, C_TEXT3)
         addr_row.addWidget(self._browser_access_lbl)
@@ -149,14 +161,34 @@ class DesktopRemoteDialog(QDialog):
         self._vnc_pwd.setVisible(False)
         root.addWidget(status_card)
 
+        policy_row = QHBoxLayout()
+        policy_row.setSpacing(10)
+        self._policy_lbl = make_label(_tt("remote.desktop.policy_label"), 11, C_TEXT2)
+        policy_row.addWidget(self._policy_lbl)
+        self._vnc_policy_combo = QComboBox()
+        self._vnc_policy_combo.setMinimumWidth(pt(280))
+        self._vnc_policy_combo.setStyleSheet(
+            f"QComboBox {{ color:{C_TEXT2}; font-size:{pt(11)}px; background:{C_CARD_LIGHT};"
+            f" border:none; border-radius:6px; padding:4px 10px; }}"
+            f"QComboBox::drop-down {{ width:{pt(22)}px; }}"
+        )
+        self._reload_policy_combo_labels()
+        self._vnc_policy_combo.setCurrentIndex(0)
+        policy_row.addWidget(self._vnc_policy_combo, 1)
+        root.addLayout(policy_row)
+        self._policy_hint = make_label(_tt("remote.desktop.policy_hint"), 10, C_TEXT3, wrap=True)
+        root.addWidget(self._policy_hint)
+
         op_row = QHBoxLayout()
         op_row.setSpacing(10)
         self._deploy_btn = make_button(_tt("remote.desktop.btn.deploy"), primary=True, small=True)
         self._stop_btn = make_button(_tt("remote.desktop.btn.stop"), small=True)
         self._refresh_btn = make_button(_tt("remote.desktop.btn.refresh"), small=True)
+        self._rematch_btn = make_button(_tt("remote.desktop.btn.rematch"), small=True)
         op_row.addWidget(self._deploy_btn)
         op_row.addWidget(self._stop_btn)
         op_row.addWidget(self._refresh_btn)
+        op_row.addWidget(self._rematch_btn)
         op_row.addStretch()
         root.addLayout(op_row)
 
@@ -196,6 +228,7 @@ class DesktopRemoteDialog(QDialog):
         self._deploy_btn.clicked.connect(self._do_deploy_all)
         self._stop_btn.clicked.connect(self._do_stop)
         self._refresh_btn.clicked.connect(self._do_refresh)
+        self._rematch_btn.clicked.connect(self._do_rematch_vnc)
         self._open_vnc_btn.clicked.connect(self._do_open_vnc)
         self._open_browser_btn.clicked.connect(self._do_open_browser)
         self._bind_i18n()
@@ -234,6 +267,11 @@ class DesktopRemoteDialog(QDialog):
         self._i18n.bind_text(self._log_title_lbl, "remote.desktop.log")
         self._i18n.bind_text(self._close_btn, "common.close")
         self._i18n.bind_callable(lambda: self.setWindowTitle(_tt("remote.desktop.title")))
+        self._i18n.bind_text(self._policy_lbl, "remote.desktop.policy_label")
+        self._i18n.bind_text(self._policy_hint, "remote.desktop.policy_hint")
+        self._i18n.bind_text(self._rematch_btn, "remote.desktop.btn.rematch")
+        self._i18n.bind_text(self._headless_status_lbl, "remote.desktop.headless_service")
+        self._i18n.bind_callable(self._reload_policy_combo_labels)
 
     def retranslate_ui(self, lang: str | None = None):
         self._i18n.apply(lang)
@@ -283,21 +321,49 @@ class DesktopRemoteDialog(QDialog):
             self._novnc_status.setText(_tt("remote.desktop.status.not_installed"))
             self._novnc_status.setStyleSheet(f"color:{C_TEXT3}; font-size:{pt(12)}px; background:transparent;")
 
+        headless = s.get("headless_active", False)
+        if headless:
+            self._headless_status.setText(_tt("remote.desktop.headless_status.active"))
+            self._headless_status.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(12)}px; font-weight:700; background:transparent;")
+        else:
+            self._headless_status.setText(_tt("remote.desktop.headless_status.inactive"))
+            self._headless_status.setStyleSheet(f"color:{C_TEXT3}; font-size:{pt(12)}px; background:transparent;")
+
+    def _reload_policy_combo_labels(self):
+        cur = self._vnc_policy_combo.currentData()
+        self._vnc_policy_combo.blockSignals(True)
+        self._vnc_policy_combo.clear()
+        for val in ("auto", "real", "virtual"):
+            self._vnc_policy_combo.addItem(_tt(f"remote.desktop.policy.{val}"), val)
+        for i in range(self._vnc_policy_combo.count()):
+            if self._vnc_policy_combo.itemData(i) == cur:
+                self._vnc_policy_combo.setCurrentIndex(i)
+                break
+        else:
+            self._vnc_policy_combo.setCurrentIndex(0)
+        self._vnc_policy_combo.blockSignals(False)
+
+    def _current_vnc_policy(self) -> str:
+        d = self._vnc_policy_combo.currentData()
+        if d in ("auto", "real", "virtual"):
+            return str(d)
+        return "auto"
+
     def _do_deploy_all(self):
         pwd = self._runner.sudo_password
-        vnc_pwd = self._runner.password or self._runner.sudo_password
-        self._append("[info] VNC password is unified with login password.")
+        pol = self._current_vnc_policy()
         cmds = [
             (dr.build_enable_autologin_cmd(pwd, self._runner.username), 30),
             (dr.build_install_vnc_cmd(pwd), 180),
-            (dr.build_prepare_vnc_password_cmd(vnc_pwd), 20),
-            (dr.build_write_headless_xvfb_unit_cmd(self._runner.username), 20),
-            (dr.build_write_headless_session_unit_cmd(self._runner.username), 20),
-            (dr.build_write_x11vnc_unit_cmd(self._runner.username), 20),
-            (dr.build_write_novnc_unit_cmd(), 20),
-            (dr.build_install_enable_units_cmd(pwd), 60),
-            (dr.build_install_novnc_cmd(pwd), 180),
-            (dr.build_start_novnc_cmd(), 15),
+            (dr.build_prepare_vnc_password_cmd(""), 20),
+            (
+                dr.build_start_vnc_cmd(
+                    sudo_password=pwd,
+                    username=self._runner.username,
+                    policy=pol,
+                ),
+                150,  # Xvfb wait(30s) + port check(60s) + overhead
+            ),
         ]
         self._run_cmds(cmds, self._deploy_btn, _tt("remote.desktop.btn.deploy_short"), self._on_deploy_all_done)
 
@@ -310,6 +376,8 @@ class DesktopRemoteDialog(QDialog):
             self._append(_tt("remote.desktop.deploy.autologin"))
             self._append(_tt("remote.desktop.deploy.browser", url=url))
             self._append(_tt("remote.desktop.deploy.vnc", addr=dr.format_vnc_address(self._ip)))
+            self._append(_tt("remote.desktop.deploy.headless_ok"))
+            self._append(_tt("remote.desktop.deploy.rematch_tip"))
         else:
             self._append(_tt("remote.desktop.deploy.failed", rc=rc))
             self._append(_tt("remote.desktop.deploy.troubleshoot"))
@@ -327,7 +395,7 @@ class DesktopRemoteDialog(QDialog):
         self._do_refresh()
 
     def _do_stop(self):
-        self._run_cmds([(dr.build_stop_cmd(), 10)], self._stop_btn, _tt("remote.desktop.btn.stop"), self._on_stop_done)
+        self._run_cmds([(dr.build_stop_cmd(self._runner.sudo_password), 30)], self._stop_btn, _tt("remote.desktop.btn.stop"), self._on_stop_done)
 
     def _on_stop_done(self, rc: int, out: str):
         self._stop_btn.setEnabled(True)
@@ -343,7 +411,6 @@ class DesktopRemoteDialog(QDialog):
         novnc_installed = s["novnc_installed"] if s else False
 
         pwd = self._runner.sudo_password
-        vnc_pwd = self._resolved_vnc_password()
         cmds = []
 
         # 未安装先安装，未运行再启动
@@ -352,9 +419,18 @@ class DesktopRemoteDialog(QDialog):
         if not novnc_installed:
             cmds.append((dr.build_install_novnc_cmd(pwd), 180))
         if not vnc_running:
-            cmds.append((dr.build_start_vnc_cmd(password=vnc_pwd, sudo_password=pwd), 30))
+            cmds.append(
+                (
+                    dr.build_start_vnc_cmd(
+                        sudo_password=pwd,
+                        username=self._runner.username,
+                        policy=self._current_vnc_policy(),
+                    ),
+                    150,
+                )
+            )
         if not novnc_running:
-            cmds.append((dr.build_start_novnc_cmd(), 15))
+            cmds.append((dr.build_start_novnc_cmd(sudo_password=pwd), 20))
 
         if cmds:
             self._run_cmds(
@@ -386,13 +462,21 @@ class DesktopRemoteDialog(QDialog):
         vnc_installed = s["vnc_installed"] if s else False
 
         pwd = self._runner.sudo_password
-        vnc_pwd = self._resolved_vnc_password()
         cmds = []
 
         if not vnc_installed:
             cmds.append((dr.build_install_vnc_cmd(pwd), 180))
         if not vnc_running:
-            cmds.append((dr.build_start_vnc_cmd(password=vnc_pwd, sudo_password=pwd), 30))
+            cmds.append(
+                (
+                    dr.build_start_vnc_cmd(
+                        sudo_password=pwd,
+                        username=self._runner.username,
+                        policy=self._current_vnc_policy(),
+                    ),
+                    150,
+                )
+            )
 
         if cmds:
             self._run_cmds(
@@ -422,10 +506,38 @@ class DesktopRemoteDialog(QDialog):
             _tt("remote.desktop.vnc_client.body", addr=dr.format_vnc_address(self._ip)),
         )
 
-    def _run_cmds(self, cmds, btn, label, callback):
+    def _do_rematch_vnc(self):
+        pwd = self._runner.sudo_password
+        pol = self._current_vnc_policy()
+        cmds = [
+            (dr.build_write_seeed_x11vnc_launcher_sh_cmd(pwd), 25),
+            (dr.build_write_headless_xvfb_unit_cmd(self._runner.username), 20),
+            (dr.build_write_headless_session_unit_cmd(self._runner.username), 20),
+            (dr.build_write_x11vnc_unit_cmd(self._runner.username, policy=pol), 20),
+            (dr.build_write_novnc_unit_cmd(), 20),
+            (dr.build_install_enable_units_cmd(pwd), 150),
+        ]
+        self._run_cmds(
+            cmds,
+            self._rematch_btn,
+            _tt("remote.desktop.btn.rematch"),
+            self._on_rematch_done,
+            clear_log=False,
+        )
+
+    def _on_rematch_done(self, rc: int, out: str):
+        self._rematch_btn.setEnabled(True)
+        self._rematch_btn.setText(_tt("remote.desktop.btn.rematch"))
+        self._append(_tt("remote.desktop.rematch.ok") if rc == 0 else _tt("remote.desktop.rematch.failed", rc=rc))
+        if out.strip():
+            self._append(out.strip())
+        self._do_refresh()
+
+    def _run_cmds(self, cmds, btn, label, callback, clear_log: bool = True):
         btn.setEnabled(False)
         btn.setText(_tt("remote.desktop.btn.running", label=label))
-        self._log.clear()
+        if clear_log:
+            self._log.clear()
         self._thread = _SshCmdThread(self._runner, cmds)
         self._thread.line_out.connect(self._append)
         self._thread.finished_.connect(callback)
