@@ -270,6 +270,10 @@ class _ToolCallBubble(QFrame):
         hdr.setSpacing(6)
         icon = QLabel("⚡")
         icon.setStyleSheet(f"color:{C_ORANGE}; font-size:{_pt(10)}pt; background:transparent;")
+        from PyQt5.QtGui import QFont
+        f = QFont("Noto Color Emoji")
+        f.setPointSize(_pt(10))
+        icon.setFont(f)
         hdr.addWidget(icon)
         hdr.addWidget(_lbl(_t("ai_chat.tool.header", reason=reason), 10, C_ORANGE))
         hdr.addStretch()

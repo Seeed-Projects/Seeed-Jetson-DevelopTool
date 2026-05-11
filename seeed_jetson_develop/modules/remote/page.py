@@ -87,6 +87,10 @@ def _show_need_connection_dialog(parent: QWidget, tool_name: str):
     icon = QLabel("⚠")
     icon.setAlignment(Qt.AlignTop)
     icon.setStyleSheet(f"color:{C_ORANGE}; font-size:{_pt(26)}px; background:transparent;")
+    from PyQt5.QtGui import QFont
+    f = QFont("Noto Color Emoji")
+    f.setPointSize(_pt(26))
+    icon.setFont(f)
     row.addWidget(icon)
     col = QVBoxLayout()
     col.addWidget(_lbl(_tt("remote.need_conn.header"), 15, C_TEXT, bold=True))

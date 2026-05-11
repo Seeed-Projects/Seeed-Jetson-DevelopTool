@@ -120,6 +120,10 @@ class MainWindow(QMainWindow):
         
         title = QLabel("🚀 Seeed Jetson Flash Tool")
         title.setStyleSheet("color: white; font-size: 28px; font-weight: bold;")
+        from PyQt5.QtGui import QFont
+        f = QFont("Noto Color Emoji")
+        f.setPointSize(28)
+        title.setFont(f)
         header_layout.addWidget(title)
         
         header_layout.addStretch()
@@ -256,6 +260,10 @@ class MainWindow(QMainWindow):
         logo_label = QLabel("🌱")
         logo_label.setStyleSheet("font-size: 72px;")
         logo_label.setAlignment(Qt.AlignCenter)
+        from PyQt5.QtGui import QFont
+        f = QFont("Noto Color Emoji")
+        f.setPointSize(72)
+        logo_label.setFont(f)
         layout.addWidget(logo_label)
         
         title = QLabel("Seeed Jetson Flash Tool")

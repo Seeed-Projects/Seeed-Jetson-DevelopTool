@@ -90,6 +90,7 @@ MONO_FONT_CANDIDATES = (
     "DejaVu Sans Mono",
 )
 
+
 # ── DPI-aware 字体缩放 ────────────────────────────────────────────────────────
 def pt(px: int) -> int:
     """返回字体大小（px），stylesheet 中用 px 单位更可靠。
@@ -125,7 +126,44 @@ def build_mono_font(point_size: int | None = None) -> QFont:
     return font
 
 
+# Emoji 字体栈：强制彩色 emoji 显示，避免 Linux 上 fallback 为黑白
+# 仅在非 Windows 平台添加，Windows 系统不安装此字体
+def _emoji_font_stack() -> str:
+    base = pick_font_family(UI_FONT_CANDIDATES)
+    if sys.platform != "win32":
+        return f'"Noto Color Emoji", {base}'
+    return base
+
+
+def _set_emoji_font(lbl: QLabel, size: int | None = None):
+    """为包含 emoji 的 QLabel 设置彩色 emoji 字体（不影响布局）。"""
+    if sys.platform == "win32":
+        return
+    emoji_font = QFont("Noto Color Emoji")
+    if size is not None:
+        emoji_font.setPointSize(size)
+    lbl.setFont(emoji_font)
+
+
 # ── 通用组件工厂 ──────────────────────────────────────────────────────────────
+def _has_emoji(text: str) -> bool:
+    """检测字符串是否包含 emoji（非 ASCII 可见字符）。"""
+    import re
+    return bool(re.search(r"[\U0001F000-\U0001FFFF\u2600-\u27BF\u2300-\u23FF\u2B50]", text))
+
+
+def set_emoji_font_for_label(lbl: QLabel, size_pt: int | None = None):
+    """为已创建的 QLabel 设置彩色 emoji 字体（如果含 emoji）。"""
+    if sys.platform == "win32":
+        return
+    text = lbl.text()
+    if text and _has_emoji(text):
+        f = QFont("Noto Color Emoji")
+        if size_pt is not None:
+            f.setPointSize(size_pt)
+        lbl.setFont(f)
+
+
 def make_label(text: str, size: int = 13, color: str = C_TEXT,
                bold: bool = False, wrap: bool = False) -> QLabel:
     """创建标签 - 无背景，纯文字"""
@@ -137,6 +175,8 @@ def make_label(text: str, size: int = 13, color: str = C_TEXT,
     )
     if wrap:
         lbl.setWordWrap(True)
+    if text and _has_emoji(text):
+        _set_emoji_font(lbl, size)
     return lbl
 
 
@@ -245,7 +285,8 @@ def make_card(radius: int = 12, with_shadow: bool = True) -> QFrame:
         }}
     """)
     if with_shadow:
-        apply_shadow(f, blur=28, y=6, alpha=80)
+        fx = apply_shadow(f, blur=28, y=6, alpha=80)
+        f._shadow_effect = fx
     return f
 
 
@@ -287,12 +328,21 @@ def make_section_header(title: str, subtitle: str = "") -> QWidget:
     return w
 
 
+def clear_shadow(w):
+    """清除 widget 上的阴影效果，防止 deleteLater 后泄漏"""
+    fx = getattr(w, "_shadow_effect", None)
+    if fx is not None:
+        w.setGraphicsEffect(None)
+        fx.deleteLater()
+
+
 def apply_shadow(w, blur: int = 20, y: int = 4, alpha: int = 60):
     """添加柔和阴影"""
     fx = QGraphicsDropShadowEffect()
     fx.setBlurRadius(blur)
     fx.setOffset(0, y)
     fx.setColor(QColor(0, 0, 0, alpha))
+    w._shadow_effect = fx  # 记录引用，clear_shadow 时可正确清理
     w.setGraphicsEffect(fx)
     return w
 
@@ -303,6 +353,7 @@ def apply_glow(w, color: str = C_GREEN):
     fx.setBlurRadius(15)
     fx.setOffset(0, 0)
     fx.setColor(QColor(int(color[1:3], 16), int(color[3:5], 16), int(color[5:7], 16), 80))
+    w._shadow_effect = fx
     w.setGraphicsEffect(fx)
     return w
 
@@ -376,8 +427,10 @@ def input_qss(radius: int = 8, font_size: int = 12) -> str:
     )
 
 
-# ── 应用级 QSS ────────────────────────────────────────────────────────────────
-APP_QSS = f"""
+# ── 应用级 QSS（惰性求值，避免 QApplication 创建前调用 QFontDatabase）─────────
+def get_app_qss() -> str:
+    base_font = pick_font_family(UI_FONT_CANDIDATES)
+    return f"""
 /* 全局滚动条 - 带圆角和悬停高亮 */
 QScrollBar:vertical {{
     background: rgba(0,0,0,0.15);
@@ -617,7 +670,7 @@ def apply_app_theme():
     """在 QApplication 实例创建后调用，全局应用主题样式。"""
     app = QApplication.instance()
     if app:
-        app.setStyleSheet(APP_QSS)
+        app.setStyleSheet(get_app_qss())
         current_font = app.font()
         base_size = current_font.pointSize() if current_font.pointSize() > 0 else 11
         app.setFont(build_app_font(base_size))

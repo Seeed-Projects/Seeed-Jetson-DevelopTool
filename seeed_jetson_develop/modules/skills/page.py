@@ -172,6 +172,8 @@ class _InstallThread(QThread):
             home = home.strip() if rc2 == 0 and home.strip() else "/home/seeed"
             dest = home + dest[1:]
 
+        sftp_client = None
+        sftp = None
         try:
             sftp_client, sftp = runner.open_sftp()
         except Exception as e:
@@ -197,8 +199,10 @@ class _InstallThread(QThread):
             self.done.emit(False, _t("skills.install.err.upload_failed", error=e))
             return
         finally:
-            sftp.close()
-            sftp_client.close()
+            if sftp is not None:
+                sftp.close()
+            if sftp_client is not None:
+                sftp_client.close()
 
         self.done.emit(True, _t("skills.install.done.ok", name=self._skill.name, dest=dest))
 

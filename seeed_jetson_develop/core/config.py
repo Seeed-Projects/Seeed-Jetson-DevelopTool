@@ -33,7 +33,9 @@ def load() -> dict:
 
 def save(data: dict):
     _CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _CONFIG_PATH.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp = _CONFIG_PATH.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    tmp.rename(_CONFIG_PATH)
 
 
 def normalize_language(lang: str | None) -> str:
