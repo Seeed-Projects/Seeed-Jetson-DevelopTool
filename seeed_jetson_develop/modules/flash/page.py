@@ -70,6 +70,74 @@ def _page_header(title: str, subtitle: str) -> tuple[QWidget, QLabel, QLabel]:
     return header, title_lbl, sub_lbl
 
 
+def _l4t_to_jetpack(l4t: str, l4t_data: list) -> str | None:
+    """Extract JetPack version from l4t_data based on L4T version match."""
+    import re
+    # Extract pure L4T version (e.g., "36.4.3" from "36.4.3 (GMSL✅)")
+    l4t_version = re.match(r'^([\d.]+)', l4t)
+    if not l4t_version:
+        return None
+    pure_l4t = l4t_version.group(1)
+
+    for item in l4t_data:
+        if item.get("l4t") == l4t:
+            filename = item.get("filename", "")
+            # Filename format examples:
+            # - mfi_recomputer-mini-orin-nx-16g-j40-6.0-36.3.0.tar.gz
+            # - mfi_recomputer-mini-orin-nx-16g-j40-5.1.3-35.5.0.tar.gz
+            # - mfi_recomputer-orin-nx-16g-industrial-5.1-35.3.1-2023-08-05.tar.gz
+            # - mfi_reserver-agx-orin-64g-j501x-jp6.0-36.3.0-2024-09-19.tar.gz
+            # JetPack version may be preceded by "jp" or just "-"
+            # The version may have a dash before it, or the "jp" prefix directly
+            # Match version number(s) followed by L4T version
+            # L4T version may be followed by .tar/.tgz or by date like -2023-08-05.tar.gz
+            match = re.search(r'(?:jp)?-?(\d+(?:\.\d+)*)-' + re.escape(pure_l4t) + r'(?:\.tar|\.tgz|-\d{4}|)', filename, re.IGNORECASE)
+            if match:
+                return match.group(1)
+    return None
+
+
+def _product_display_name(product: str) -> str:
+    """Return a user-facing product name without changing the data key."""
+    raw = (product or "").strip()
+    if not raw:
+        return raw
+
+    compact = raw.replace(" ", "").lower()
+    suffix_map = {
+        "classic": "Classic",
+        "industrial": "Industrial",
+        "mini": "Mini",
+        "robotics": "Robotics",
+        "s": "Super",
+    }
+
+    import re
+    m = re.fullmatch(r"(j\d+)(classic|industrial|mini|robotics|reserver|s)", compact)
+    if m:
+        model, suffix = m.groups()
+        if suffix == "reserver":
+            return f"reServer {model.upper()}"
+        return f"reComputer {model.upper()} {suffix_map[suffix]}"
+
+    m = re.fullmatch(r"j501-carrieragx-orin(\d+)g", compact)
+    if m:
+        return f"reServer J501 Carrier AGX Orin {m.group(1)}G"
+
+    m = re.fullmatch(r"j501mini-agx-orin-(\d+)g", compact)
+    if m:
+        return f"reComputer J501 Mini AGX Orin {m.group(1)}G"
+
+    m = re.fullmatch(r"j501-agx-orin-(\d+)g", compact)
+    if m:
+        return f"reComputer J501 AGX Orin {m.group(1)}G"
+
+    if compact == "orin-nano-devkit-super":
+        return "Orin Nano Dev Kit Super"
+
+    return f"reComputer {raw}"
+
+
 def _open_url(url: str):
     from PyQt5.QtCore import QUrl
     QDesktopServices.openUrl(QUrl(url))
@@ -304,10 +372,15 @@ def build_page() -> QWidget:
     prod_name_lbl = make_label(_ft("flash.device.product"), 12, C_TEXT2)
     prod_row.addWidget(prod_name_lbl)
     prod_row.addStretch()
+    jetpack_badge_w = pt(126)
     flash_product_combo = DropdownButton(max_popup_height=pt(320))
     flash_product_combo.setMinimumWidth(pt(260))
-    flash_product_combo.addItems(sorted(products.keys()))
+    for product_key in sorted(products.keys(), key=_product_display_name):
+        flash_product_combo.addItem(_product_display_name(product_key), product_key)
     prod_row.addWidget(flash_product_combo)
+    prod_jetpack_placeholder = QWidget()
+    prod_jetpack_placeholder.setFixedWidth(jetpack_badge_w)
+    prod_row.addWidget(prod_jetpack_placeholder)
     dev_lay.addLayout(prod_row)
 
     l4t_row = QHBoxLayout()
@@ -317,6 +390,19 @@ def build_page() -> QWidget:
     flash_l4t_combo = DropdownButton(max_popup_height=pt(200))
     flash_l4t_combo.setMinimumWidth(pt(260))
     l4t_row.addWidget(flash_l4t_combo)
+    # JetPack version display badge
+    flash_jetpack_lbl = QLabel()
+    flash_jetpack_lbl.setStyleSheet(f"""
+        background: rgba(141, 194, 31, 0.15);
+        color: {C_GREEN};
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: {pt(11)}pt;
+        font-weight: 600;
+    """)
+    flash_jetpack_lbl.setAlignment(Qt.AlignCenter)
+    flash_jetpack_lbl.setFixedSize(jetpack_badge_w, pt(26))
+    l4t_row.addWidget(flash_jetpack_lbl)
     dev_lay.addLayout(l4t_row)
 
     # Device image
@@ -889,7 +975,11 @@ def build_page() -> QWidget:
         if url:
             _open_url(url)
 
-    def _on_flash_product_changed(product):
+    def _current_flash_product_key() -> str:
+        return flash_product_combo.currentData() or flash_product_combo.currentText()
+
+    def _on_flash_product_changed(_display_product):
+        product = _current_flash_product_key()
         flash_l4t_combo.clear()
         if product in products:
             flash_l4t_combo.addItems(products[product])
@@ -928,10 +1018,15 @@ def build_page() -> QWidget:
                 threading.Thread(target=_fetch_device_img, daemon=True).start()
             else:
                 _set_device_image(None)
+        # Update JetPack display when product changes
+        if flash_l4t_combo.currentText():
+            _update_jetpack_display(flash_l4t_combo.currentText())
+        else:
+            flash_jetpack_lbl.setVisible(False)
         _update_cache_label()
 
     def _update_cache_label():
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         if not product or not l4t:
             return
@@ -980,6 +1075,20 @@ def build_page() -> QWidget:
         except Exception:
             flash_cache_lbl.setText("")
 
+    def _update_jetpack_display(l4t: str):
+        """Update JetPack version display based on selected L4T version."""
+        if not l4t:
+            flash_jetpack_lbl.setText("")
+            flash_jetpack_lbl.setVisible(False)
+            return
+        jetpack = _l4t_to_jetpack(l4t, l4t_data)
+        if jetpack:
+            flash_jetpack_lbl.setText(f"JetPack {jetpack}")
+            flash_jetpack_lbl.setVisible(True)
+        else:
+            flash_jetpack_lbl.setText("")
+            flash_jetpack_lbl.setVisible(False)
+
     def _set_next_enabled(enabled: bool):
         flash_next_btn.setEnabled(enabled)
         if enabled:
@@ -990,7 +1099,7 @@ def build_page() -> QWidget:
             flash_prepare_scene.set_download_progress(0.0)
 
     def _clear_firmware_cache():
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         if not product or not l4t:
             return
@@ -1112,7 +1221,7 @@ def build_page() -> QWidget:
         if not _ensure_sudo():
             _flash_log_append(_ft("flash.log.sudo_denied_operation"))
             return
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         if not product or not l4t:
             return
@@ -1172,7 +1281,7 @@ def build_page() -> QWidget:
         _set_wizard_step(1)
         flash_step_stack.setCurrentIndex(1)
         flash_left_stack.setCurrentIndex(1)
-        _build_recovery_guide(flash_product_combo.currentText())
+        _build_recovery_guide(_current_flash_product_key())
         rec_status_lbl.setText(_ft("flash.status.waiting_detection"))
         rec_status_lbl.setStyleSheet(f"color:{C_TEXT2}; background:transparent;")
         rec_flash_btn.setEnabled(False)
@@ -1422,7 +1531,7 @@ def build_page() -> QWidget:
             _flash_log_append(_ft("flash.detect.err_lsusb", error=e))
 
     def _start_flash():
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         if not product or not l4t:
             return
@@ -1432,7 +1541,7 @@ def build_page() -> QWidget:
         _run_flash_thread(product, l4t, flash_only=True)
 
     def _retry_flash():
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         if not product or not l4t:
             return
@@ -1592,7 +1701,7 @@ def build_page() -> QWidget:
             QTimer.singleShot(0, _update_adaptive_layout)
         if ok and not was_flash_only:
             try:
-                flasher = JetsonFlasher(flash_product_combo.currentText(), flash_l4t_combo.currentText())
+                flasher = JetsonFlasher(_current_flash_product_key(), flash_l4t_combo.currentText())
                 ready = flasher.firmware_extracted()
                 if py_platform.system() == "Windows":
                     ready = ready or flasher.firmware_cached()
@@ -1652,7 +1761,7 @@ def build_page() -> QWidget:
     i18n.bind_text(clear_log_btn, "flash.log.clear")
 
     def _refresh_product_summary():
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         if not product:
             flash_info.setText(_ft("flash.product_summary.waiting"))
             if not flash_device_img.pixmap():
@@ -1685,7 +1794,7 @@ def build_page() -> QWidget:
             _state["lang"] = lang
         i18n.apply(lang)
         if flash_left_stack.currentIndex() == 1:
-            _build_recovery_guide(flash_product_combo.currentText())
+            _build_recovery_guide(_current_flash_product_key())
     page.retranslate_ui = _retranslate_ui
 
     def _show_flash_done_test_state():
@@ -1707,12 +1816,15 @@ def build_page() -> QWidget:
 
     # Signal wiring.
     flash_product_combo.currentTextChanged.connect(_on_flash_product_changed)
+    flash_l4t_combo.currentTextChanged.connect(lambda l4t: _update_jetpack_display(l4t))
     flash_l4t_combo.currentTextChanged.connect(lambda _: _update_cache_label())
 
     # Initial state.
     page.retranslate_ui(get_language())
     if flash_product_combo.currentText():
         _on_flash_product_changed(flash_product_combo.currentText())
+    if flash_l4t_combo.currentText():
+        _update_jetpack_display(flash_l4t_combo.currentText())
     QTimer.singleShot(0, _update_adaptive_layout)
     if os.environ.get("SEEED_FLASH_TEST_DONE") == "1":
         QTimer.singleShot(0, _show_flash_done_test_state)

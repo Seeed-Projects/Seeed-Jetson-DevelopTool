@@ -39,6 +39,7 @@ from ..modules.apps.page import build_page as build_apps_page
 from ..modules.skills.page import build_page as build_skills_page
 from ..modules.remote.page import build_page as build_remote_page
 from ..resources import resolve_runtime_path
+from .app_icon import apply_app_icon
 import requests
 
 
@@ -1312,7 +1313,9 @@ def main():
 
     app = QApplication(sys.argv)
     app.setApplicationName("Seeed Jetson Flash")
+    apply_app_icon()
     window = MainWindow()
+    apply_app_icon(window)
     window.show()
     sys.exit(app.exec_())
 
