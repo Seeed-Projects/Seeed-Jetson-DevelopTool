@@ -11,13 +11,24 @@ _log_dir = Path.home() / ".cache" / "seeed-jetson"
 _log_dir.mkdir(parents=True, exist_ok=True)
 _log_file = _log_dir / "app.log"
 
+_DEBUG_CONSOLE = os.environ.get("SEEED_JETSON_DEBUG_CONSOLE", "").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+if "--debug-console" in sys.argv:
+    _DEBUG_CONSOLE = True
+    sys.argv.remove("--debug-console")
+
+_log_handlers = [logging.FileHandler(_log_file, encoding="utf-8")]
+if _DEBUG_CONSOLE and getattr(sys, "stderr", None):
+    _log_handlers.append(logging.StreamHandler(sys.stderr))
+
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[
-        logging.FileHandler(_log_file, encoding="utf-8"),
-        logging.StreamHandler(sys.stderr),
-    ],
+    handlers=_log_handlers,
 )
 log = logging.getLogger("seeed")
 log.info("=== 启动 seeed-jetson-develop ===")
@@ -249,9 +260,17 @@ from PyQt5.QtWidgets import QApplication
 def _qt_message_handler(msg_type, context, message):
     if msg_type == QtMsgType.QtWarningMsg and "DirectWrite: CreateFontFaceFromHDC() failed" in message:
         return
-    stream = sys.stderr
-    stream.write(message + "\n")
-    stream.flush()
+    logging.getLogger("qt").debug(message)
+    if not _DEBUG_CONSOLE:
+        return
+    stream = getattr(sys, "stderr", None)
+    if not stream:
+        return
+    try:
+        stream.write(message + "\n")
+        stream.flush()
+    except Exception:
+        pass
 
 qInstallMessageHandler(_qt_message_handler)
 

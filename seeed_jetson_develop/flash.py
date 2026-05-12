@@ -27,6 +27,24 @@ def _is_linux_host() -> bool:
     return platform.system() == "Linux"
 
 
+def _hidden_startupinfo():
+    if not _is_windows_host():
+        return None
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0
+    return startupinfo
+
+
+def _hidden_subprocess_kwargs() -> dict:
+    if not _is_windows_host():
+        return {}
+    return {
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        "startupinfo": _hidden_startupinfo(),
+    }
+
+
 def sudo_authenticate(password: str) -> bool:
     """用给定密码刷新 sudo 凭证。返回 True 表示密码正确且 sudo 已授权。"""
     if not _is_linux_host():
@@ -67,7 +85,11 @@ def find_recovery_device_line() -> str | None:
         from seeed_jetson_develop.wsl_flash import find_nvidia_apx_device
 
         device = find_nvidia_apx_device()
-        return device.raw.strip() if device else None
+        if device:
+            return device.raw.strip()
+        print("[flash] find_recovery_device_line: no NVIDIA APX device found on Windows.")
+        print("[flash] Ensure Jetson is in Recovery mode and a DATA USB cable is connected.")
+        return None
 
     nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623"}
     result = subprocess.run(
@@ -93,7 +115,8 @@ def find_recovery_device_line() -> str | None:
 
 class JetsonFlasher:
     def __init__(self, product, l4t_version, progress_callback=None, should_cancel=None,
-                 download_dir: Path | None = None, log_formatter=None, skip_verify: bool = False):
+                 download_dir: Path | None = None, log_formatter=None, skip_verify: bool = False,
+                 probe_wsl_cache: bool = False):
         self.product = product
         self.l4t_version = l4t_version
         self.progress_callback = progress_callback
@@ -107,11 +130,13 @@ class JetsonFlasher:
         elif _is_windows_host():
             windows_dir = Path.home() / "jetson_firmware"
             filename = self.firmware_info["filename"]
-            try:
-                from seeed_jetson_develop.wsl_flash import get_wsl_download_dir
-                wsl_dir = get_wsl_download_dir()
-            except Exception:
-                wsl_dir = None
+            wsl_dir = None
+            if probe_wsl_cache:
+                try:
+                    from seeed_jetson_develop.wsl_flash import get_wsl_download_dir
+                    wsl_dir = get_wsl_download_dir()
+                except Exception:
+                    wsl_dir = None
             if (windows_dir / filename).exists():
                 self.download_dir = windows_dir
             elif wsl_dir and (wsl_dir / filename).exists():
@@ -287,6 +312,7 @@ class JetsonFlasher:
              "bash", "-lc", script],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
+            **_hidden_subprocess_kwargs(),
         )
         checkpoints = 0
         output_tail: list[str] = []
@@ -594,6 +620,7 @@ class JetsonFlasher:
                 encoding="utf-8",
                 errors="replace",
                 timeout=10,
+                **_hidden_subprocess_kwargs(),
             )
             return result.stdout.strip() if result.returncode == 0 else None
         except Exception:
@@ -615,7 +642,7 @@ class JetsonFlasher:
             subprocess.run(
                 [_wsl_exe(), "-d", distro, "-u", "root", "--",
                  "bash", "-c", f"echo -n {shlex.quote(content)} > {shlex.quote(wsl_path)}"],
-                capture_output=True, timeout=10,
+                capture_output=True, timeout=10, **_hidden_subprocess_kwargs(),
             )
         except Exception:
             pass
@@ -632,7 +659,7 @@ class JetsonFlasher:
         result = subprocess.run(
             [_wsl_exe(), "-d", distro, "-u", "root", "--",
              "bash", "-c", f"rm -rf {shlex.quote(wsl_path)}"],
-            capture_output=True, timeout=120,
+            capture_output=True, timeout=120, **_hidden_subprocess_kwargs(),
         )
         if result.returncode != 0:
             raise PermissionError(f"wsl rm -rf failed (exit {result.returncode})")
@@ -851,6 +878,9 @@ class JetsonFlasher:
         """刷写固件（需已解压，设备已进入 Recovery 模式）。"""
         self._check_cancel()
         if _is_windows_host():
+            print("[Windows] Detected Windows host — using WSL2 flash path")
+            print("[Windows] This path uses WSL2 + usbipd-win to passthrough USB to Linux.")
+            print("[Windows] A PowerShell UAC prompt may appear for: WSL install, usbipd-win install, USB bind.")
             try:
                 from seeed_jetson_develop.wsl_flash import WslFlashManager
 
@@ -872,6 +902,8 @@ class JetsonFlasher:
                 self._emit_log(msg)
                 return False
 
+        print("[Linux] Detected Linux host — using native flash path")
+        print("[Linux] Running NVIDIA l4t_initrd_flash.sh directly with sudo.")
         extract_dir = self.download_dir / "extracted"
 
         actual_dir = getattr(self, '_extracted_dir', None)
@@ -886,19 +918,22 @@ class JetsonFlasher:
             print(self._fmt("flash.flasher.no_flash_script", path=flash_script))
             return False
 
-        print(self._fmt("flash.flasher.workdir", path=actual_dir))
-        print(self._fmt("flash.flasher.flash_script", path=flash_script))
-        print(self._fmt("flash.flasher.flash_start"))
+        print(f"[Linux] Working directory: {actual_dir}")
+        print(f"[Linux] Flash script: {flash_script}")
+        print("[Linux] === Starting native Linux flash (sudo required) ===")
+        print("[Linux] This step requires sudo password and takes 10-30 minutes.")
+        print("[Linux] Ensure the Jetson is in Recovery mode before proceeding.")
 
         try:
             args = ["sudo", "./tools/kernel_flash/l4t_initrd_flash.sh",
                     "--flash-only", "--massflash", "1",
                     "--network", "usb0", "--showlogs"]
+            print(f"[Linux] Running: sudo ./tools/kernel_flash/l4t_initrd_flash.sh --flash-only --massflash 1 --network usb0 --showlogs")
             self._run_cancelable_process(args, cwd=str(actual_dir))
-            print(self._fmt("flash.flasher.flash_ok"))
+            print("[Linux] === Flash completed successfully. ===")
             return True
         except InterruptedError:
             raise
         except subprocess.CalledProcessError as e:
-            print(self._fmt("flash.flasher.flash_fail", code=e.returncode))
+            print(f"[Linux] Flash failed with exit code: {e.returncode}")
             return False
