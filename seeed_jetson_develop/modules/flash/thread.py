@@ -199,6 +199,7 @@ class FlashThread(QThread):
                 download_dir=self.download_dir,
                 log_formatter=lambda key, **kw: self._tr(key, key, **kw),
                 skip_verify=self.skip_verify,
+                probe_wsl_cache=self.flash_only,
             )
             self.progress_msg.emit(self._tr("flash.thread.initializing", "Initializing..."))
             self.progress_val.emit(2)

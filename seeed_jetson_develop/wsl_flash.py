@@ -43,6 +43,24 @@ NVIDIA_APX_IDS = {"7023", "7223", "7323", "7423", "7523", "7623"}
 NVIDIA_INITRD_USB_IDS = {"7035"}
 
 
+def _hidden_startupinfo():
+    if os.name != "nt":
+        return None
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0
+    return startupinfo
+
+
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    return {
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        "startupinfo": _hidden_startupinfo(),
+    }
+
+
 class WslFlashError(RuntimeError):
     """Raised when the Windows/WSL flashing helper cannot continue."""
 
@@ -100,7 +118,13 @@ def _decode_output(data: bytes) -> str:
 
 
 def _run_capture(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
-    proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+    proc = subprocess.run(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=timeout,
+        **_hidden_subprocess_kwargs(),
+    )
     proc.stdout = _decode_output(proc.stdout).encode("utf-8", errors="replace")
     return proc
 
@@ -132,6 +156,7 @@ def _run_elevated(program: str, args: list[str], timeout: int | None = None) -> 
         text=True,
         errors="replace",
         timeout=timeout,
+        **_hidden_subprocess_kwargs(),
     )
     return result.returncode
 
@@ -242,6 +267,7 @@ def get_wsl_download_dir(distro: str | None = None) -> Path | None:
             encoding="utf-8",
             errors="replace",
             timeout=10,
+            **_hidden_subprocess_kwargs(),
         )
         if result.returncode != 0:
             return None
@@ -255,13 +281,14 @@ def get_wsl_download_dir(distro: str | None = None) -> Path | None:
                 encoding="utf-8",
                 errors="replace",
                 timeout=10,
+                **_hidden_subprocess_kwargs(),
             ).stdout.strip()
             wsl_home = f"/home/{user}"
         wsl_dir = wsl_home + "/seeed-jetson-firmware"
         # Create the directory inside WSL
         subprocess.run(
             [wsl, "-d", resolved_distro, "--", "mkdir", "-p", wsl_dir],
-            capture_output=True, timeout=10
+            capture_output=True, timeout=10, **_hidden_subprocess_kwargs()
         )
         unc = _wsl_internal_to_windows(wsl_dir, resolved_distro)
         if unc.exists():
@@ -381,8 +408,17 @@ class WslFlashManager:
         ]
 
     def flash(self) -> bool:
-        self._log("Windows host detected; switching to WSL2 flash workflow.")
-        self._log("WSL flashing is a convenience path. Use native Ubuntu if USB timeouts persist.")
+        self._log("=" * 60)
+        self._log("Windows WSL2 Flash Workflow Starting")
+        self._log("=" * 60)
+        self._log("[STEP 1/7] WSL distro setup")
+        self._log("[STEP 2/7] usbipd-win setup")
+        self._log("[STEP 3/7] WSL kernel USB/IP check")
+        self._log("[STEP 4/7] Find & bind recovery device")
+        self._log("[STEP 5/7] USB passthrough stabilization")
+        self._log("[STEP 6/7] Execute flash script in WSL")
+        self._log("[STEP 7/7] Cleanup")
+        self._log("=" * 60)
         try:
             self._check_cancel()
             self._prefer_archive_distro()
@@ -397,7 +433,10 @@ class WslFlashManager:
             self._start_attach_state_monitor(device.busid)
             self._wait_for_usbipd_attach_stable(device.busid, timeout=120)
             self._run_flash_in_wsl()
-            self._log("WSL flash workflow completed.")
+            self._log("=" * 60)
+            self._log("[STEP 7/7] Cleanup and finalization...")
+            self._log("WSL flash workflow completed successfully. ✓")
+            self._log("=" * 60)
             return True
         finally:
             self._stop_attach_state_monitor()
@@ -425,20 +464,44 @@ class WslFlashManager:
         if not wsl or not Path(wsl).exists():
             raise WslFlashError("wsl.exe was not found. Please update Windows and enable WSL.")
 
-        self._log("Checking WSL installation...")
-        subprocess.run([wsl, "--set-default-version", "2"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        self._log("[STEP 1/7] Checking WSL installation...")
+        # Query WSL version info for diagnostics
+        result_ver = _run_capture([wsl, "--status"], timeout=15)
+        ver_text = _completed_text(result_ver).strip()
+        if ver_text:
+            for line in ver_text.splitlines():
+                if line.strip():
+                    self._log(f"[WSL status] {line.strip()}")
+        else:
+            self._log("[WSL status] Could not retrieve WSL version info.")
+
+        self._log(f"[WSL] Setting default WSL version to 2...")
+        subprocess.run(
+            [wsl, "--set-default-version", "2"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            **_hidden_subprocess_kwargs(),
+        )
         distros = self._wsl_distros()
+        self._log(f"[WSL] Installed distros: {sorted(distros) if distros else '(none)'}")
+
         candidate_order = [self.distro] + [
             d for d in self._preferred_distros if d.lower() != self.distro.lower()
         ]
+        self._log(f"[WSL] Preferred distro order: {candidate_order}")
+
         for candidate in candidate_order:
             if candidate in distros:
                 self.distro = candidate
+                self._log(f"[WSL] Selected existing distro: {self.distro}")
                 break
         if self.distro not in distros:
-            self._log(f"Installing WSL distro {self.distro}. Approve the Windows UAC prompt if it appears.")
+            self._log(f"[WSL] Installing WSL distro '{self.distro}'. Approve the Windows UAC prompt if it appears.")
+            self._log("[WSL] If the installer hangs waiting for reboot, restart Windows and try again.")
             code = _run_elevated(wsl, ["--install", "-d", self.distro], timeout=None)
+            self._log(f"[WSL] WSL installer returned code: {code}")
             distros = self._wait_for_distro_registration(timeout=120)
+            self._log(f"[WSL] Distros after install attempt: {sorted(distros) if distros else '(none)'}")
             if self.distro not in distros:
                 raise WslFlashError(
                     f"Failed to install {self.distro} (exit {code}). "
@@ -450,13 +513,14 @@ class WslFlashManager:
                     "was registered successfully; continuing."
                 )
 
+        self._log(f"[WSL] Waiting for {self.distro} to become ready (timeout=90s)...")
         ready = self._wait_for_wsl_ready(timeout=90)
         if not ready:
             raise WslFlashError(
                 f"{self.distro} is installed but not initialized. "
                 "Open it once from the Start menu, finish first-time setup, then retry."
             )
-        self._log(f"WSL distro ready: {self.distro}")
+        self._log(f"[STEP 1/7] WSL distro ready: {self.distro} ✓")
 
     def _wsl_distros(self) -> set[str]:
         result = _run_capture([_wsl_exe(), "-l", "-q"], timeout=30)
@@ -489,9 +553,12 @@ class WslFlashManager:
         return _run_capture([_wsl_exe(), "-d", self.distro, "-u", "root", "--", *args], timeout=timeout or 60)
 
     def _ensure_usbipd(self):
+        self._log("[STEP 2/7] Checking usbipd-win installation...")
         usbipd = _usbipd_exe()
         if not usbipd:
-            self._log("Installing usbipd-win. Approve the Windows UAC prompt if it appears.")
+            self._log("[usbipd] usbipd.exe not found on PATH or Program Files.")
+            self._log("[usbipd] Attempting to install via winget...")
+            self._log("[usbipd] A Windows UAC prompt will appear; click 'Yes' to continue.")
             winget = shutil.which("winget") or "winget"
             code = _run_elevated(
                 winget,
@@ -506,31 +573,45 @@ class WslFlashManager:
                 ],
                 timeout=None,
             )
+            self._log(f"[usbipd] winget install returned code: {code}")
             if code != 0:
                 raise WslFlashError(f"Failed to install usbipd-win with winget (exit {code}).")
             usbipd = _usbipd_exe()
             if not usbipd:
                 raise WslFlashError("usbipd-win was installed, but usbipd.exe is not visible yet. Restart the app.")
+            self._log("[usbipd] usbipd-win installed successfully.")
+        else:
+            self._log(f"[usbipd] Found: {usbipd}")
 
         version = _run_capture([usbipd, "--version"], timeout=20)
         text = _completed_text(version).strip()
-        self._log(f"usbipd-win detected: {text or usbipd}")
+        self._log(f"[usbipd] Version: {text or '(unknown)'}")
+
+        # List all devices for diagnostics
+        try:
+            dev_list = list_usb_devices()
+            self._log(f"[usbipd] Current device count: {len(dev_list)}")
+            for d in dev_list:
+                self._log(f"[usbipd]   {d.busid} {d.hardware_id} {d.description} [{d.state}]")
+        except Exception as e:
+            self._log(f"[usbipd] Could not enumerate devices: {e}")
+
         usbpcap = _usbpcap_status()
         if usbpcap:
-            self._log(
-                f"[WARN] {usbpcap} usbipd-win reports USBPcap as incompatible. "
-                "This is a host USB filter warning, not a firmware archive error."
-            )
+            self._log(f"[WARN] {usbpcap}")
+            self._log("[WARN] USBPcap may interfere with usbipd. Consider uninstalling USBPcap if flashing fails.")
         match = re.search(r"(\d+)\.(\d+)", text)
         if match and int(match.group(1)) < 4:
-            self._log("usbipd-win is older than 4.x; upgrading through winget.")
+            self._log(f"[usbipd] Current version {match.group(1)}.{match.group(2)} < 4. Upgrading...")
             _run_elevated("winget", ["upgrade", "--exact", "--id", "dorssel.usbipd-win"], timeout=None)
+            self._log("[usbipd] Upgrade complete.")
+        self._log("[STEP 2/7] usbipd-win ready ✓")
 
     def _ensure_kernel_if_needed(self):
         if os.environ.get("SEEED_WSL_SKIP_KERNEL") == "1":
-            self._log("Skipping WSL custom kernel check because SEEED_WSL_SKIP_KERNEL=1.")
+            self._log("[STEP 3/7] Skipping WSL kernel USBIP check (SEEED_WSL_SKIP_KERNEL=1).")
             return
-        self._log("Checking WSL kernel USB/RNDIS support...")
+        self._log("[STEP 3/7] Checking WSL kernel USB/RNDIS support...")
         check = self._run_wsl(
             [
                 "bash",
@@ -540,20 +621,31 @@ class WslFlashManager:
             timeout=30,
         )
         text = _completed_text(check)
-        if (
-            _kernel_config_enabled(text, "CONFIG_USBIP_VHCI_HCD")
-            and _kernel_config_enabled(text, "CONFIG_USB_NET_RNDIS_HOST")
-        ):
-            self._log("WSL kernel already exposes USB/IP and RNDIS support.")
+        usbip_ok = _kernel_config_enabled(text, "CONFIG_USBIP_VHCI_HCD")
+        rndis_ok = _kernel_config_enabled(text, "CONFIG_USB_NET_RNDIS_HOST")
+        self._log(f"[WSL kernel] CONFIG_USBIP_VHCI_HCD={usbip_ok}, CONFIG_USB_NET_RNDIS_HOST={rndis_ok}")
+        if usbip_ok and rndis_ok:
+            self._log("[STEP 3/7] WSL kernel already has USBIP and RNDIS support. ✓")
             return
 
+        self._log("[WSL kernel] Missing kernel features. Attempting to download custom Seeed bzImage...")
         kernel_path = Path.home() / "Seeed" / "WSL_Kernel" / "bzImage"
         if not kernel_path.exists() or not self._sha256_matches(kernel_path, KERNEL_SHA256):
+            self._log(f"[WSL kernel] Downloading custom kernel to {kernel_path}...")
             self._download_kernel(kernel_path)
+        else:
+            self._log(f"[WSL kernel] Using cached custom kernel at {kernel_path}.")
         self._configure_wsl_kernel(kernel_path)
-        subprocess.run([_wsl_exe(), "--shutdown"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        self._log("[WSL kernel] WSL kernel configured. Restarting WSL (wsl --shutdown)...")
+        subprocess.run(
+            [_wsl_exe(), "--shutdown"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            **_hidden_subprocess_kwargs(),
+        )
         time.sleep(2)
-        self._log("Custom WSL kernel configured.")
+        self._log("[STEP 3/7] Custom WSL kernel configured and WSL restarted. ✓")
+        self._log("[NOTE] Custom kernel requires WSL restart. Flashing can now proceed.")
 
     def _sha256_matches(self, path: Path, expected: str) -> bool:
         h = hashlib.sha256()
@@ -637,51 +729,105 @@ class WslFlashManager:
         config.write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
 
     def _find_or_attach_recovery(self) -> UsbDevice:
-        self._log("Looking for NVIDIA APX recovery device in usbipd...")
+        self._log("[STEP 4/7] Looking for NVIDIA APX recovery device in usbipd (timeout=120s)...")
+        self._log("[STEP 4/7] Ensure the Jetson is in Recovery mode:")
+        self._log("  1. Disconnect power")
+        self._log("  2. Connect USB-C cable (DATA cable, NOT charge-only)")
+        self._log("  3. Hold RECOVERY button")
+        self._log("  4. Press and release RESET button")
+        self._log("  5. Release RECOVERY button 2-3 seconds later")
+        self._log("  6. Check Windows Device Manager for 'NVIDIA APX' device")
+        self._log("")
+
         deadline = time.time() + 120
         last_error = None
+        attempt = 0
         while time.time() < deadline:
             self._check_cancel()
+            attempt += 1
+            elapsed = int(time.time() - (deadline - 120))
+            remaining = int(deadline - time.time())
+
+            # Log all visible USB devices each poll for diagnostics
+            try:
+                all_devs = list_usb_devices()
+                nvidia_devs = [d for d in all_devs if "0955" in d.hardware_id]
+                if nvidia_devs:
+                    for d in nvidia_devs:
+                        self._log(f"[usbipd scan #{attempt}] [{remaining}s left] Found NVIDIA device: {d.raw.strip()} [{d.state}]")
+                elif attempt % 5 == 1:  # Throttle to every 5 attempts (~15s)
+                    self._log(f"[usbipd scan #{attempt}] [{remaining}s left] No NVIDIA device found. Current devices: {len(all_devs)}")
+            except Exception as scan_e:
+                if attempt % 5 == 1:
+                    self._log(f"[usbipd scan #{attempt}] [{remaining}s left] Device enumeration error: {scan_e}")
+
             try:
                 device = find_nvidia_apx_device()
                 if device:
-                    self._log(f"Found recovery device: {device.raw.strip()}")
+                    self._log(f"[STEP 4/7] Found APX device after {attempt} scan(s): {device.raw.strip()}")
+                    self._log(f"[STEP 4/7] BusID={device.busid}, State={device.state}, HWID={device.hardware_id}")
                     self._bind_device(device.busid)
+                    self._log("[STEP 4/7] Recovery device found and bound ✓")
                     return device
             except WslFlashError as exc:
                 last_error = exc
                 break
-            self._log("No NVIDIA APX device yet; waiting for Recovery mode...")
+            self._log(f"[STEP 4/7] Waiting... ({remaining}s remaining until timeout)")
             time.sleep(3)
+
+        # Final attempt: also log all devices before failing
+        try:
+            final_devs = list_usb_devices()
+            self._log("[STEP 4/7] === Final device list before failure ===")
+            for d in final_devs:
+                self._log(f"[STEP 4/7]   {d.busid} {d.hardware_id} {d.description} [{d.state}]")
+            if not any("0955" in d.hardware_id for d in final_devs):
+                self._log("[STEP 4/7] ROOT CAUSE: No NVIDIA USB device found at all.")
+                self._log("[STEP 4/7] Check: (1) Is Jetson in Recovery mode? (2) USB data cable? (3) Try a different USB port.")
+        except Exception as e:
+            self._log(f"[STEP 4/7] Could not enumerate final devices: {e}")
+
         if last_error:
             raise last_error
-        raise WslFlashError("No NVIDIA APX recovery device found. Put the Jetson into Recovery mode and retry.")
+        raise WslFlashError(
+            "No NVIDIA APX recovery device found. Put the Jetson into Recovery mode and retry.\n"
+            "  - Use a USB DATA cable (not charge-only)\n"
+            "  - Hold RECOVERY button while pressing RESET\n"
+            "  - Check Device Manager for 'NVIDIA APX' or '0955' device"
+        )
 
     def _bind_device(self, busid: str):
         with self._attach_lock:
             if busid in self._bound_busids:
+                self._log(f"[usbipd] BusID {busid} already bound; skipping.")
                 return
         usbipd = _usbipd_exe()
-        self._log(f"Binding NVIDIA USB device {busid} for WSL USB passthrough...")
+        self._log(f"[usbipd] Binding BusID {busid} for WSL USB passthrough (requires admin)...")
         result = subprocess.run(
             [usbipd, "bind", "--busid", busid, "--force"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             errors="replace",
+            **_hidden_subprocess_kwargs(),
         )
         text = result.stdout or ""
         lowered = text.lower()
+        self._log(f"[usbipd] bind result: code={result.returncode}, stdout={text.strip()!r}")
         if result.returncode == 0 or "already shared" in lowered or "is already shared" in lowered:
             with self._attach_lock:
                 self._bound_busids.add(busid)
+            self._log(f"[usbipd] BusID {busid} bound successfully ✓")
             return
-        self._log("usbipd bind requires administrator permission. Requesting UAC elevation...")
+        self._log("[usbipd] Non-admin bind failed. Requesting UAC elevation...")
+        self._log("[usbipd] A Windows UAC prompt will appear; click 'Yes' to grant admin rights.")
         code = _run_elevated(usbipd, ["bind", "--busid", busid, "--force"], timeout=None)
+        self._log(f"[usbipd] Elevated bind returned code: {code}")
         if code != 0:
             raise WslFlashError(f"usbipd bind failed for {busid} (exit {code}).")
         with self._attach_lock:
             self._bound_busids.add(busid)
+        self._log(f"[usbipd] BusID {busid} bound with elevation ✓")
 
     def _remember_attached_busid(self, busid: str):
         with self._attach_lock:
@@ -722,6 +868,7 @@ class WslFlashManager:
                     encoding="utf-8",
                     errors="replace",
                     bufsize=1,
+                    **_hidden_subprocess_kwargs(),
                 )
                 assert self._attach_process.stdout is not None
                 for line in self._attach_process.stdout:
@@ -773,6 +920,7 @@ class WslFlashManager:
                     encoding="utf-8",
                     errors="replace",
                     timeout=15,
+                    **_hidden_subprocess_kwargs(),
                 )
                 text = (result.stdout or "").strip()
                 lowered = text.lower()
@@ -844,6 +992,7 @@ class WslFlashManager:
                         encoding="utf-8",
                         errors="replace",
                         timeout=10,
+                        **_hidden_subprocess_kwargs(),
                     )
                     text = (result.stdout or "").strip()
                     lowered = text.lower()
@@ -968,35 +1117,110 @@ PY"""
         raise WslFlashError("APX device did not appear inside WSL. Check usbipd, cable, and Recovery mode.")
 
     def _wait_for_usbipd_attach_stable(self, busid: str, timeout: int):
-        self._log("Waiting for usbipd attach confirmation before flashing...")
+        self._log("[STEP 5/7] Waiting for USB passthrough to stabilize (require 3 consecutive confirmations)...")
+        self._log("[STEP 5/7] This step requires 3 conditions to ALL be true simultaneously:")
+        self._log("  (A) usbipd attach event was fired (_attach_confirmed event set)")
+        self._log("  (B) Windows 'usbipd list' shows BUSID state=attached")
+        self._log("  (C) WSL 'lsusb | grep 0955' sees the NVIDIA APX device")
+        self._log("[STEP 5/7] All 3 conditions must hold stable for 3 consecutive checks (~6s).")
+        self._log("[STEP 5/7] If this step times out, the APX device is not stably visible inside WSL.")
+        self._log("")
+
         deadline = time.time() + timeout
         stable_hits = 0
+        attempt = 0
         while time.time() < deadline:
             self._check_cancel()
+            attempt += 1
+            remaining = int(deadline - time.time())
             current_busid = self._current_attached_busid() or busid
+
+            # Check (A): _attach_confirmed event
+            attach_confirmed = self._attach_confirmed.is_set()
+
+            # Check (B): Windows host state
             host_state = self._get_host_attach_state(current_busid)
             host_attached = "attached" in host_state.lower()
+            host_state_detail = f"{current_busid} [{host_state}]"
+
+            # Check (C): WSL lsusb
             wsl_visible = False
+            wsl_output = ""
             try:
                 result = self._run_wsl(
-                    ["bash", "-lc", "lsusb | grep -i '0955:' || true"],
+                    ["bash", "-lc", "lsusb | grep -i '0955:' || echo SEEED_APX_NOT_FOUND"],
                     timeout=20,
                 )
-                text = _completed_text(result).strip()
-                wsl_visible = result.returncode == 0 and bool(text)
-            except Exception:
+                wsl_output = _completed_text(result).strip()
+                wsl_visible = result.returncode == 0 and "SEEED_APX_NOT_FOUND" not in wsl_output and bool(wsl_output)
+            except Exception as e:
+                wsl_output = f"error: {e}"
                 wsl_visible = False
-            if self._attach_confirmed.is_set() and host_attached and wsl_visible:
+
+            # Determine all 3 conditions
+            all_ok = attach_confirmed and host_attached and wsl_visible
+
+            # Build detailed status line
+            status_parts = []
+            status_parts.append(f"#{attempt} [{remaining}s left]")
+            status_parts.append(f"A={'Y' if attach_confirmed else 'N'}")
+            status_parts.append(f"B={'Y' if host_attached else 'N'}({host_state})")
+            status_parts.append(f"C={'Y' if wsl_visible else 'N'}({wsl_output.splitlines()[-1] if wsl_output else 'N/A'})")
+            status_parts.append(f"STABLE_HITS={stable_hits}/3")
+            status_parts.append("** ALL OK **" if all_ok else "")
+
+            if all_ok:
                 stable_hits += 1
+                self._log(f"[usbipd stable?] {' '.join(status_parts)}")
             else:
+                if stable_hits > 0:
+                    self._log(f"[usbipd stable?] RESET hits to 0 — one condition dropped. {' '.join(status_parts)}")
                 stable_hits = 0
+                # Only log every ~10s to avoid spam
+                if attempt % 5 == 1:
+                    self._log(f"[usbipd stable?] {' '.join(status_parts)}")
+                    if not host_attached:
+                        self._log(f"[usbipd] (B) NOT attached — Windows usbipd did not attach the device.")
+                    if not wsl_visible:
+                        self._log(f"[usbipd] (C) NOT visible in WSL — USB passthrough is broken.")
+                        self._log(f"[usbipd]   Check: WSL kernel USBIP support, USB cable quality, avoid USB hubs.")
+                    if not attach_confirmed:
+                        self._log(f"[usbipd] (A) NOT confirmed — attach event not received by the tool.")
+
             if stable_hits >= 3:
-                self._log(f"usbipd attach is stable for bus {current_busid}.")
+                self._log(f"[STEP 5/7] USB passthrough stable after {attempt} checks. ✓ ✓ ✓")
                 return
+
             time.sleep(2)
+
+        # Failed: log final diagnostic
+        self._log("[STEP 5/7] === USB PASSTHROUGH TIMEOUT — ROOT CAUSE ANALYSIS ===")
+        self._log("[STEP 5/7] Stable hits achieved: {}/3 (needed 3)".format(stable_hits))
+        current_busid = self._current_attached_busid() or busid
+        host_state = self._get_host_attach_state(current_busid)
+        self._log(f"[STEP 5/7] Final Windows host state for {current_busid}: {host_state!r}")
+        if "attached" not in host_state.lower():
+            self._log("[STEP 5/7] DIAGNOSIS: Windows 'usbipd list' does NOT show 'attached' state.")
+            self._log("[STEP 5/7]   → This usually means the USB cable dropped or the device disconnected.")
+        try:
+            result = self._run_wsl(["bash", "-lc", "lsusb | grep -i '0955:' || echo NOT_FOUND"], timeout=10)
+            wsl_out = _completed_text(result).strip()
+            self._log(f"[STEP 5/7] Final WSL lsusb output: {wsl_out!r}")
+            if "NOT_FOUND" in wsl_out or not wsl_out:
+                self._log("[STEP 5/7] DIAGNOSIS: APX device is NOT visible inside WSL.")
+                self._log("[STEP 5/7]   → The usbipd-win driver is not forwarding USB to WSL.")
+                self._log("[STEP 5/7]   → Check WSL kernel CONFIG_USBIP_VHCI_HCD, USB cable, and avoid USB hubs.")
+        except Exception as e:
+            self._log(f"[STEP 5/7] Could not check WSL lsusb: {e}")
+        self._log("[STEP 5/7] Try: (1) Use a shorter/higher-quality USB cable, (2) Direct USB port (no hub),")
+        self._log("[STEP 5/7]        (3) Re-enter Recovery mode, (4) Restart usbipd-win service.")
         raise WslFlashError(
-            "usbipd attach did not stabilize before flashing. "
-            "Check cable quality, Recovery mode, and USB passthrough."
+            "usbipd attach did not stabilize. "
+            "The APX device is not stably visible inside WSL. "
+            "Check: (1) USB cable quality — use a DATA cable, not charge-only; "
+            "(2) Avoid USB hubs; (3) Re-enter Recovery mode; "
+            "(4) Ensure WSL kernel has CONFIG_USBIP_VHCI_HCD. "
+            "See full diagnosis above in the log."
         )
 
     def _pre_stage_archive(self):
@@ -1007,6 +1231,7 @@ PY"""
         self._staged_archive = self._stage_archive_for_current_distro(archive)
 
     def _run_flash_in_wsl(self):
+        self._log("[STEP 6/7] Starting WSL flash script (this takes 10-30 minutes)...")
         archive = self.download_dir / self.firmware_info["filename"]
         if not archive.exists():
             raise WslFlashError(f"Firmware archive not found: {archive}. Download/Extract BSP first.")
@@ -1015,17 +1240,19 @@ PY"""
         product_slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", self.product).strip("_") or "jetson"
         version_slug = re.sub(r"[^A-Za-z0-9_.-]+", "_", self.l4t_version).strip("_") or "l4t"
         workspace = f"/root/seeed-jetson-firmware/{product_slug}-{version_slug}"
+        self._log(f"[WSL flash] Workspace: {workspace}")
+        self._log(f"[WSL flash] Archive: {archive} ({archive.stat().st_size // 1024 // 1024} MB)")
 
-        # Check if the archive is already inside WSL (downloaded directly to WSL filesystem).
-        # \\wsl$\<distro>\root\... maps to /root/... inside WSL.
+        # Check if the archive is already inside WSL
         archive_str = str(archive.resolve())
         archive_in_wsl = archive_str.lower().startswith(f"\\\\wsl$\\{self.distro.lower()}\\")
         if archive_in_wsl:
-            # Convert \\wsl$\<distro>\root\foo -> /root/foo
             wsl_relative = archive_str[len(f"\\\\wsl$\\{self.distro}\\"):]
             archive_wsl = "/" + wsl_relative.replace("\\", "/")
+            self._log(f"[WSL flash] Archive is in WSL filesystem: {archive_wsl}")
         else:
             archive_wsl = _windows_path_to_wsl(archive)
+            self._log(f"[WSL flash] Archive is on Windows, mapped to WSL path: {archive_wsl}")
 
         foldername = self.firmware_info.get("foldername", "")
         expected_sha256 = (
@@ -1162,13 +1389,22 @@ PY"""
                 "service nfs-kernel-server start >/dev/null 2>&1 || true",
                 'echo "[WSL] Verifying APX device before flash..."',
                 'lsusb | grep -i \'0955:\' || (echo "[WSL] APX device not visible in WSL." >&2; exit 44)',
+                'echo "[WSL] Checking network interfaces (usb0 should appear after APX boot)..."',
+                'echo "[WSL] Current network interfaces:"',
+                'ip link show 2>/dev/null || ls /sys/class/net/ 2>/dev/null || echo "  (no network info)"',
+                'echo "[WSL] Checking for USB gadget (RNDIS) driver:"',
+                'ls /sys/bus/usb/drivers/rndis_host/ 2>/dev/null || echo "  (rndis_host driver dir not found)"',
+                'ls /sys/bus/usb/drivers/usb0/ 2>/dev/null || echo "  (usb0 driver dir not found)"',
                 'cd "$L4T_DIR"',
                 'echo "[WSL] Flash command: ./tools/kernel_flash/l4t_initrd_flash.wsl.sh --flash-only --massflash 1 --network usb0 --showlogs"',
                 'echo "[WSL] Starting l4t_initrd_flash.sh..."',
                 "./tools/kernel_flash/l4t_initrd_flash.wsl.sh --flash-only --massflash 1 --network usb0 --showlogs",
             ]
         ) + "\n"
+        self._log("[STEP 6/7] Executing WSL flash script (may take 10-30 minutes)...")
+        self._log("[STEP 6/7] Progress will appear below as NVIDIA's flash tool runs.")
         self._run_wsl_stream(script)
+        self._log("[STEP 6/7] WSL flash script completed without error.")
 
     def _stage_archive_for_current_distro(self, archive: Path) -> Path:
         parsed = _parse_wsl_unc_path(archive)
@@ -1216,7 +1452,7 @@ PY"""
             with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False, encoding="utf-8", newline="\n") as f:
                 f.write(script)
                 temp_script = Path(f.name)
-            command = [
+            wsl_cmd = [
                 _wsl_exe(),
                 "-d",
                 self.distro,
@@ -1226,14 +1462,16 @@ PY"""
                 "bash",
                 _windows_path_to_wsl(temp_script),
             ]
+            self._log(f"[WSL exec] Running script via: {' '.join(wsl_cmd[:4])} ... bash {_windows_path_to_wsl(temp_script)}")
             process = subprocess.Popen(
-                command,
+                wsl_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 bufsize=1,
+                **_hidden_subprocess_kwargs(),
             )
             assert process.stdout is not None
             for line in process.stdout:
@@ -1247,24 +1485,48 @@ PY"""
             if code != 0:
                 tail_text = "\n".join(output_tail)
                 lowered = tail_text.lower()
+                self._log(f"[STEP 6/7] WSL flash script exited with code {code}.")
                 if (
                     "might be timeout in usb write" in lowered
                     or ("tegrarcm_v2" in lowered and "return value 3" in lowered)
                 ):
                     current_busid = self._current_attached_busid() or "unknown"
                     usbpcap = _usbpcap_status()
-                    detail = (
-                        " USBPcap is active on this Windows host and usbipd reports it as incompatible; "
-                        "treat that as one host-side variable to test, alongside cable/port/Recovery-mode state."
-                        if usbpcap
-                        else " Check cable/port quality, avoid hubs, re-enter Recovery mode, then retry."
-                    )
+                    self._log(f"[STEP 6/7] ROOT CAUSE: tegrarcm USB write timeout for BUSID {current_busid}.")
+                    self._log("[STEP 6/7] This means APX boot data could NOT be sent through WSL usbipd.")
+                    if usbpcap:
+                        self._log(f"[STEP 6/7] NOTE: USBPcap is active and may be interfering.")
+                    self._log("[STEP 6/7] Troubleshooting: (1) Try a shorter USB cable, (2) Direct port not hub,")
+                    self._log("[STEP 6/7]            (3) Re-enter Recovery mode, (4) Check WSL kernel USBIP support.")
                     raise WslFlashError(
-                        "Detected tegrarcm USB write timeout while sending APX boot data. "
-                        "This is below the archive/extraction layer and means the APX USB write did not complete through WSL usbipd. "
-                        "The tool is running fixed auto-attach plus dynamic APX attach; "
-                        f"last tracked BUSID is {current_busid}."
-                        f"{detail} Extraction is already cached."
+                        f"tegrarcm USB write timeout. APX boot data could not be sent through WSL usbipd "
+                        f"(last BUSID={current_busid}). "
+                        f"{usbpcap and ('Note: USBPcap may be interfering.' + chr(10)) or ''}"
+                        "Try: shorter USB cable, direct port (no hub), re-enter Recovery mode. "
+                        "Extraction is cached; only this step needs retry."
+                    )
+
+                # Detect boot-up timeout: NVIDIA flash tool sends APX boot data, then waits for the
+                # device to enumerate as a USB gadget on the usb0 network interface.
+                if "waiting for target to boot-up" in lowered or "boot-up" in lowered:
+                    self._log("[STEP 6/7] ROOT CAUSE: Boot-up timeout.")
+                    self._log("[STEP 6/7] The APX boot data WAS sent successfully (USB write OK).")
+                    self._log("[STEP 6/7] But the device did not enumerate as a USB network gadget.")
+                    self._log("[STEP 6/7] This is a network/RNDIS enumeration issue, not a USBIP passthrough issue.")
+                    self._log("[STEP 6/7] Diagnostic steps:")
+                    self._log("[STEP 6/7]   1. Check: ls /sys/class/net/usb0  (inside WSL)")
+                    self._log("[STEP 6/7]   2. Check: ip link show usb0  (inside WSL)")
+                    self._log("[STEP 6/7]   3. If usb0 exists but no IP: WSL kernel RNDIS driver issue")
+                    self._log("[STEP 6/7]   4. If usb0 does NOT exist: CONFIG_USB_NET_RNDIS_HOST missing from WSL kernel")
+                    self._log("[STEP 6/7]   5. Check: WSL .wslconfig has kernel= pointing to custom bzImage")
+                    self._log("[STEP 6/7]   6. If using custom kernel, verify it has CONFIG_USB_NET_RNDIS_HOST=y")
+                    raise WslFlashError(
+                        "Boot-up timeout. APX boot data was sent but the device did not enumerate "
+                        "as a USB network gadget (usb0). "
+                        "This means WSL kernel lacks CONFIG_USB_NET_RNDIS_HOST support. "
+                        "Run: SEEED_WSL_SKIP_KERNEL=0 to force custom bzImage download, "
+                        "or manually verify your WSL kernel has CONFIG_USB_NET_RNDIS_HOST=y. "
+                        "Check ls /sys/class/net/usb0 and ip link show usb0 inside WSL for details."
                     )
                 last_line = next((line for line in reversed(output_tail) if line.strip()), "")
                 detail = f" Last log line: {last_line}" if last_line else ""
