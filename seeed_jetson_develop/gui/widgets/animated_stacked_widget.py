@@ -23,6 +23,13 @@ class AnimatedStackedWidget(QStackedWidget):
         self._mode = mode
         self._animating = False
         self._target_idx = 0
+        self._active_animations = []
+
+    def _remember_animations(self, *animations):
+        self._active_animations = [anim for anim in animations if anim is not None]
+
+    def _clear_animations(self):
+        self._active_animations.clear()
 
     def setCurrentIndex(self, index: int):
         if index == self.currentIndex() or self._animating:
@@ -54,7 +61,7 @@ class AnimatedStackedWidget(QStackedWidget):
         old_effect = QGraphicsOpacityEffect(old_w)
         old_effect.setOpacity(1.0)
         old_w.setGraphicsEffect(old_effect)
-        old_anim = QPropertyAnimation(old_effect, b"opacity")
+        old_anim = QPropertyAnimation(old_effect, b"opacity", self)
         old_anim.setDuration(self._duration // 2)
         old_anim.setStartValue(1.0)
         old_anim.setEndValue(0.0)
@@ -68,16 +75,18 @@ class AnimatedStackedWidget(QStackedWidget):
         new_effect = QGraphicsOpacityEffect(new_w)
         new_effect.setOpacity(0.0)
         new_w.setGraphicsEffect(new_effect)
-        new_anim = QPropertyAnimation(new_effect, b"opacity")
+        new_anim = QPropertyAnimation(new_effect, b"opacity", self)
         new_anim.setDuration(self._duration)
         new_anim.setStartValue(0.0)
         new_anim.setEndValue(1.0)
         new_anim.setEasingCurve(QEasingCurve.OutCubic)
-        new_anim.finished.connect(lambda: self._cleanup_effect(new_w))
         new_anim.start()
+        self._remember_animations(old_anim, new_anim)
 
         def _done():
             self._cleanup_effect(old_w)
+            self._cleanup_effect(new_w)
+            self._clear_animations()
             self._animating = False
             self.animation_finished.emit(target_idx)
 
@@ -105,23 +114,25 @@ class AnimatedStackedWidget(QStackedWidget):
         end_geo = geo
 
         new_w.setGeometry(start_geo)
-        slide_anim = QPropertyAnimation(new_w, b"geometry")
+        slide_anim = QPropertyAnimation(new_w, b"geometry", self)
         slide_anim.setDuration(self._duration)
         slide_anim.setStartValue(start_geo)
         slide_anim.setEndValue(end_geo)
         slide_anim.setEasingCurve(QEasingCurve.OutCubic)
-        slide_anim.finished.connect(lambda: self._cleanup_effect(new_w))
         slide_anim.start()
 
         # 同时淡入
-        fade_anim = QPropertyAnimation(new_effect, b"opacity")
+        fade_anim = QPropertyAnimation(new_effect, b"opacity", self)
         fade_anim.setDuration(self._duration)
         fade_anim.setStartValue(0.3)
         fade_anim.setEndValue(1.0)
         fade_anim.setEasingCurve(QEasingCurve.OutCubic)
         fade_anim.start()
+        self._remember_animations(slide_anim, fade_anim)
 
         def _done():
+            self._cleanup_effect(new_w)
+            self._clear_animations()
             self._animating = False
             self.animation_finished.emit(target_idx)
 
@@ -151,22 +162,24 @@ class AnimatedStackedWidget(QStackedWidget):
         start_geo.moveCenter(new_w.geometry().center())
 
         new_w.setGeometry(start_geo)
-        scale_anim = QPropertyAnimation(new_w, b"geometry")
+        scale_anim = QPropertyAnimation(new_w, b"geometry", self)
         scale_anim.setDuration(self._duration)
         scale_anim.setStartValue(start_geo)
         scale_anim.setEndValue(geo)
         scale_anim.setEasingCurve(QEasingCurve.OutBack)
-        scale_anim.finished.connect(lambda: self._cleanup_effect(new_w))
         scale_anim.start()
 
-        fade_anim = QPropertyAnimation(new_effect, b"opacity")
+        fade_anim = QPropertyAnimation(new_effect, b"opacity", self)
         fade_anim.setDuration(self._duration)
         fade_anim.setStartValue(0.5)
         fade_anim.setEndValue(1.0)
         fade_anim.setEasingCurve(QEasingCurve.OutCubic)
         fade_anim.start()
+        self._remember_animations(scale_anim, fade_anim)
 
         def _done():
+            self._cleanup_effect(new_w)
+            self._clear_animations()
             self._animating = False
             self.animation_finished.emit(target_idx)
 
