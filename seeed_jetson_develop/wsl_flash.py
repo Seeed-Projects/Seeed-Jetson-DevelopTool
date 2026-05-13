@@ -449,7 +449,12 @@ class WslFlashManager:
             self._log("[WSL status] Could not retrieve WSL version info.")
 
         self._log(f"[WSL] Setting default WSL version to 2...")
-        subprocess.run([wsl, "--set-default-version", "2"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        subprocess.run(
+            [wsl, "--set-default-version", "2"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            **_hidden_subprocess_kwargs(),
+        )
         distros = self._wsl_distros()
         self._log(f"[WSL] Installed distros: {sorted(distros) if distros else '(none)'}")
 
@@ -605,7 +610,12 @@ class WslFlashManager:
             self._log(f"[WSL kernel] Using cached custom kernel at {kernel_path}.")
         self._configure_wsl_kernel(kernel_path)
         self._log("[WSL kernel] WSL kernel configured. Restarting WSL (wsl --shutdown)...")
-        subprocess.run([_wsl_exe(), "--shutdown"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        subprocess.run(
+            [_wsl_exe(), "--shutdown"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            **_hidden_subprocess_kwargs(),
+        )
         time.sleep(2)
         self._log("[STEP 3/7] Custom WSL kernel configured and WSL restarted. ✓")
         self._log("[NOTE] Custom kernel requires WSL restart. Flashing can now proceed.")
@@ -1219,6 +1229,9 @@ PY"""
             if self.verify_archive_sha256
             else ""
         )
+        # Use empty unquoted string for shell so that [ -n "$VAR" ] correctly returns false.
+        # shlex.quote("") produces "''" which makes [ -n "''" ] return true (bug).
+        expected_sha256_shell = expected_sha256 if expected_sha256 else '""'
         marker_value = f"{self.product}|{self.l4t_version}|{expected_sha256 or archive.name}"
         packages = " ".join(FLASH_PACKAGES)
 
@@ -1269,7 +1282,7 @@ PY"""
                 'ARCHIVE="$WORK/$ARCHIVE_NAME"' if not archive_already_in_workspace else f'ARCHIVE={shlex.quote(archive_wsl)}',
                 'EXTRACT="$WORK/extracted"',
                 f"FOLDERNAME={shlex.quote(foldername)}",
-                f"EXPECTED_SHA256={shlex.quote(expected_sha256)}",
+                f"EXPECTED_SHA256={expected_sha256_shell}",
                 f"MARKER_EXPECTED={shlex.quote(marker_value)}",
                 'echo "[WSL] Workspace: $WORK"',
                 'mkdir -p "$WORK" "$EXTRACT"',

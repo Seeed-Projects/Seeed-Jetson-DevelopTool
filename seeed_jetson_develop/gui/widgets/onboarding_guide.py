@@ -54,7 +54,6 @@ class AnimationScene(QWidget):
         self._timer.timeout.connect(self._tick)
         self._timer.start(16)     # ~60 fps
         self.setMinimumSize(pt(380), pt(230))
-        self.setMaximumSize(pt(500), pt(300))
 
     def sizeHint(self):
         return QSize(pt(480), pt(280))
@@ -540,17 +539,17 @@ class StepPage(QWidget):
         # 动画场景
         SceneClass = self.SCENES[self.step_index - 1]
         self._scene = SceneClass(self)
-        layout.addWidget(self._scene, alignment=Qt.AlignCenter)
+        layout.addWidget(self._scene, stretch=2, alignment=Qt.AlignCenter)
 
-        # 内容区域（可扩展）
+        # 内容区域（描述文字 + 提示）
         content_widget = QWidget(self)
-        content_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        content_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         content_layout = QVBoxLayout(content_widget)
         content_layout.setContentsMargins(pt(12), pt(2), pt(12), pt(2))
         content_layout.setSpacing(pt(5))
         content_layout.setAlignment(Qt.AlignCenter)
 
-        # 描述文字（支持多行）
+        # 描述文字（支持多行，但限制最大高度避免过度挤压 scene）
         self._desc_labels: list[QLabel] = []
         desc_key_base = f"onboarding.step{self.step_index}.desc"
         for i in range(1, 6):
@@ -561,6 +560,7 @@ class StepPage(QWidget):
             lbl = make_label(text, size=12, color=C_TEXT2, wrap=True)
             lbl.setAlignment(Qt.AlignCenter)
             lbl.setWordWrap(True)
+            lbl.setMaximumHeight(pt(60))  # 限制单行描述最大高度
             content_layout.addWidget(lbl)
             self._desc_labels.append(lbl)
 
@@ -583,13 +583,15 @@ class StepPage(QWidget):
             tip_lbl = make_label(tip_text, size=11, color=C_GREEN)
             tip_lbl.setWordWrap(True)
             tip_lbl.setAlignment(Qt.AlignCenter)
+            tip_lbl.setMaximumHeight(pt(50))
             tip_layout.addWidget(tip_lbl)
             content_layout.addWidget(tip_container, alignment=Qt.AlignCenter)
             self._tip_container = tip_container
             self._tip_lbl = tip_lbl
 
-        layout.addWidget(content_widget, stretch=1)
-        layout.addStretch()
+        layout.addWidget(content_widget)
+        # 底部小 stretch 让内容整体居中，不挤压 scene
+        layout.addStretch(1)
 
     def stop_animation(self):
         if self._scene:

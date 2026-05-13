@@ -5,8 +5,8 @@
 """
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
+from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, QRect
 from seeed_jetson_develop.gui.widgets.page_base import PageBase
 from seeed_jetson_develop.gui.theme import (
     C_TEXT, C_TEXT3, pt as _pt, make_label as _lbl,
@@ -148,11 +148,26 @@ class ListPageBase(PageBase):
         scroll.setWidget(tabs_widget)
         container_lay.addWidget(scroll, 1)
 
+        # Tab 滑块指示器（绿色下划线，跨按钮滑动）
+        self._tab_slider = QFrame(tabs_widget)
+        self._tab_slider.setFixedHeight(_pt(2))
+        self._tab_slider.setStyleSheet(f"""
+            QFrame {{
+                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+                    stop:0 rgba(141,194,31,0.2), stop:0.5 {C_TEXT}, stop:1 rgba(141,194,31,0.2));
+                border-radius: {_pt(1)}px;
+            }}
+        """)
+        self._tab_slider.hide()
+
         # 右侧：搜索框（固定位置）
         self.search_input = make_input_field(t("common.search_placeholder"))
         self.search_input.setFixedWidth(_pt(200))
         self.search_input.textChanged.connect(self._on_search_input_changed)
         container_lay.addWidget(self.search_input)
+
+        # 延迟初始化滑块位置（等 layout 计算完成）
+        QTimer.singleShot(50, lambda: self._animate_tab_slider(self.filter_state.get("category", "")))
 
         return container
 
@@ -161,13 +176,39 @@ class ListPageBase(PageBase):
         self.items_data = self.load_data()
         self._rebuild_list()
 
+    def _animate_tab_slider(self, category: str):
+        """Tab 滑块平滑滑动到目标按钮下方"""
+        btn = self.tab_buttons.get(category)
+        if not btn or not self._tabs_widget:
+            return
+        pos = btn.mapTo(self._tabs_widget, QPoint(0, 0))
+        target_geo = QRect(pos.x(), pos.y() + btn.height() - _pt(2), btn.width(), _pt(2))
+        if not self._tab_slider.isVisible():
+            self._tab_slider.setGeometry(target_geo)
+            self._tab_slider.show()
+            return
+        old_anim = getattr(self._tab_slider, '_anim', None)
+        if old_anim is not None:
+            old_anim.stop()
+            old_anim.deleteLater()
+        anim = QPropertyAnimation(self._tab_slider, b"geometry")
+        anim.setDuration(250)
+        anim.setStartValue(self._tab_slider.geometry())
+        anim.setEndValue(target_geo)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.start()
+        self._tab_slider._anim = anim
+
     def _on_category_clicked(self, category: str):
         """分类标签点击处理"""
         self.filter_state["category"] = category
 
-        # 更新按钮样式
+        # 更新按钮激活状态（触发下划线动画）
         for cat, btn in self.tab_buttons.items():
-            btn.setStyleSheet(make_tab_button(self.format_category_label(cat), active=(cat == category)).styleSheet())
+            btn.setActive(cat == category)
+
+        # 滑块滑动到选中按钮
+        self._animate_tab_slider(category)
 
         # 回调
         self.on_category_changed(category)
@@ -194,10 +235,15 @@ class ListPageBase(PageBase):
         filtered = [item for item in self.items_data if self.filter_item(item)]
 
         if not filtered:
-            # 无数据提示
-            empty_label = _lbl(t("common.no_data"), 14, C_TEXT3)
-            empty_label.setAlignment(Qt.AlignCenter)
-            self.list_outer_layout.addWidget(empty_label)
+            # 无数据插图
+            from seeed_jetson_develop.gui.widgets.empty_state_widget import EmptyStateWidget
+            empty = EmptyStateWidget(
+                title=t("common.no_data"),
+                subtitle="",
+                icon_type="search",
+                parent=self,
+            )
+            self.list_outer_layout.addWidget(empty)
             self.list_outer_layout.addStretch()
             return
 

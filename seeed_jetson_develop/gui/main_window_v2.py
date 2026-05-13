@@ -10,7 +10,7 @@ import threading
 import traceback
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QPoint, QRect, QEvent, QTimer, QtMsgType, qInstallMessageHandler
+from PyQt5.QtCore import Qt, QPoint, QRect, QEvent, QTimer, QtMsgType, qInstallMessageHandler, QPropertyAnimation, QEasingCurve
 from PyQt5.QtGui import QColor, QPixmap, QPainter
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame,
@@ -19,7 +19,6 @@ from PyQt5.QtWidgets import (
     QTextEdit, QStackedWidget,
 )
 
-from .widgets.animated_stacked_widget import AnimatedStackedWidget
 
 # 使用新的无边框主题
 from .theme import (
@@ -82,7 +81,7 @@ NAV_ITEMS = [
 
 
 class SidebarButton(QPushButton):
-    """侧边栏按钮 - 无左边框，用背景色区分选中状态"""
+    """侧边栏按钮 - 带平滑 hover 光晕过渡"""
     def __init__(self, label, parent=None):
         super().__init__(parent)
         self.setCursor(Qt.PointingHandCursor)
@@ -90,18 +89,22 @@ class SidebarButton(QPushButton):
         self._label = label
         self.setText(label)
         self.setFixedHeight(pt(44))
+        self._hover_glow = 0.0
+        self._target_hover = 0.0
+        self._hover_timer = QTimer(self)
+        self._hover_timer.timeout.connect(self._update_hover)
         self._apply_style(False)
 
     def _apply_style(self, active):
         fs = pt(13)
         pad = pt(20)
         if active:
+            # 选中态：背景高亮 + 滑块承担左边框指示，按钮本身不再画左边框
             self.setStyleSheet(f"""
                 QPushButton {{
                     background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
                         stop:0 rgba(141,194,31,0.18), stop:1 rgba(141,194,31,0.06));
                     border: none;
-                    border-left: 3px solid {C_GREEN};
                     border-radius: 0px;
                     border-top-right-radius: 10px;
                     border-bottom-right-radius: 10px;
@@ -109,7 +112,7 @@ class SidebarButton(QPushButton):
                     font-size: {fs}pt;
                     font-weight: 700;
                     text-align: left;
-                    padding-left: {pad - 3}px;
+                    padding-left: {pad}px;
                     margin: 0 8px 0 0;
                 }}
             """)
@@ -127,13 +130,56 @@ class SidebarButton(QPushButton):
                     margin: 0 8px;
                 }}
                 QPushButton:hover {{
-                    background: rgba(255,255,255,0.05);
+                    background: rgba(255,255,255,0.06);
                     color: {C_TEXT};
+                    border-left: 2px solid rgba(141,194,31,0.40);
+                    padding-left: {pad - 2}px;
+                }}
+                QPushButton:pressed {{
+                    background: rgba(255,255,255,0.03);
+                    color: {C_TEXT2};
                 }}
             """)
 
     def setActive(self, v):
         self._apply_style(v)
+
+    def enterEvent(self, event):
+        self._target_hover = 1.0
+        if not self._hover_timer.isActive():
+            self._hover_timer.start(16)
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._target_hover = 0.0
+        if not self._hover_timer.isActive():
+            self._hover_timer.start(16)
+        super().leaveEvent(event)
+
+    def _update_hover(self):
+        step = 0.10
+        if self._target_hover > self._hover_glow:
+            self._hover_glow = min(self._target_hover, self._hover_glow + step)
+        elif self._target_hover < self._hover_glow:
+            self._hover_glow = max(self._target_hover, self._hover_glow - step)
+        else:
+            self._hover_timer.stop()
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        # 未选中状态下叠加 hover 光晕
+        if self._hover_glow > 0.01 and not self.isChecked():
+            p = QPainter(self)
+            p.setRenderHint(QPainter.Antialiasing)
+            from PyQt5.QtGui import QLinearGradient
+            bar_w = int(3 * self._hover_glow)
+            grad = QLinearGradient(0, 0, bar_w, 0)
+            grad.setColorAt(0, QColor(141, 194, 31, int(140 * self._hover_glow)))
+            grad.setColorAt(1, QColor(141, 194, 31, 0))
+            p.setPen(Qt.NoPen)
+            p.setBrush(grad)
+            p.drawRect(0, 6, bar_w, self.height() - 12)
 
 
 # ─────────────────────────────────────────────
@@ -225,7 +271,7 @@ class MainWindowV2(QMainWindow):
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
 
-        self.stack = AnimatedStackedWidget(mode="fade")
+        self.stack = QStackedWidget()
         self.stack.setStyleSheet("background:transparent;")
         from seeed_jetson_develop.modules.flash.page import build_page as _flash_page
         from seeed_jetson_develop.modules.devices.page import build_page as _devices_page
@@ -251,12 +297,34 @@ class MainWindowV2(QMainWindow):
         body_layout.addWidget(content_area, 1)
         root_layout.addWidget(body, 1)
 
+        # 内容区背景装饰动画层（不在 layout 中，安全）
+        from .widgets.content_bg_anim import ContentBackground
+        self._content_bg = ContentBackground(content_area)
+        self._content_bg.setGeometry(0, 0, content_area.width(), content_area.height())
+        self._content_bg.show()
+        # 把背景层放到最底层
+        self._content_bg.lower()
+
+        # 页面切换扫描线过场（在 stack 上方，不在 layout 中）
+        from .widgets.scan_line_overlay import ScanLineOverlay
+        self._scan_overlay = ScanLineOverlay(content_area)
+        self._scan_overlay.setGeometry(self.stack.geometry())
+        self._scan_overlay.hide()
+
         self._set_page(0)
         self._floating_ai = FloatingAIAssistant(self, system_prompt=build_ai_system_prompt())
         self._apply_runtime_language()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        # 更新背景装饰层大小
+        if hasattr(self, '_content_bg') and self._content_bg.parent():
+            pw = self._content_bg.parent().width()
+            ph = self._content_bg.parent().height()
+            self._content_bg.setGeometry(0, 0, pw, ph)
+        # 更新扫描线覆盖层大小
+        if hasattr(self, '_scan_overlay') and self._scan_overlay.parent():
+            self._scan_overlay.setGeometry(self.stack.geometry())
 
     # ── 标题栏 - 带底部微光分隔线 ───────────────────────
     def _build_titlebar(self):
@@ -275,22 +343,12 @@ class MainWindowV2(QMainWindow):
         lay.setContentsMargins(20, 0, 12, 0)
         lay.setSpacing(12)
 
-        # Logo
-        logo_lbl = QLabel()
-        logo_lbl.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-        logo_path = resolve_runtime_path("assets/seeed-logo-blend.png")
-        if logo_path and logo_path.exists():
-            target_h = max(28, pt(38))
-            source = QPixmap(str(logo_path))
-            pix = source.scaledToHeight(target_h, Qt.SmoothTransformation)
-            logo_lbl.setPixmap(pix)
-            logo_lbl.setFixedSize(pix.width() + 8, target_h + 4)
-        else:
-            logo_lbl.setText("Seeed")
-            logo_lbl.setStyleSheet(f"color:{C_GREEN}; font-weight:700; font-size:{pt(12)}pt; background:transparent;")
-        lay.addWidget(logo_lbl)
+        # Logo — 呼吸发光动画版
+        from .widgets.breathing_logo import BreathingLogo
+        logo_widget = BreathingLogo(bar)
+        lay.addWidget(logo_widget)
 
-        # 分隔点代替线
+        # 分隔点
         dot = QLabel("·")
         dot.setStyleSheet(f"color:{C_TEXT3}; font-size:20px; background:transparent;")
         lay.addWidget(dot)
@@ -556,16 +614,38 @@ class MainWindowV2(QMainWindow):
             lay.addWidget(btn)
             self._nav_btns.append(btn)
 
+        # 导航滑块指示器（绿色竖条，随选中项滑动）
+        self._nav_slider = QFrame(sidebar)
+        self._nav_slider.setFixedWidth(pt(3))
+        self._nav_slider.setStyleSheet(f"""
+            QFrame {{
+                background: {C_GREEN};
+                border-radius: {pt(2)}px;
+            }}
+        """)
+        self._nav_slider.hide()
+
         lay.addStretch()
 
-        # 底部状态 - 无分割线
-        self._env_dot = QLabel("● 就绪")
-        self._env_dot.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(10)}pt; background:transparent; padding:8px 0 4px {pt(20)}px;")
-        lay.addWidget(self._env_dot)
+        # 底部状态 - 呼吸指示灯 + 文字
+        status_container = QWidget()
+        status_container.setStyleSheet("background:transparent;")
+        status_lay = QHBoxLayout(status_container)
+        status_lay.setContentsMargins(pt(20), 8, 0, 4)
+        status_lay.setSpacing(6)
+        status_lay.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        from .widgets.breathing_dot import BreathingDot
+        self._env_dot = BreathingDot(color=C_GREEN, size=8)
+        self._env_dot.start()
+        self._env_text = QLabel(t("common.status.no_device", lang=self._lang))
+        self._env_text.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(10)}pt; background:transparent;")
+        status_lay.addWidget(self._env_dot)
+        status_lay.addWidget(self._env_text)
+        lay.addWidget(status_container)
 
         # 首次引导入口
-        guide_btn = QPushButton("?  " + t("onboarding.guide_menu", lang=self._lang))
-        guide_btn.setCursor(Qt.PointingHandCursor)
+        guide_btn = make_button("?  " + t("onboarding.guide_menu", lang=self._lang))
         guide_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
@@ -591,7 +671,49 @@ class MainWindowV2(QMainWindow):
         self._update_env_label()
         return sidebar
 
+    def _animate_nav_slider(self, idx):
+        """导航滑块平滑滑动到目标按钮位置。
+        
+        _nav_slider 不在任何 layout 中，QPropertyAnimation 操作其 geometry 是安全的。
+        """
+        if not hasattr(self, '_nav_slider') or not self._nav_btns:
+            return
+        btn = self._nav_btns[idx]
+        if not btn.isVisible():
+            return
+        
+        # 获取按钮在 sidebar 中的坐标
+        pos = btn.mapTo(self._sidebar, QPoint(0, 0))
+        target_y = pos.y() + 4
+        target_h = btn.height() - 8
+        target_geo = QRect(0, target_y, pt(3), target_h)
+        
+        if not self._nav_slider.isVisible():
+            self._nav_slider.setGeometry(target_geo)
+            self._nav_slider.show()
+            return
+        
+        # 销毁旧动画（如果存在）
+        old_anim = getattr(self._nav_slider, '_anim', None)
+        if old_anim is not None:
+            old_anim.stop()
+            old_anim.deleteLater()
+        
+        anim = QPropertyAnimation(self._nav_slider, b"geometry")
+        anim.setDuration(280)
+        anim.setStartValue(self._nav_slider.geometry())
+        anim.setEndValue(target_geo)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.start()
+        self._nav_slider._anim = anim
+
     def _set_page(self, idx):
+        if idx == getattr(self, '_current_page', -1):
+            return
+
+        # 导航滑块动画
+        self._animate_nav_slider(idx)
+
         # Apps 页面（index=3）首次访问时懒加载
         if idx == 3 and not self._apps_built:
             try:
@@ -666,16 +788,18 @@ class MainWindowV2(QMainWindow):
     def _update_env_label(self):
         if not hasattr(self, "_env_dot"):
             return
-        pad = pt(20)
         if self._is_jetson:
-            self._env_dot.setText("● " + t("common.status.local_jetson", lang=self._lang))
-            self._env_dot.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(10)}pt; background:transparent; padding:8px 0 4px {pad}px;")
+            self._env_text.setText(t("common.status.local_jetson", lang=self._lang))
+            self._env_text.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(10)}pt; background:transparent;")
+            self._env_dot.setColor(C_GREEN)
         elif self._remote_connected:
-            self._env_dot.setText("● " + t("common.status.remote_connected", lang=self._lang))
-            self._env_dot.setStyleSheet(f"color:{C_BLUE}; font-size:{pt(10)}pt; background:transparent; padding:8px 0 4px {pad}px;")
+            self._env_text.setText(t("common.status.remote_connected", lang=self._lang))
+            self._env_text.setStyleSheet(f"color:{C_BLUE}; font-size:{pt(10)}pt; background:transparent;")
+            self._env_dot.setColor(C_BLUE)
         else:
-            self._env_dot.setText("● " + t("common.status.no_device", lang=self._lang))
-            self._env_dot.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(10)}pt; background:transparent; padding:8px 0 4px {pad}px;")
+            self._env_text.setText(t("common.status.no_device", lang=self._lang))
+            self._env_text.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(10)}pt; background:transparent;")
+            self._env_dot.setColor(C_ORANGE)
 
     def _on_remote_connected(self, payload: dict):
         self._remote_connected = True
@@ -795,10 +919,14 @@ class MainWindowV2(QMainWindow):
 #  入口
 # ─────────────────────────────────────────────
 def main():
-    from PyQt5.QtGui import QFont
+    from PyQt5.QtGui import QFont, QFontDatabase
     qInstallMessageHandler(_qt_message_handler)
     app = QApplication(sys.argv)
     app.setApplicationName("Seeed Jetson Develop Tool")
+    # 全局字体抗锯齿
+    font = app.font()
+    font.setStyleStrategy(QFont.PreferAntialias)
+    app.setFont(font)
     apply_app_icon()
     
     # 应用全局主题

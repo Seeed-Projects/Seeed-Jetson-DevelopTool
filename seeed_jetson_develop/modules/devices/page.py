@@ -618,11 +618,25 @@ class DevicesPage(PageBase):
         tag = self._diag_tags.get(item_id) or self._periph_tags.get(item_id)
         if tag:
             tag.setText(_display_status(status))
+            normal_bg = C_CARD_LIGHT
+            flash_bg = {
+                "ok":    "rgba(141,194,31,0.18)",
+                "warn":  "rgba(245,166,35,0.18)",
+                "error": "rgba(229,62,62,0.18)",
+            }.get(color_key, C_CARD_LIGHT)
+            # 先闪烁高亮背景
             tag.setStyleSheet(f"""
-                background: {C_CARD_LIGHT}; color: {color};
+                background: {flash_bg}; color: {color};
                 border-radius: 6px; padding: 4px 12px;
                 font-size: {_pt(11)}px; font-weight: 500;
             """)
+            # 150ms 后恢复常态背景
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(150, lambda t=tag, c=color: t.setStyleSheet(f"""
+                background: {normal_bg}; color: {c};
+                border-radius: 6px; padding: 4px 12px;
+                font-size: {_pt(11)}px; font-weight: 500;
+            """))
         if item_id == "torch" and self._torch_install_btn:
             if color_key in ("error", "warn"):
                 self._torch_install_btn.show()

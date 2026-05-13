@@ -11,11 +11,11 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 
-from PyQt5.QtCore import Qt, QRect
-from PyQt5.QtGui import QColor, QFont, QFontDatabase
+from PyQt5.QtCore import Qt, QRect, QPoint, QPointF, QTimer
+from PyQt5.QtGui import QColor, QFont, QFontDatabase, QPainter, QPen
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QFrame, QGraphicsDropShadowEffect,
-    QHBoxLayout, QLabel, QMessageBox, QPushButton, QScrollArea, QWidget, QVBoxLayout,
+    QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QScrollArea, QWidget, QVBoxLayout,
 )
 
 
@@ -180,10 +180,83 @@ def make_label(text: str, size: int = 13, color: str = C_TEXT,
     return lbl
 
 
+class RippleButton(QPushButton):
+    """带涟漪点击反馈 + 按压缩放的按钮
+
+    点击时在按钮表面产生 Material Design 风格的扩散涟漪，
+    同时保留按压瞬间缩小 padding 的物理反馈。
+    原理：QTimer 驱动半径增长 → paintEvent 在 super().paintEvent() 之上叠加半透明圆环。
+    不涉及 QGraphicsEffect / Layout，100% 安全。
+    """
+    def __init__(self, text: str = "", parent=None):
+        super().__init__(text, parent)
+        self.setCursor(Qt.PointingHandCursor)
+        self._ripples = []
+        self._ripple_timer = QTimer(self)
+        self._ripple_timer.timeout.connect(self._tick)
+
+    def mousePressEvent(self, event):
+        # 涟漪效果
+        max_r = max(self.width(), self.height()) * 1.3
+        self._ripples.append({
+            "cx": event.x(), "cy": event.y(),
+            "radius": 0.0, "max_radius": max_r,
+            "speed": max_r / 10.0,
+            "opacity": 0.28, "fade": 0.28 / 14.0,
+        })
+        if not self._ripple_timer.isActive():
+            self._ripple_timer.start(16)
+
+        # 按压瞬间缩小 padding
+        ss = self.styleSheet()
+        self._normal_ss = ss
+        self.setStyleSheet(ss.replace(f'padding: 0 {pt(24)}px', f'padding: 0 {pt(26)}px')
+                              .replace(f'padding: 0 {pt(20)}px', f'padding: 0 {pt(22)}px')
+                              .replace(f'padding: 0 {pt(16)}px', f'padding: 0 {pt(18)}px'))
+        super().mousePressEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if hasattr(self, '_normal_ss'):
+            self.setStyleSheet(self._normal_ss)
+        super().mouseReleaseEvent(event)
+
+    def _tick(self):
+        alive = []
+        for r in self._ripples:
+            r["radius"] += r["speed"]
+            r["opacity"] -= r["fade"]
+            if r["opacity"] > 0:
+                alive.append(r)
+        self._ripples = alive
+        if not alive:
+            self._ripple_timer.stop()
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if not self._ripples:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        for r in self._ripples:
+            alpha = int(255 * r["opacity"])
+            if alpha <= 0:
+                continue
+            radius = r["radius"]
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(255, 255, 255, int(alpha * 0.4)))
+            p.drawEllipse(int(r["cx"] - radius), int(r["cy"] - radius),
+                          int(radius * 2), int(radius * 2))
+            inner_r = radius * 0.7
+            p.setBrush(QColor(255, 255, 255, int(alpha * 0.7)))
+            p.drawEllipse(int(r["cx"] - inner_r), int(r["cy"] - inner_r),
+                          int(inner_r * 2), int(inner_r * 2))
+
+
 def make_button(text: str, primary: bool = False,
                 small: bool = False, danger: bool = False) -> QPushButton:
-    """创建按钮 - 带高光边框和立体渐变"""
-    b = QPushButton(text)
+    """创建按钮 - 带涟漪点击反馈、按压缩放和主题样式"""
+    b = RippleButton(text)
     b.setCursor(Qt.PointingHandCursor)
     
     h  = pt(36) if small else pt(42)
@@ -272,21 +345,15 @@ def make_button(text: str, primary: bool = False,
 
 
 class HoverCard(QFrame):
-    """带动画 hover 效果的卡片：悬停时轻微上浮 + 阴影扩散 + 顶部高光增强"""
-    def __init__(self, radius: int = 12, with_shadow: bool = True):
-        super().__init__()
-        self._radius = radius
-        self._with_shadow = with_shadow
-        self._shadow_effect = None
-        self._base_y = 6
-        self._base_blur = 28
-        self._base_alpha = 80
-        self._is_hover = False
-        self._apply_base_style()
-        if with_shadow:
-            self._apply_shadow(self._base_blur, self._base_y, self._base_alpha)
+    """带悬浮阴影呼吸动画的卡片
 
-    def _apply_base_style(self):
+    hover 时阴影扩大+下沉，模拟卡片"浮起"效果。
+    使用 QTimer 逐步修改 QGraphicsDropShadowEffect 属性，
+    每次修改前通过 sip.isdeleted 防御检查，避免 C++ 对象已删导致的崩溃。
+    """
+    def __init__(self, radius: int = 12, with_shadow: bool = True, parent=None):
+        super().__init__(parent)
+        self._radius = radius
         self.setObjectName("SeeedCard")
         self.setStyleSheet(f"""
             QFrame#SeeedCard {{
@@ -294,48 +361,128 @@ class HoverCard(QFrame):
                     stop:0 #1E2D40, stop:1 {C_CARD});
                 border: 1px solid {C_BORDER_CARD};
                 border-top-color: {C_BORDER_SUBTLE};
-                border-radius: {self._radius}px;
+                border-radius: {radius}px;
             }}
-        """)
-
-    def _apply_shadow(self, blur: int, y: int, alpha: int):
-        if self._shadow_effect:
-            self._shadow_effect.deleteLater()
-        fx = QGraphicsDropShadowEffect(self)
-        fx.setBlurRadius(blur)
-        fx.setOffset(0, y)
-        fx.setColor(QColor(0, 0, 0, alpha))
-        self._shadow_effect = fx
-        self.setGraphicsEffect(fx)
-
-    def enterEvent(self, event):
-        self._is_hover = True
-        # 顶部高光增强
-        self.setStyleSheet(f"""
-            QFrame#SeeedCard {{
+            QFrame#SeeedCard:hover {{
                 background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                     stop:0 #24354A, stop:1 {C_CARD_HOVER});
                 border: 1px solid rgba(255,255,255,0.10);
-                border-top-color: rgba(255,255,255,0.14);
-                border-radius: {self._radius}px;
+                border-top-color: rgba(255,255,255,0.16);
             }}
         """)
-        # 阴影扩散
-        if self._with_shadow:
-            self._apply_shadow(self._base_blur + 8, self._base_y + 4, min(255, self._base_alpha + 20))
+        self._shadow = None
+        self._shadow_timer = QTimer(self)
+        self._shadow_timer.timeout.connect(self._tick_shadow)
+        # 动画状态
+        self._blur_target = 28.0
+        self._blur_current = 28.0
+        self._y_target = 6.0
+        self._y_current = 6.0
+        self._alpha_target = 80
+        self._alpha_current = 80
+        if with_shadow:
+            self._setup_shadow()
+
+    def _setup_shadow(self):
+        self._shadow = QGraphicsDropShadowEffect(self)
+        self._shadow.setBlurRadius(28)
+        self._shadow.setOffset(QPointF(0, 6))
+        self._shadow.setColor(QColor(0, 0, 0, 80))
+        self.setGraphicsEffect(self._shadow)
+        self._shadow_effect = self._shadow  # 兼容 clear_shadow
+
+    def enterEvent(self, event):
+        self._blur_target = 48.0
+        self._y_target = 10.0
+        self._alpha_target = 110
+        if not self._shadow_timer.isActive():
+            self._shadow_timer.start(16)
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        self._is_hover = False
-        self._apply_base_style()
-        if self._with_shadow:
-            self._apply_shadow(self._base_blur, self._base_y, self._base_alpha)
+        self._blur_target = 28.0
+        self._y_target = 6.0
+        self._alpha_target = 80
+        if not self._shadow_timer.isActive():
+            self._shadow_timer.start(16)
         super().leaveEvent(event)
+
+    def _tick_shadow(self):
+        """每帧逐步逼近目标阴影参数，带 C++ 对象存活检查。"""
+        if self._shadow is None:
+            self._shadow_timer.stop()
+            return
+        try:
+            from PyQt5 import sip
+            if sip.isdeleted(self._shadow):
+                self._shadow = None
+                self._shadow_timer.stop()
+                return
+        except Exception:
+            self._shadow_timer.stop()
+            return
+
+        step_blur = 3.0
+        step_y = 0.5
+        step_alpha = 4
+        done = True
+
+        # blurRadius
+        diff = self._blur_target - self._blur_current
+        if abs(diff) > 0.5:
+            self._blur_current += step_blur if diff > 0 else -step_blur
+            # 防止超调
+            if diff > 0 and self._blur_current > self._blur_target:
+                self._blur_current = self._blur_target
+            elif diff < 0 and self._blur_current < self._blur_target:
+                self._blur_current = self._blur_target
+            done = False
+            try:
+                self._shadow.setBlurRadius(int(self._blur_current))
+            except RuntimeError:
+                self._shadow = None
+                self._shadow_timer.stop()
+                return
+
+        # offset y
+        diff_y = self._y_target - self._y_current
+        if abs(diff_y) > 0.1:
+            self._y_current += step_y if diff_y > 0 else -step_y
+            if diff_y > 0 and self._y_current > self._y_target:
+                self._y_current = self._y_target
+            elif diff_y < 0 and self._y_current < self._y_target:
+                self._y_current = self._y_target
+            done = False
+            try:
+                self._shadow.setOffset(QPointF(0, self._y_current))
+            except RuntimeError:
+                self._shadow = None
+                self._shadow_timer.stop()
+                return
+
+        # color alpha
+        diff_a = self._alpha_target - self._alpha_current
+        if abs(diff_a) > 0:
+            self._alpha_current += step_alpha if diff_a > 0 else -step_alpha
+            if diff_a > 0 and self._alpha_current > self._alpha_target:
+                self._alpha_current = self._alpha_target
+            elif diff_a < 0 and self._alpha_current < self._alpha_target:
+                self._alpha_current = self._alpha_target
+            done = False
+            try:
+                self._shadow.setColor(QColor(0, 0, 0, int(self._alpha_current)))
+            except RuntimeError:
+                self._shadow = None
+                self._shadow_timer.stop()
+                return
+
+        if done:
+            self._shadow_timer.stop()
 
 
 def make_card(radius: int = 12, with_shadow: bool = True) -> QFrame:
-    """创建卡片 - 带高光顶边、立体阴影和 hover 动画效果"""
-    return HoverCard(radius, with_shadow)
+    """创建卡片 - 带高光顶边、立体阴影和 hover 阴影呼吸动画"""
+    return HoverCard(radius=radius, with_shadow=with_shadow)
 
 
 def make_list_card() -> QFrame:
@@ -406,40 +553,146 @@ def apply_glow(w, color: str = C_GREEN):
     return w
 
 
+class AnimatedTabButton(QPushButton):
+    """带动画下划线的标签按钮
+
+    选中时底部绿色下划线从中间向两边展开，取消选中时收缩。
+    原理：QTimer 驱动 underline_progress → paintEvent 绘制下划线。
+    """
+    def __init__(self, text: str, active: bool = False, parent=None):
+        super().__init__(text, parent)
+        self.setCursor(Qt.PointingHandCursor)
+        self._active = active
+        self._underline_progress = 1.0 if active else 0.0
+        self._target_progress = 1.0 if active else 0.0
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._apply_style()
+
+    def _apply_style(self):
+        bg = "rgba(122,179,23,0.15)" if self._active else "transparent"
+        color = C_GREEN if self._active else C_TEXT2
+        weight = "600" if self._active else "400"
+        self.setStyleSheet(f"""
+            QPushButton {{
+                background: {bg};
+                color: {color};
+                border: none;
+                border-radius: 0px;
+                padding: 0px {pt(18)}px;
+                font-size: {pt(14)}px;
+                font-weight: {weight};
+                min-height: {pt(36)}px;
+                text-align: center;
+            }}
+            QPushButton:hover {{ background: rgba(255,255,255,0.06); color:{C_TEXT}; }}
+        """)
+
+    def setActive(self, active: bool):
+        if self._active == active:
+            return
+        self._active = active
+        self._target_progress = 1.0 if active else 0.0
+        self._apply_style()
+        if not self._timer.isActive():
+            self._timer.start(16)
+
+    def _tick(self):
+        step = 0.18
+        if self._target_progress > self._underline_progress:
+            self._underline_progress = min(self._target_progress, self._underline_progress + step)
+        elif self._target_progress < self._underline_progress:
+            self._underline_progress = max(self._target_progress, self._underline_progress - step)
+        else:
+            self._timer.stop()
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._underline_progress < 0.01:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+        line_w = int(w * 0.55 * self._underline_progress)
+        line_x = (w - line_w) // 2
+        line_y = h - 2
+        alpha = int(200 * self._underline_progress)
+        p.setPen(QPen(QColor(141, 194, 31, alpha), 2, Qt.SolidLine, Qt.RoundCap))
+        p.drawLine(line_x, line_y, line_x + line_w, line_y)
+
+
 def make_tab_button(text: str, active: bool = False) -> "QPushButton":
-    """创建分类筛选标签按钮"""
-    from PyQt5.QtWidgets import QPushButton
-    from PyQt5.QtCore import Qt
-    btn = QPushButton(text)
-    btn.setCursor(Qt.PointingHandCursor)
-    bg = "rgba(122,179,23,0.15)" if active else "transparent"
-    color = C_GREEN if active else C_TEXT2
-    weight = "600" if active else "400"
-    btn.setStyleSheet(f"""
-        QPushButton {{
-            background: {bg};
-            color: {color};
-            border: none;
-            border-radius: 0px;
-            padding: 0px {pt(18)}px;
-            font-size: {pt(14)}px;
-            font-weight: {weight};
-            min-height: {pt(36)}px;
-            text-align: center;
-        }}
-        QPushButton:hover {{ background: rgba(255,255,255,0.06); color:{C_TEXT}; }}
-    """)
-    return btn
+    """创建分类筛选标签按钮（带动画下划线）"""
+    return AnimatedTabButton(text, active=active)
+
+
+class ShinyProgressBar(QProgressBar):
+    """带流动光泽的进度条
+
+    绿色进度块上有一道白色光泽条持续从左到右流动，刷机/下载时非常显眼。
+    原理：QTimer 驱动 shine_pos → paintEvent 完全自定义绘制背景+chunk+光泽。
+    """
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._shine_pos = 0.0
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(16)
+        self.setTextVisible(False)
+
+    def _tick(self):
+        self._shine_pos = (self._shine_pos + 0.02) % 1.0
+        self.update()
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        w, h = self.width(), self.height()
+        val = self.value()
+        min_v, max_v = self.minimum(), self.maximum()
+        progress = 0.0 if max_v <= min_v else (val - min_v) / (max_v - min_v)
+        radius = h // 2
+
+        # 背景条
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 50))
+        p.drawRoundedRect(0, 0, w, h, radius, radius)
+
+        # 进度 chunk
+        chunk_w = int((w - 4) * progress)
+        if chunk_w > 2:
+            chunk_grad = QLinearGradient(0, 0, 0, h)
+            chunk_grad.setColorAt(0, QColor(176, 224, 48))
+            chunk_grad.setColorAt(1, QColor(122, 179, 23))
+            p.setBrush(chunk_grad)
+            p.drawRoundedRect(2, 2, chunk_w, h - 4, (h - 4) // 2, (h - 4) // 2)
+
+            # 流动光泽
+            shine_w = min(50, chunk_w)
+            shine_x = int(chunk_w * self._shine_pos - shine_w // 2) + 2
+            if shine_x + shine_w > 2 and shine_x < chunk_w + 2:
+                shine_grad = QLinearGradient(shine_x, 0, shine_x + shine_w, 0)
+                shine_grad.setColorAt(0, QColor(255, 255, 255, 0))
+                shine_grad.setColorAt(0.5, QColor(255, 255, 255, 120))
+                shine_grad.setColorAt(1, QColor(255, 255, 255, 0))
+                p.setBrush(shine_grad)
+                # 限制在 chunk 区域内
+                p.save()
+                p.setClipRect(2, 2, chunk_w, h - 4)
+                p.drawRoundedRect(shine_x, 2, shine_w, h - 4, (h - 4) // 2, (h - 4) // 2)
+                p.restore()
 
 
 def make_input_field(placeholder: str = "", multiline: bool = False) -> "QWidget":
-    """创建统一样式的输入框（单行 QLineEdit 或多行 QTextEdit）"""
-    from PyQt5.QtWidgets import QLineEdit, QTextEdit
+    """创建统一样式的输入框（单行 FocusRippleLineEdit 或多行 QTextEdit）"""
+    from PyQt5.QtWidgets import QTextEdit
     if multiline:
         w = QTextEdit()
         w.setPlaceholderText(placeholder)
     else:
-        w = QLineEdit()
+        from seeed_jetson_develop.gui.widgets.focus_ripple_edit import FocusRippleLineEdit
+        w = FocusRippleLineEdit()
         w.setPlaceholderText(placeholder)
     w.setStyleSheet(input_qss())
     return w
@@ -481,37 +734,42 @@ def get_app_qss() -> str:
     return f"""
 /* 全局滚动条 - 带圆角和悬停高亮 */
 QScrollBar:vertical {{
-    background: rgba(0,0,0,0.15);
-    width: 6px;
-    margin: 2px 1px;
-    border-radius: 3px;
+    background: transparent;
+    width: 8px;
+    margin: 4px 2px;
+    border-radius: 4px;
 }}
 QScrollBar::handle:vertical {{
-    background: rgba(255,255,255,0.12);
-    border-radius: 3px;
-    min-height: 40px;
+    background: rgba(255,255,255,0.10);
+    border-radius: 4px;
+    min-height: 48px;
+    border: 1px solid rgba(255,255,255,0.04);
 }}
 QScrollBar::handle:vertical:hover {{
-    background: rgba(141,194,31,0.45);
+    background: rgba(141,194,31,0.40);
+    border-color: rgba(141,194,31,0.25);
 }}
 QScrollBar::handle:vertical:pressed {{
     background: rgba(141,194,31,0.65);
+    border-color: rgba(141,194,31,0.40);
 }}
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
 
 QScrollBar:horizontal {{
-    background: rgba(0,0,0,0.15);
-    height: 6px;
-    margin: 1px 2px;
-    border-radius: 3px;
+    background: transparent;
+    height: 8px;
+    margin: 2px 4px;
+    border-radius: 4px;
 }}
 QScrollBar::handle:horizontal {{
-    background: rgba(255,255,255,0.12);
-    border-radius: 3px;
-    min-width: 40px;
+    background: rgba(255,255,255,0.10);
+    border-radius: 4px;
+    min-width: 48px;
+    border: 1px solid rgba(255,255,255,0.04);
 }}
 QScrollBar::handle:horizontal:hover {{
-    background: rgba(141,194,31,0.45);
+    background: rgba(141,194,31,0.40);
+    border-color: rgba(141,194,31,0.25);
 }}
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{ width: 0; }}
 
@@ -587,8 +845,10 @@ QProgressBar {{
 }}
 QProgressBar::chunk {{
     background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-        stop:0 {C_GREEN2}, stop:0.5 #A8D830, stop:1 {C_GREEN});
+        stop:0 {C_GREEN2}, stop:0.4 #B0E040, stop:0.6 #A0D428, stop:1 {C_GREEN});
     border-radius: 4px;
+    border: 1px solid rgba(200,255,100,0.20);
+    border-left: none; border-right: none;
 }}
 
 /* 文本输入 - 带焦点高亮边框 */
@@ -606,8 +866,9 @@ QTextEdit {{
 }}
 QTextEdit:focus {{
     border-color: {C_BORDER_FOCUS};
+    border-top-color: rgba(141,194,31,0.25);
     background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-        stop:0 #141E2C, stop:1 {C_CARD});
+        stop:0 #0F1A0A, stop:1 #111A28);
 }}
 
 QLineEdit {{
@@ -625,7 +886,9 @@ QLineEdit:hover {{
 }}
 QLineEdit:focus {{
     border-color: {C_BORDER_FOCUS};
-    background: #0D1520;
+    border-top-color: rgba(141,194,31,0.35);
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+        stop:0 #0F1A0A, stop:1 #0D1520);
 }}
 QLineEdit:disabled {{
     color: {C_TEXT3};
@@ -1331,9 +1594,22 @@ class DropdownButton(QWidget):
         h = min(self._max_h, self._list.sizeHintForRow(0) * len(self._items) + 12)
         self._popup.setFixedWidth(w)
         self._popup.setFixedHeight(h)
-        self._popup.move(btn_global)
+
+        # 滑入动画：从上方 10px 处滑落到最终位置
+        final_pos = btn_global
+        start_pos = QPoint(final_pos.x(), final_pos.y() - 10)
+        self._popup.move(start_pos)
         self._popup.show()
         self._popup.raise_()
+
+        from PyQt5.QtCore import QPropertyAnimation, QEasingCurve
+        anim = QPropertyAnimation(self._popup, b"pos")
+        anim.setDuration(180)
+        anim.setStartValue(start_pos)
+        anim.setEndValue(final_pos)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.start()
+        self._popup._anim = anim  # 保持引用防止 GC
 
     def _on_item_clicked(self, item: QListWidgetItem):
         self._set_current(item.text())

@@ -41,7 +41,7 @@ from seeed_jetson_develop.gui.theme import (
     apply_shadow as _shadow,
     show_info_message as _show_info_message,
     input_qss,
-    set_emoji_font_for_label,
+    set_emoji_font_for_label, RippleButton,
 )
 
 
@@ -758,7 +758,7 @@ class SkillsPage(PageBase):
     def _make_install_btn(self, source: str, skill: Skill, is_done: bool) -> QPushButton:
         source_label = _t(_SOURCE_LABEL[source])
         label = _t("skills.action.source_installed", source=source_label) if is_done else _t("skills.action.source_install", source=source_label)
-        b = QPushButton(label)
+        b = RippleButton(label)
         b.setCursor(Qt.PointingHandCursor)
         b.setStyleSheet(self._install_btn_css(source, is_done))
         if is_done:
@@ -837,7 +837,7 @@ class SkillsPage(PageBase):
         btn_line = QHBoxLayout()
         btn_line.setSpacing(6)
         if group.wiki_url:
-            wiki_b = QPushButton(_t("skills.btn.wiki"))
+            wiki_b = RippleButton(_t("skills.btn.wiki"))
             wiki_b.setCursor(Qt.PointingHandCursor)
             wiki_b.setFixedWidth(BTN_W)
             wiki_b.setStyleSheet(
@@ -853,7 +853,7 @@ class SkillsPage(PageBase):
             skill = group.variants.get(src)
             if skill:
                 btn_line.addWidget(self._make_install_btn(src, skill, (group.id, src) in self._completed))
-        doc_b = QPushButton()
+        doc_b = RippleButton()
         doc_b.setCursor(Qt.PointingHandCursor)
         doc_b.setFixedWidth(BTN_W)
         doc_b.setText("📖")
@@ -869,7 +869,7 @@ class SkillsPage(PageBase):
         )
         doc_b.clicked.connect(lambda _, g=group: self._open_doc(g))
         btn_line.addWidget(doc_b)
-        ai_b = QPushButton(_t("common.ai_short"))
+        ai_b = RippleButton(_t("common.ai_short"))
         ai_b.setCursor(Qt.PointingHandCursor)
         ai_b.setFixedWidth(BTN_W)
         ai_b.setStyleSheet(

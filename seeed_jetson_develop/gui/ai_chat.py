@@ -742,31 +742,9 @@ class FloatingAIAssistant(QObject):
         self._panel.resize(self._panel_w, self._panel_h)
         self._panel.hide()
 
-        self._ball = QPushButton("AI Bot", self._host)
-        self._ball.setCursor(Qt.PointingHandCursor)
+        from seeed_jetson_develop.gui.widgets.breathing_button import BreathingButton
+        self._ball = BreathingButton("AI Bot", self._host)
         self._ball.setFixedSize(self._ball_w, self._ball_h)
-        self._ball.setStyleSheet(f"""
-            QPushButton {{
-                background: qradialgradient(cx:0.35, cy:0.30, radius:0.9,
-                    fx:0.35, fy:0.30,
-                    stop:0 #A8D93A,
-                    stop:0.58 #7AB317,
-                    stop:1 #496F0E);
-                border: 1px solid rgba(255,255,255,0.20);
-                border-radius: {self._ball_h // 2}px;
-                color: #071200;
-                font-size: {_pt(11)}pt;
-                font-weight: 700;
-                padding: 0 14px;
-            }}
-            QPushButton:hover {{
-                background: qradialgradient(cx:0.35, cy:0.30, radius:0.9,
-                    fx:0.35, fy:0.30,
-                    stop:0 #B7E34B,
-                    stop:0.58 #89C420,
-                    stop:1 #587F14);
-            }}
-        """)
         self._ball.raise_()
 
     def _connect_bus(self):

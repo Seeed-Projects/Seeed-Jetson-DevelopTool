@@ -734,6 +734,9 @@ class AppsPage(ListPageBase):
             lay.addWidget(btn)
         lay.addStretch()
 
+        # 延迟初始化滑块位置
+        QTimer.singleShot(50, lambda: self._animate_tab_slider(self.filter_state.get("category", "")))
+
     def retranslate_ui(self, _lang_code: str | None = None):
         super().retranslate_ui(_lang_code)
         if self._banner_title_lbl is not None:

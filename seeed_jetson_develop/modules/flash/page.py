@@ -33,7 +33,7 @@ from seeed_jetson_develop.resources import resolve_runtime_path
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_BLUE, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3, make_button, make_card, make_label, pt, PLATFORM,
-    DropdownButton, input_qss,
+    DropdownButton, input_qss, RippleButton, ShinyProgressBar,
 )
 
 log = logging.getLogger(__name__)
@@ -465,7 +465,7 @@ def build_page() -> QWidget:
     opt_title_lbl = make_label(_ft("flash.options.title"), 14, C_TEXT, bold=True)
     opt_lay.addWidget(opt_title_lbl)
     skip_verify_cb = QCheckBox(_ft("flash.options.skip_verify"))
-    skip_verify_cb.setChecked(False)
+    skip_verify_cb.setChecked(True)
     opt_lay.addWidget(skip_verify_cb)
     left_col.addWidget(opt_card)
     left_col.addStretch()
@@ -644,7 +644,7 @@ def build_page() -> QWidget:
     flash_status_lbl = make_label(_ft("flash.status.not_started"), 14, C_TEXT2)
     task_lay.addWidget(flash_status_lbl)
 
-    flash_progress = QProgressBar()
+    flash_progress = ShinyProgressBar()
     flash_progress.setRange(0, 100)
     flash_progress.setValue(0)
     flash_progress.setFixedHeight(6)
@@ -661,7 +661,7 @@ def build_page() -> QWidget:
     flash_cancel_btn.setVisible(False)
     flash_cancel_btn.clicked.connect(lambda: _cancel_flash())
 
-    flash_download_btn = QPushButton(_ft("flash.btn.download_extract"))
+    flash_download_btn = RippleButton(_ft("flash.btn.download_extract"))
     flash_download_btn.setCursor(Qt.PointingHandCursor)
     flash_download_btn.setToolTip(_ft("flash.btn.download_extract_tip"))
     flash_download_btn.setStyleSheet(f"""
@@ -676,7 +676,7 @@ def build_page() -> QWidget:
     """)
     flash_download_btn.clicked.connect(lambda: _on_prepare_bsp())
 
-    flash_clear_btn = QPushButton(_ft("flash.btn.clear_cache"))
+    flash_clear_btn = RippleButton(_ft("flash.btn.clear_cache"))
     flash_clear_btn.setCursor(Qt.PointingHandCursor)
     flash_clear_btn.setToolTip(_ft("flash.btn.clear_cache_tip"))
     flash_clear_btn.setStyleSheet(f"""
@@ -691,7 +691,7 @@ def build_page() -> QWidget:
     """)
     flash_clear_btn.clicked.connect(lambda: _clear_firmware_cache())
 
-    flash_next_btn = QPushButton(_ft("flash.btn.next"))
+    flash_next_btn = RippleButton(_ft("flash.btn.next"))
     flash_next_btn.setCursor(Qt.PointingHandCursor)
     flash_next_btn.setToolTip(_ft("flash.btn.next_tip"))
     flash_next_btn.setStyleSheet(f"""
@@ -735,7 +735,7 @@ def build_page() -> QWidget:
     rec_lay.addWidget(rec_status_lbl)
 
     rec_btn_row = QHBoxLayout()
-    rec_back_btn = QPushButton(_ft("flash.btn.back"))
+    rec_back_btn = RippleButton(_ft("flash.btn.back"))
     rec_back_btn.setCursor(Qt.PointingHandCursor)
     rec_back_btn.setStyleSheet(f"""
         QPushButton {{
@@ -748,7 +748,7 @@ def build_page() -> QWidget:
     """)
     rec_back_btn.clicked.connect(lambda: _flash_go_step1())
 
-    rec_detect_btn = QPushButton(_ft("flash.btn.detect_device"))
+    rec_detect_btn = RippleButton(_ft("flash.btn.detect_device"))
     rec_detect_btn.setCursor(Qt.PointingHandCursor)
     rec_detect_btn.setStyleSheet(f"""
         QPushButton {{
@@ -762,7 +762,7 @@ def build_page() -> QWidget:
     """)
     rec_detect_btn.clicked.connect(lambda: _detect_recovery())
 
-    rec_flash_btn = QPushButton(_ft("flash.btn.start_flash"))
+    rec_flash_btn = RippleButton(_ft("flash.btn.start_flash"))
     rec_flash_btn.setCursor(Qt.PointingHandCursor)
     rec_flash_btn.setEnabled(False)
     rec_flash_btn.setStyleSheet(f"""
@@ -797,7 +797,7 @@ def build_page() -> QWidget:
     flash_run_status_lbl = make_label(_ft("flash.status.preparing_flash"), 13, C_TEXT2)
     run_lay.addWidget(flash_run_status_lbl)
 
-    flash_run_progress = QProgressBar()
+    flash_run_progress = ShinyProgressBar()
     flash_run_progress.setRange(0, 100)
     flash_run_progress.setValue(0)
     flash_run_progress.setFixedHeight(6)

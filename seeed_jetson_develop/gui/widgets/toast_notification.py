@@ -155,7 +155,7 @@ class Toast(QWidget):
 
     @classmethod
     def _reposition_all(cls):
-        """重新排列所有活动通知的位置"""
+        """重新排列所有活动通知的位置，新通知带弹性滑入动画"""
         if not cls._active_toasts:
             return
 
@@ -172,7 +172,23 @@ class Toast(QWidget):
 
         for i, toast in enumerate(cls._active_toasts):
             y = base_y + i * (toast.height() + cls._SPACING)
-            toast.move(base_x, y)
+            final_pos = QPoint(base_x, y)
+
+            if not getattr(toast, '_has_animated', False):
+                # 首次显示：弹性滑入（从右侧 50px 处 Overshoot 弹入）
+                toast._has_animated = True
+                start_pos = QPoint(base_x + 50, y)
+                toast.move(start_pos)
+                anim = QPropertyAnimation(toast, b"pos")
+                anim.setDuration(400)
+                anim.setStartValue(start_pos)
+                anim.setEndValue(final_pos)
+                anim.setEasingCurve(QEasingCurve.OutBack)
+                anim.start()
+                toast._pos_anim = anim
+            else:
+                # 已存在：直接定位
+                toast.move(final_pos)
 
     @classmethod
     def success(cls, parent, message: str, duration: int = 3000):

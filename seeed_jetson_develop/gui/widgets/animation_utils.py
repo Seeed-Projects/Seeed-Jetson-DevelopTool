@@ -19,7 +19,7 @@ def apply_fade_in(widget: QWidget, delay_ms: int = 0, duration_ms: int = 350,
                   start_y_offset: int = 15):
     """
     为 widget 添加淡入 + 上浮入场动画。
-    如果 widget 尚未显示，动画会在 showEvent 后自动触发。
+    带保险机制：动画结束后（或失败后）自动将 opacity 重置为 1.0，防止 widget 永久不可见。
     """
     effect = widget.graphicsEffect()
     if isinstance(effect, QGraphicsOpacityEffect):
@@ -47,6 +47,9 @@ def apply_fade_in(widget: QWidget, delay_ms: int = 0, duration_ms: int = 350,
             slide.setEndValue(geo)
             slide.setEasingCurve(QEasingCurve.OutCubic)
             slide.start()
+
+        # 保险：无论动画是否成功，都确保最终 opacity=1.0
+        QTimer.singleShot(duration_ms + 80, lambda: effect.setOpacity(1.0))
 
     if delay_ms > 0:
         QTimer.singleShot(delay_ms, _play)
