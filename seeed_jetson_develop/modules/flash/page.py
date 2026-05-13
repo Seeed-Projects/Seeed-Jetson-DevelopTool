@@ -1510,6 +1510,8 @@ def build_page() -> QWidget:
                 ))
         threading.Thread(target=fetch, daemon=True).start()
 
+    last_detect_state = {"found": None}
+
     def _detect_recovery():
         try:
             line = find_recovery_device_line()
@@ -1518,15 +1520,19 @@ def build_page() -> QWidget:
                 rec_status_lbl.setText(_ft("flash.detect.status_found"))
                 rec_status_lbl.setStyleSheet(f"color:{C_GREEN}; background:transparent;")
                 rec_flash_btn.setEnabled(True)
+                last_detect_state["found"] = True
             else:
                 rec_status_lbl.setText(_ft("flash.detect.status_not_found"))
                 rec_status_lbl.setStyleSheet(f"color:{C_ORANGE}; background:transparent;")
                 rec_flash_btn.setEnabled(False)
-                _flash_log_append(_ft("flash.detect.warn_no_apx"))
+                if last_detect_state["found"] is not False:
+                    _flash_log_append(_ft("flash.detect.warn_no_apx"))
+                    last_detect_state["found"] = False
         except Exception as e:
             rec_status_lbl.setText(_ft("flash.detect.status_failed", error=e))
             rec_status_lbl.setStyleSheet(f"color:{C_RED}; background:transparent;")
             _flash_log_append(_ft("flash.detect.err_lsusb", error=e))
+            last_detect_state["found"] = None
 
     def _start_flash():
         product = _current_flash_product_key()

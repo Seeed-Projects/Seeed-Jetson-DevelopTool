@@ -105,16 +105,38 @@ def _preferred_wsl_distros_for_l4t(l4t_version: str) -> list[str]:
 def _decode_output(data: bytes) -> str:
     if not data:
         return ""
+    # BOM is authoritative.
+    if data.startswith(b"\xff\xfe"):
+        try:
+            return data.decode("utf-16", errors="replace")
+        except Exception:
+            pass
+    if data.startswith(b"\xfe\xff"):
+        try:
+            return data.decode("utf-16", errors="replace")
+        except Exception:
+            pass
+    if data.startswith(b"\xef\xbb\xbf"):
+        try:
+            return data.decode("utf-8-sig", errors="replace")
+        except Exception:
+            pass
+
+    # Some subprocess outputs include occasional NUL bytes.
+    # Only treat it as UTF-16 when the data strongly looks like UTF-16.
     if b"\x00" in data:
-        try:
-            return data.decode("utf-8", errors="replace").replace("\x00", "")
-        except Exception:
-            pass
-        try:
-            return data.decode("utf-16le", errors="replace").replace("\x00", "")
-        except Exception:
-            pass
-    return data.decode("utf-8", errors="replace")
+        nulls = data.count(b"\x00")
+        looks_utf16 = nulls >= max(4, len(data) // 4)
+        if looks_utf16:
+            even_nulls = sum(1 for i in range(0, len(data), 2) if data[i] == 0)
+            odd_nulls = sum(1 for i in range(1, len(data), 2) if data[i] == 0)
+            preferred = "utf-16le" if odd_nulls >= even_nulls else "utf-16be"
+            for enc in (preferred, "utf-16"):
+                try:
+                    return data.decode(enc, errors="replace")
+                except Exception:
+                    pass
+    return data.decode("utf-8", errors="replace").replace("\x00", "")
 
 
 def _run_capture(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
@@ -134,6 +156,33 @@ def _completed_text(proc: subprocess.CompletedProcess) -> str:
     if isinstance(out, bytes):
         return out.decode("utf-8", errors="replace")
     return str(out)
+
+
+def _iter_decoded_lines(stream) -> str:
+    """Yield decoded text lines from a byte stream."""
+    while True:
+        chunk = stream.readline()
+        if not chunk:
+            break
+        if isinstance(chunk, bytes):
+            text = _decode_output(chunk)
+        else:
+            text = str(chunk)
+        for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+            yield line
+
+
+def _is_noisy_wsl_nat_warning(line: str) -> bool:
+    """Filter noisy WSL NAT warning lines that often appear as mojibake."""
+    stripped = line.strip()
+    if not stripped:
+        return False
+    compact = re.sub(r"\s+", "", stripped).lower()
+    if compact in {"wsl", "wsl:"}:
+        return True
+    if compact.startswith("wsl:") and ("localhost" in compact or "nat" in compact):
+        return True
+    return False
 
 
 def _ps_single_quote(value: str) -> str:
@@ -273,7 +322,7 @@ def get_wsl_download_dir(distro: str | None = None) -> Path | None:
             return None
         wsl_home = result.stdout.strip()
         if not wsl_home or wsl_home.startswith("/mnt/"):
-            # HOME points to a Windows path — fall back to /home/<user>
+            # HOME points to a Windows path; fall back to /home/<user>
             user = subprocess.run(
                 [wsl, "-d", resolved_distro, "--", "whoami"],
                 capture_output=True,
@@ -353,6 +402,16 @@ def _kernel_config_enabled(text: str, name: str) -> bool:
     return re.search(rf"^{re.escape(name)}=(?:y|m)$", text, re.MULTILINE) is not None
 
 
+def _is_shared_state(state: str) -> bool:
+    """Return True only when host usbipd state is truly shared."""
+    if not state:
+        return False
+    lowered = state.lower()
+    if "not shared" in lowered or "not shared," in lowered:
+        return False
+    return re.search(r"\bshared\b", lowered) is not None
+
+
 class WslFlashManager:
     """Prepare WSL, keep APX attached, and run the Linux flash script."""
 
@@ -389,6 +448,7 @@ class WslFlashManager:
         self._attach_state_stop = threading.Event()
         self._attach_state_thread: threading.Thread | None = None
         self._last_host_attach_state: str | None = None
+        self._last_throttled_logs: dict[str, float] = {}
 
     def _prefer_archive_distro(self):
         archive = self.download_dir / self.firmware_info["filename"]
@@ -435,7 +495,11 @@ class WslFlashManager:
             self._run_flash_in_wsl()
             self._log("=" * 60)
             self._log("[STEP 7/7] Cleanup and finalization...")
+<<<<<<< HEAD
             self._log("WSL flash workflow completed successfully. ✓")
+=======
+            self._log("WSL flash workflow completed successfully. [OK]")
+>>>>>>> e4de0e2 (Initial commit)
             self._log("=" * 60)
             return True
         finally:
@@ -454,6 +518,13 @@ class WslFlashManager:
                 self.progress_callback("log", line, 0)
             except Exception:
                 pass
+
+    def _log_throttled(self, key: str, line: str, min_interval: float = 3.0):
+        now = time.time()
+        last = self._last_throttled_logs.get(key, 0.0)
+        if now - last >= min_interval:
+            self._last_throttled_logs[key] = now
+            self._log(line)
 
     def _check_cancel(self):
         if self.should_cancel and self.should_cancel():
@@ -476,12 +547,16 @@ class WslFlashManager:
             self._log("[WSL status] Could not retrieve WSL version info.")
 
         self._log(f"[WSL] Setting default WSL version to 2...")
+<<<<<<< HEAD
         subprocess.run(
             [wsl, "--set-default-version", "2"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             **_hidden_subprocess_kwargs(),
         )
+=======
+        subprocess.run([wsl, "--set-default-version", "2"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+>>>>>>> e4de0e2 (Initial commit)
         distros = self._wsl_distros()
         self._log(f"[WSL] Installed distros: {sorted(distros) if distros else '(none)'}")
 
@@ -520,7 +595,11 @@ class WslFlashManager:
                 f"{self.distro} is installed but not initialized. "
                 "Open it once from the Start menu, finish first-time setup, then retry."
             )
+<<<<<<< HEAD
         self._log(f"[STEP 1/7] WSL distro ready: {self.distro} ✓")
+=======
+        self._log(f"[STEP 1/7] WSL distro ready: {self.distro} [OK]")
+>>>>>>> e4de0e2 (Initial commit)
 
     def _wsl_distros(self) -> set[str]:
         result = _run_capture([_wsl_exe(), "-l", "-q"], timeout=30)
@@ -540,12 +619,46 @@ class WslFlashManager:
             time.sleep(2)
         return latest
 
+    def _probe_wsl_ready(self, args: list[str], timeout: int) -> bool:
+        ready = self._run_wsl(args, timeout=timeout)
+        output = _completed_text(ready)
+        if ready.returncode == 0:
+            # Some WSL builds may prepend warnings or use encoding/layout that
+            # obscures the token. A zero exit code is enough for readiness here.
+            return True
+        return "SEEED_WSL_READY" in output
+
     def _wait_for_wsl_ready(self, timeout: int) -> bool:
         deadline = time.time() + timeout
+        attempt = 0
         while time.time() < deadline:
-            ready = self._run_wsl(["bash", "-lc", "echo SEEED_WSL_READY"], timeout=30)
-            if ready.returncode == 0 and "SEEED_WSL_READY" in _completed_text(ready):
-                return True
+            attempt += 1
+            remaining = max(0, int(deadline - time.time()))
+            try:
+                # Fastest path: no login shell, no profile hooks.
+                if self._probe_wsl_ready(["/bin/echo", "SEEED_WSL_READY"], timeout=6):
+                    return True
+                # Non-login bash fallback.
+                if self._probe_wsl_ready(["bash", "-c", "echo SEEED_WSL_READY"], timeout=12):
+                    return True
+                # Compatibility fallback for environments where login shell is required.
+                if self._probe_wsl_ready(["bash", "-lc", "echo SEEED_WSL_READY"], timeout=20):
+                    return True
+
+                if attempt == 1 or attempt % 3 == 0:
+                    self._log(
+                        f"[WSL] readiness probe attempt {attempt} did not pass yet ({remaining}s left); retrying..."
+                    )
+            except subprocess.TimeoutExpired:
+                self._log(
+                    f"[WSL] readiness probe attempt {attempt} timed out ({remaining}s left); retrying..."
+                )
+            except Exception as exc:
+                if attempt == 1 or attempt % 3 == 0:
+                    self._log(
+                        f"[WSL] readiness probe attempt {attempt} failed "
+                        f"({remaining}s left): {exc}"
+                    )
             time.sleep(3)
         return False
 
@@ -605,7 +718,11 @@ class WslFlashManager:
             self._log(f"[usbipd] Current version {match.group(1)}.{match.group(2)} < 4. Upgrading...")
             _run_elevated("winget", ["upgrade", "--exact", "--id", "dorssel.usbipd-win"], timeout=None)
             self._log("[usbipd] Upgrade complete.")
+<<<<<<< HEAD
         self._log("[STEP 2/7] usbipd-win ready ✓")
+=======
+        self._log("[STEP 2/7] usbipd-win ready [OK]")
+>>>>>>> e4de0e2 (Initial commit)
 
     def _ensure_kernel_if_needed(self):
         if os.environ.get("SEEED_WSL_SKIP_KERNEL") == "1":
@@ -625,7 +742,11 @@ class WslFlashManager:
         rndis_ok = _kernel_config_enabled(text, "CONFIG_USB_NET_RNDIS_HOST")
         self._log(f"[WSL kernel] CONFIG_USBIP_VHCI_HCD={usbip_ok}, CONFIG_USB_NET_RNDIS_HOST={rndis_ok}")
         if usbip_ok and rndis_ok:
+<<<<<<< HEAD
             self._log("[STEP 3/7] WSL kernel already has USBIP and RNDIS support. ✓")
+=======
+            self._log("[STEP 3/7] WSL kernel already has USBIP and RNDIS support. [OK]")
+>>>>>>> e4de0e2 (Initial commit)
             return
 
         self._log("[WSL kernel] Missing kernel features. Attempting to download custom Seeed bzImage...")
@@ -637,6 +758,7 @@ class WslFlashManager:
             self._log(f"[WSL kernel] Using cached custom kernel at {kernel_path}.")
         self._configure_wsl_kernel(kernel_path)
         self._log("[WSL kernel] WSL kernel configured. Restarting WSL (wsl --shutdown)...")
+<<<<<<< HEAD
         subprocess.run(
             [_wsl_exe(), "--shutdown"],
             stdout=subprocess.PIPE,
@@ -645,6 +767,11 @@ class WslFlashManager:
         )
         time.sleep(2)
         self._log("[STEP 3/7] Custom WSL kernel configured and WSL restarted. ✓")
+=======
+        subprocess.run([_wsl_exe(), "--shutdown"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        time.sleep(2)
+        self._log("[STEP 3/7] Custom WSL kernel configured and WSL restarted. [OK]")
+>>>>>>> e4de0e2 (Initial commit)
         self._log("[NOTE] Custom kernel requires WSL restart. Flashing can now proceed.")
 
     def _sha256_matches(self, path: Path, expected: str) -> bool:
@@ -747,11 +874,19 @@ class WslFlashManager:
             attempt += 1
             elapsed = int(time.time() - (deadline - 120))
             remaining = int(deadline - time.time())
+<<<<<<< HEAD
+=======
+            found_count = 0
+>>>>>>> e4de0e2 (Initial commit)
 
             # Log all visible USB devices each poll for diagnostics
             try:
                 all_devs = list_usb_devices()
                 nvidia_devs = [d for d in all_devs if "0955" in d.hardware_id]
+<<<<<<< HEAD
+=======
+                found_count = len(nvidia_devs)
+>>>>>>> e4de0e2 (Initial commit)
                 if nvidia_devs:
                     for d in nvidia_devs:
                         self._log(f"[usbipd scan #{attempt}] [{remaining}s left] Found NVIDIA device: {d.raw.strip()} [{d.state}]")
@@ -767,12 +902,21 @@ class WslFlashManager:
                     self._log(f"[STEP 4/7] Found APX device after {attempt} scan(s): {device.raw.strip()}")
                     self._log(f"[STEP 4/7] BusID={device.busid}, State={device.state}, HWID={device.hardware_id}")
                     self._bind_device(device.busid)
+<<<<<<< HEAD
                     self._log("[STEP 4/7] Recovery device found and bound ✓")
+=======
+                    self._log("[STEP 4/7] Recovery device found and bound [OK]")
+>>>>>>> e4de0e2 (Initial commit)
                     return device
             except WslFlashError as exc:
                 last_error = exc
                 break
+<<<<<<< HEAD
             self._log(f"[STEP 4/7] Waiting... ({remaining}s remaining until timeout)")
+=======
+            if found_count == 0 and attempt % 5 == 1:
+                self._log(f"[STEP 4/7] Waiting... ({remaining}s remaining until timeout)")
+>>>>>>> e4de0e2 (Initial commit)
             time.sleep(3)
 
         # Final attempt: also log all devices before failing
@@ -796,9 +940,13 @@ class WslFlashManager:
             "  - Check Device Manager for 'NVIDIA APX' or '0955' device"
         )
 
-    def _bind_device(self, busid: str):
+    def _bind_device(self, busid: str, force: bool = False):
         with self._attach_lock:
+<<<<<<< HEAD
             if busid in self._bound_busids:
+=======
+            if busid in self._bound_busids and not force:
+>>>>>>> e4de0e2 (Initial commit)
                 self._log(f"[usbipd] BusID {busid} already bound; skipping.")
                 return
         usbipd = _usbipd_exe()
@@ -807,17 +955,25 @@ class WslFlashManager:
             [usbipd, "bind", "--busid", busid, "--force"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+<<<<<<< HEAD
             text=True,
             errors="replace",
             **_hidden_subprocess_kwargs(),
+=======
+            text=False,
+>>>>>>> e4de0e2 (Initial commit)
         )
-        text = result.stdout or ""
+        text = _decode_output(result.stdout or b"")
         lowered = text.lower()
         self._log(f"[usbipd] bind result: code={result.returncode}, stdout={text.strip()!r}")
         if result.returncode == 0 or "already shared" in lowered or "is already shared" in lowered:
             with self._attach_lock:
                 self._bound_busids.add(busid)
+<<<<<<< HEAD
             self._log(f"[usbipd] BusID {busid} bound successfully ✓")
+=======
+            self._log(f"[usbipd] BusID {busid} bound successfully [OK]")
+>>>>>>> e4de0e2 (Initial commit)
             return
         self._log("[usbipd] Non-admin bind failed. Requesting UAC elevation...")
         self._log("[usbipd] A Windows UAC prompt will appear; click 'Yes' to grant admin rights.")
@@ -827,7 +983,11 @@ class WslFlashManager:
             raise WslFlashError(f"usbipd bind failed for {busid} (exit {code}).")
         with self._attach_lock:
             self._bound_busids.add(busid)
+<<<<<<< HEAD
         self._log(f"[usbipd] BusID {busid} bound with elevation ✓")
+=======
+        self._log(f"[usbipd] BusID {busid} bound with elevation [OK]")
+>>>>>>> e4de0e2 (Initial commit)
 
     def _remember_attached_busid(self, busid: str):
         with self._attach_lock:
@@ -864,19 +1024,32 @@ class WslFlashManager:
                     command,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
+<<<<<<< HEAD
                     text=True,
                     encoding="utf-8",
                     errors="replace",
                     bufsize=1,
                     **_hidden_subprocess_kwargs(),
+=======
+                    bufsize=0,
+>>>>>>> e4de0e2 (Initial commit)
                 )
                 assert self._attach_process.stdout is not None
-                for line in self._attach_process.stdout:
-                    if line.strip():
-                        self._log(f"[usbipd] {line.rstrip()}")
-                        if "is now attached" in line.lower():
-                            self._remember_attached_busid(busid)
-                            self._attach_confirmed.set()
+                for line in _iter_decoded_lines(self._attach_process.stdout):
+                    normalized = line.strip()
+                    if not normalized:
+                        continue
+                    if _is_noisy_wsl_nat_warning(normalized):
+                        continue
+                    self._log_throttled(
+                        f"usbipd-auto:{normalized}",
+                        f"[usbipd] {normalized}",
+                        min_interval=2.0,
+                    )
+                    lowered = normalized.lower()
+                    if "is now attached" in lowered or "already attached" in lowered:
+                        self._remember_attached_busid(busid)
+                        self._attach_confirmed.set()
                     if self._attach_stop.is_set():
                         break
                 code = self._attach_process.wait(timeout=5)
@@ -916,14 +1089,28 @@ class WslFlashManager:
                     command,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
+                    text=False,
                     timeout=15,
                     **_hidden_subprocess_kwargs(),
                 )
-                text = (result.stdout or "").strip()
+                text = _decode_output(result.stdout or b"").strip()
                 lowered = text.lower()
+                if (
+                    result.returncode != 0
+                    and ("not shared" in lowered or "device is not shared" in lowered)
+                    and _is_shared_state(state) is False
+                ):
+                    self._log(f"[usbipd-pulse] bus {busid} is not shared; rebinding and retrying attach.")
+                    self._bind_device(busid, force=True)
+                    result = subprocess.run(
+                        command,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=False,
+                        timeout=15,
+                    )
+                    text = _decode_output(result.stdout or b"").strip()
+                    lowered = text.lower()
                 if result.returncode == 0 or "already attached" in lowered or "is now attached" in lowered:
                     self._remember_attached_busid(busid)
                     self._attach_confirmed.set()
@@ -932,7 +1119,11 @@ class WslFlashManager:
                     result.returncode == 0
                     or "already attached" not in lowered
                 ):
-                    self._log(f"[usbipd-pulse] {text}")
+                    self._log_throttled(
+                        f"usbipd-pulse:{summary}",
+                        f"[usbipd-pulse] {text}",
+                        min_interval=2.0,
+                    )
                     last_log = summary
             except subprocess.TimeoutExpired:
                 if last_log != "timeout":
@@ -981,21 +1172,39 @@ class WslFlashManager:
                             time.sleep(0.1)
                         continue
 
-                    if "attached" not in state and "shared" not in state:
+                    if "attached" not in state and not _is_shared_state(state):
                         self._bind_device(busid)
+
+                    if "attached" not in state and (
+                        not _is_shared_state(state) or "not shared" in state
+                    ):
+                        self._bind_device(busid, force=True)
 
                     result = subprocess.run(
                         [usbipd, "attach", "--wsl", "--busid", busid],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
-                        text=True,
-                        encoding="utf-8",
-                        errors="replace",
+                        text=False,
                         timeout=10,
                         **_hidden_subprocess_kwargs(),
                     )
-                    text = (result.stdout or "").strip()
+                    text = _decode_output(result.stdout or b"").strip()
                     lowered = text.lower()
+                    if result.returncode != 0 and (
+                        "device is not shared" in lowered
+                        or "is not shared" in lowered
+                    ):
+                        self._log(f"[usbipd-dynamic] bus {busid} attach failed because not shared; rebinding.")
+                        self._bind_device(busid, force=True)
+                        result = subprocess.run(
+                            [usbipd, "attach", "--wsl", "--busid", busid],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=False,
+                            timeout=10,
+                        )
+                        text = _decode_output(result.stdout or b"").strip()
+                        lowered = text.lower()
                     if result.returncode == 0 or "already attached" in lowered or "is now attached" in lowered:
                         self._remember_attached_busid(busid)
                         self._attach_confirmed.set()
@@ -1006,7 +1215,11 @@ class WslFlashManager:
                     ):
                         self._log(f"[usbipd-dynamic] {device.raw.strip()}")
                         if text:
-                            self._log(f"[usbipd-dynamic] {text}")
+                            self._log_throttled(
+                                f"usbipd-dynamic:{summary}",
+                                f"[usbipd-dynamic] {text}",
+                                min_interval=2.0,
+                            )
                         last_log = summary
             except subprocess.TimeoutExpired:
                 if last_log != "dynamic-timeout":
@@ -1174,12 +1387,17 @@ PY"""
                 self._log(f"[usbipd stable?] {' '.join(status_parts)}")
             else:
                 if stable_hits > 0:
+<<<<<<< HEAD
                     self._log(f"[usbipd stable?] RESET hits to 0 — one condition dropped. {' '.join(status_parts)}")
+=======
+                    self._log(f"[usbipd stable?] RESET hits to 0 - one condition dropped. {' '.join(status_parts)}")
+>>>>>>> e4de0e2 (Initial commit)
                 stable_hits = 0
                 # Only log every ~10s to avoid spam
                 if attempt % 5 == 1:
                     self._log(f"[usbipd stable?] {' '.join(status_parts)}")
                     if not host_attached:
+<<<<<<< HEAD
                         self._log(f"[usbipd] (B) NOT attached — Windows usbipd did not attach the device.")
                     if not wsl_visible:
                         self._log(f"[usbipd] (C) NOT visible in WSL — USB passthrough is broken.")
@@ -1189,27 +1407,51 @@ PY"""
 
             if stable_hits >= 3:
                 self._log(f"[STEP 5/7] USB passthrough stable after {attempt} checks. ✓ ✓ ✓")
+=======
+                        self._log(f"[usbipd] (B) NOT attached - Windows usbipd did not attach the device.")
+                    if not wsl_visible:
+                        self._log(f"[usbipd] (C) NOT visible in WSL - USB passthrough is broken.")
+                        self._log(f"[usbipd]   Check: WSL kernel USBIP support, USB cable quality, avoid USB hubs.")
+                    if not attach_confirmed:
+                        self._log(f"[usbipd] (A) NOT confirmed - attach event not received by the tool.")
+
+            if stable_hits >= 3:
+                self._log(f"[STEP 5/7] USB passthrough stable after {attempt} checks. [OK x3]")
+>>>>>>> e4de0e2 (Initial commit)
                 return
 
             time.sleep(2)
 
         # Failed: log final diagnostic
+<<<<<<< HEAD
         self._log("[STEP 5/7] === USB PASSTHROUGH TIMEOUT — ROOT CAUSE ANALYSIS ===")
+=======
+        self._log("[STEP 5/7] === USB PASSTHROUGH TIMEOUT - ROOT CAUSE ANALYSIS ===")
+>>>>>>> e4de0e2 (Initial commit)
         self._log("[STEP 5/7] Stable hits achieved: {}/3 (needed 3)".format(stable_hits))
         current_busid = self._current_attached_busid() or busid
         host_state = self._get_host_attach_state(current_busid)
         self._log(f"[STEP 5/7] Final Windows host state for {current_busid}: {host_state!r}")
         if "attached" not in host_state.lower():
             self._log("[STEP 5/7] DIAGNOSIS: Windows 'usbipd list' does NOT show 'attached' state.")
+<<<<<<< HEAD
             self._log("[STEP 5/7]   → This usually means the USB cable dropped or the device disconnected.")
+=======
+            self._log("[STEP 5/7]   -> This usually means the USB cable dropped or the device disconnected.")
+>>>>>>> e4de0e2 (Initial commit)
         try:
             result = self._run_wsl(["bash", "-lc", "lsusb | grep -i '0955:' || echo NOT_FOUND"], timeout=10)
             wsl_out = _completed_text(result).strip()
             self._log(f"[STEP 5/7] Final WSL lsusb output: {wsl_out!r}")
             if "NOT_FOUND" in wsl_out or not wsl_out:
                 self._log("[STEP 5/7] DIAGNOSIS: APX device is NOT visible inside WSL.")
+<<<<<<< HEAD
                 self._log("[STEP 5/7]   → The usbipd-win driver is not forwarding USB to WSL.")
                 self._log("[STEP 5/7]   → Check WSL kernel CONFIG_USBIP_VHCI_HCD, USB cable, and avoid USB hubs.")
+=======
+                self._log("[STEP 5/7]   -> The usbipd-win driver is not forwarding USB to WSL.")
+                self._log("[STEP 5/7]   -> Check WSL kernel CONFIG_USBIP_VHCI_HCD, USB cable, and avoid USB hubs.")
+>>>>>>> e4de0e2 (Initial commit)
         except Exception as e:
             self._log(f"[STEP 5/7] Could not check WSL lsusb: {e}")
         self._log("[STEP 5/7] Try: (1) Use a shorter/higher-quality USB cable, (2) Direct USB port (no hub),")
@@ -1217,7 +1459,11 @@ PY"""
         raise WslFlashError(
             "usbipd attach did not stabilize. "
             "The APX device is not stably visible inside WSL. "
+<<<<<<< HEAD
             "Check: (1) USB cable quality — use a DATA cable, not charge-only; "
+=======
+            "Check: (1) USB cable quality - use a DATA cable, not charge-only; "
+>>>>>>> e4de0e2 (Initial commit)
             "(2) Avoid USB hubs; (3) Re-enter Recovery mode; "
             "(4) Ensure WSL kernel has CONFIG_USBIP_VHCI_HCD. "
             "See full diagnosis above in the log."
@@ -1263,7 +1509,7 @@ PY"""
         marker_value = f"{self.product}|{self.l4t_version}|{expected_sha256 or archive.name}"
         packages = " ".join(FLASH_PACKAGES)
 
-        # When the archive is already in the workspace, $SRC == $ARCHIVE — skip cp.
+        # When the archive is already in the workspace, $SRC == $ARCHIVE; skip cp.
         archive_already_in_workspace = archive_in_wsl and archive_wsl.startswith(workspace + "/")
 
         copy_block = (
@@ -1448,6 +1694,11 @@ PY"""
         temp_script = None
         process = None
         output_tail: list[str] = []
+        checkpoint_count = 0
+        suppress_repeats = {
+            "line": None,
+            "count": 0,
+        }
         try:
             with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False, encoding="utf-8", newline="\n") as f:
                 f.write(script)
@@ -1467,19 +1718,46 @@ PY"""
                 wsl_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
+<<<<<<< HEAD
                 text=True,
                 encoding="utf-8",
                 errors="replace",
                 bufsize=1,
                 **_hidden_subprocess_kwargs(),
+=======
+                bufsize=0,
+>>>>>>> e4de0e2 (Initial commit)
             )
             assert process.stdout is not None
-            for line in process.stdout:
-                clean = line.rstrip()
+            for line in _iter_decoded_lines(process.stdout):
+                clean = line.strip()
+                if not clean:
+                    continue
                 output_tail.append(clean)
                 output_tail = output_tail[-120:]
-                if clean.strip():
-                    self._log(clean)
+                stripped = clean.strip()
+                if stripped.startswith("[WSL] Extract checkpoint"):
+                    checkpoint_count += 1
+                    if checkpoint_count == 1 or checkpoint_count % 25 == 0:
+                        self._log(f"{stripped} ({checkpoint_count} times)")
+                    continue
+
+                if _is_noisy_wsl_nat_warning(stripped):
+                    continue
+                if stripped.startswith("tar: [WSL] Extract checkpoint"):
+                    continue
+
+                if stripped == suppress_repeats["line"]:
+                    suppress_repeats["count"] += 1
+                    if suppress_repeats["count"] < 4:
+                        continue
+                    suppress_repeats["count"] = 1
+                    self._log(f"{stripped} (repeated)")
+                    continue
+
+                suppress_repeats["line"] = stripped
+                suppress_repeats["count"] = 1
+                self._log(clean)
                 self._check_cancel()
             code = process.wait()
             if code != 0:
@@ -1542,3 +1820,4 @@ PY"""
         finally:
             if temp_script:
                 temp_script.unlink(missing_ok=True)
+

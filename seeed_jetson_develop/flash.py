@@ -87,8 +87,11 @@ def find_recovery_device_line() -> str | None:
         device = find_nvidia_apx_device()
         if device:
             return device.raw.strip()
+<<<<<<< HEAD
         print("[flash] find_recovery_device_line: no NVIDIA APX device found on Windows.")
         print("[flash] Ensure Jetson is in Recovery mode and a DATA USB cable is connected.")
+=======
+>>>>>>> e4de0e2 (Initial commit)
         return None
 
     nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623"}
