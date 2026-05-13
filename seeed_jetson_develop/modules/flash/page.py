@@ -629,6 +629,16 @@ def build_page() -> QWidget:
     flash_step_stack.setLineWidth(0)
     flash_step_stack.setStyleSheet("QStackedWidget { background:transparent; border:none; margin:0; padding:0; }")
 
+    def _flash_scene_height(compact_visual: bool) -> int:
+        # Keep Linux on the original pt()-scaled layout, but give Windows
+        # a dedicated scene box so the legacy composition is not clipped.
+        if PLATFORM.is_windows:
+            return 160 if not compact_visual else 160
+        return pt(120) if compact_visual else pt(160)
+
+    scene_min_height = 160 if PLATFORM.is_windows else pt(120)
+    scene_initial_height = _flash_scene_height(False)
+
     # Step 1: prepare firmware
     step1_card = make_card(12)
     task_lay = QVBoxLayout(step1_card)
@@ -650,8 +660,8 @@ def build_page() -> QWidget:
     task_lay.addWidget(flash_progress)
 
     flash_prepare_scene = FlashAnimationWidget()
-    flash_prepare_scene.setFixedHeight(160)
-    flash_prepare_scene.setMinimumHeight(pt(120))
+    flash_prepare_scene.setFixedHeight(scene_initial_height)
+    flash_prepare_scene.setMinimumHeight(scene_min_height)
     task_lay.addWidget(flash_prepare_scene)
 
     btn_row = QHBoxLayout()
@@ -802,8 +812,8 @@ def build_page() -> QWidget:
     run_lay.addWidget(flash_run_progress)
 
     flash_scene = FlashAnimationWidget()
-    flash_scene.setFixedHeight(160)
-    flash_scene.setMinimumHeight(pt(120))
+    flash_scene.setFixedHeight(scene_initial_height)
+    flash_scene.setMinimumHeight(scene_min_height)
     run_lay.addWidget(flash_scene)
 
     run_btn_row = QHBoxLayout()
@@ -835,7 +845,8 @@ def build_page() -> QWidget:
     done_lay.addWidget(flash_done_status_lbl)
 
     flash_done_scene = FlashAnimationWidget()
-    flash_done_scene.setFixedHeight(160)
+    flash_done_scene.setFixedHeight(scene_initial_height)
+    flash_done_scene.setMinimumHeight(scene_min_height)
     flash_done_scene.setMinimumWidth(0)
     flash_done_scene.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
     flash_done_scene.set_mode("success")
@@ -932,16 +943,14 @@ def build_page() -> QWidget:
             flash_cols.setDirection(QBoxLayout.LeftToRight)
         flash_cols.setStretch(0, 1)
         flash_cols.setStretch(1, 1)
+        scene_height = _flash_scene_height(compact_visual)
         if compact_visual:
             flash_device_img.setFixedSize(pt(200), pt(126))
-            flash_prepare_scene.setFixedHeight(pt(120))
-            flash_scene.setFixedHeight(pt(120))
-            flash_done_scene.setFixedHeight(pt(120))
         else:
             flash_device_img.setFixedSize(pt(320), pt(200))
-            flash_prepare_scene.setFixedHeight(pt(160))
-            flash_scene.setFixedHeight(pt(160))
-            flash_done_scene.setFixedHeight(pt(160))
+        flash_prepare_scene.setFixedHeight(scene_height)
+        flash_scene.setFixedHeight(scene_height)
+        flash_done_scene.setFixedHeight(scene_height)
         _rescale_device_image()
         flash_log.setMinimumHeight(pt(120) if compact_visual else pt(200))
 

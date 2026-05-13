@@ -493,7 +493,13 @@ class JetsonFlasher:
             for _, _, _, part_file in parts
         )
         counter_lock = threading.Lock()
+        cancel_event = threading.Event()
         part_errors = [None] * num_parts
+
+        def _check_cancelled():
+            if cancel_event.is_set():
+                raise InterruptedError("cancel requested")
+            self._check_cancel()
 
         def download_part(idx, start, end, part_file):
             nonlocal total_written_bytes
@@ -510,7 +516,7 @@ class JetsonFlasher:
 
             for attempt in range(max_retries):
                 try:
-                    self._check_cancel()
+                    _check_cancelled()
                     resp = requests.get(url, stream=True, timeout=(15, 600),
                                         allow_redirects=True, headers=headers)
                     resp.raise_for_status()
@@ -518,7 +524,7 @@ class JetsonFlasher:
                     with open(part_file, "ab" if committed > 0 else "wb") as f:
                         for chunk in resp.iter_content(chunk_size=1024 * 1024):
                             if chunk:
-                                self._check_cancel()
+                                _check_cancelled()
                                 f.write(chunk)
                                 with counter_lock:
                                     total_written_bytes += len(chunk)
@@ -527,7 +533,8 @@ class JetsonFlasher:
                                 committed += len(chunk)
                     return  # 成功
                 except InterruptedError:
-                    raise
+                    cancel_event.set()
+                    return
                 except Exception as e:
                     if attempt == max_retries - 1:
                         part_errors[idx] = e
@@ -552,6 +559,8 @@ class JetsonFlasher:
         for t in threads:
             t.join()
 
+        if cancel_event.is_set():
+            raise InterruptedError("cancel requested")
         self._check_cancel()
 
         # 检查是否有分片失败
