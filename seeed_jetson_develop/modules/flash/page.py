@@ -70,6 +70,33 @@ def _page_header(title: str, subtitle: str) -> tuple[QWidget, QLabel, QLabel]:
     return header, title_lbl, sub_lbl
 
 
+def _l4t_to_jetpack(l4t: str, l4t_data: list) -> str | None:
+    """Extract JetPack version from l4t_data based on L4T version match."""
+    import re
+    # Extract pure L4T version (e.g., "36.4.3" from "36.4.3 (GMSL✅)")
+    l4t_version = re.match(r'^([\d.]+)', l4t)
+    if not l4t_version:
+        return None
+    pure_l4t = l4t_version.group(1)
+
+    for item in l4t_data:
+        if item.get("l4t") == l4t:
+            filename = item.get("filename", "")
+            # Filename format examples:
+            # - mfi_recomputer-mini-orin-nx-16g-j40-6.0-36.3.0.tar.gz
+            # - mfi_recomputer-mini-orin-nx-16g-j40-5.1.3-35.5.0.tar.gz
+            # - mfi_recomputer-orin-nx-16g-industrial-5.1-35.3.1-2023-08-05.tar.gz
+            # - mfi_reserver-agx-orin-64g-j501x-jp6.0-36.3.0-2024-09-19.tar.gz
+            # JetPack version may be preceded by "jp" or just "-"
+            # The version may have a dash before it, or the "jp" prefix directly
+            # Match version number(s) followed by L4T version
+            # L4T version may be followed by .tar/.tgz or by date like -2023-08-05.tar.gz
+            match = re.search(r'(?:jp)?-?(\d+(?:\.\d+)*)-' + re.escape(pure_l4t) + r'(?:\.tar|\.tgz|-\d{4}|)', filename, re.IGNORECASE)
+            if match:
+                return match.group(1)
+    return None
+
+
 def _open_url(url: str):
     from PyQt5.QtCore import QUrl
     QDesktopServices.openUrl(QUrl(url))
@@ -304,10 +331,14 @@ def build_page() -> QWidget:
     prod_name_lbl = make_label(_ft("flash.device.product"), 12, C_TEXT2)
     prod_row.addWidget(prod_name_lbl)
     prod_row.addStretch()
+    jetpack_badge_w = pt(126)
     flash_product_combo = DropdownButton(max_popup_height=pt(320))
     flash_product_combo.setMinimumWidth(pt(260))
     flash_product_combo.addItems(sorted(products.keys()))
     prod_row.addWidget(flash_product_combo)
+    prod_jetpack_placeholder = QWidget()
+    prod_jetpack_placeholder.setFixedWidth(jetpack_badge_w)
+    prod_row.addWidget(prod_jetpack_placeholder)
     dev_lay.addLayout(prod_row)
 
     l4t_row = QHBoxLayout()
@@ -317,6 +348,19 @@ def build_page() -> QWidget:
     flash_l4t_combo = DropdownButton(max_popup_height=pt(200))
     flash_l4t_combo.setMinimumWidth(pt(260))
     l4t_row.addWidget(flash_l4t_combo)
+    # JetPack version display badge
+    flash_jetpack_lbl = QLabel()
+    flash_jetpack_lbl.setStyleSheet(f"""
+        background: rgba(141, 194, 31, 0.15);
+        color: {C_GREEN};
+        border-radius: 6px;
+        padding: 4px 10px;
+        font-size: {pt(11)}pt;
+        font-weight: 600;
+    """)
+    flash_jetpack_lbl.setAlignment(Qt.AlignCenter)
+    flash_jetpack_lbl.setFixedSize(jetpack_badge_w, pt(26))
+    l4t_row.addWidget(flash_jetpack_lbl)
     dev_lay.addLayout(l4t_row)
 
     # Device image
@@ -928,6 +972,11 @@ def build_page() -> QWidget:
                 threading.Thread(target=_fetch_device_img, daemon=True).start()
             else:
                 _set_device_image(None)
+        # Update JetPack display when product changes
+        if flash_l4t_combo.currentText():
+            _update_jetpack_display(flash_l4t_combo.currentText())
+        else:
+            flash_jetpack_lbl.setVisible(False)
         _update_cache_label()
 
     def _update_cache_label():
@@ -979,6 +1028,20 @@ def build_page() -> QWidget:
                 _set_next_enabled(False)
         except Exception:
             flash_cache_lbl.setText("")
+
+    def _update_jetpack_display(l4t: str):
+        """Update JetPack version display based on selected L4T version."""
+        if not l4t:
+            flash_jetpack_lbl.setText("")
+            flash_jetpack_lbl.setVisible(False)
+            return
+        jetpack = _l4t_to_jetpack(l4t, l4t_data)
+        if jetpack:
+            flash_jetpack_lbl.setText(f"JetPack {jetpack}")
+            flash_jetpack_lbl.setVisible(True)
+        else:
+            flash_jetpack_lbl.setText("")
+            flash_jetpack_lbl.setVisible(False)
 
     def _set_next_enabled(enabled: bool):
         flash_next_btn.setEnabled(enabled)
@@ -1707,12 +1770,15 @@ def build_page() -> QWidget:
 
     # Signal wiring.
     flash_product_combo.currentTextChanged.connect(_on_flash_product_changed)
+    flash_l4t_combo.currentTextChanged.connect(lambda l4t: _update_jetpack_display(l4t))
     flash_l4t_combo.currentTextChanged.connect(lambda _: _update_cache_label())
 
     # Initial state.
     page.retranslate_ui(get_language())
     if flash_product_combo.currentText():
         _on_flash_product_changed(flash_product_combo.currentText())
+    if flash_l4t_combo.currentText():
+        _update_jetpack_display(flash_l4t_combo.currentText())
     QTimer.singleShot(0, _update_adaptive_layout)
     if os.environ.get("SEEED_FLASH_TEST_DONE") == "1":
         QTimer.singleShot(0, _show_flash_done_test_state)

@@ -31,6 +31,7 @@ from ..core.platform_detect import is_jetson
 from ..core.events import bus
 from ..resources import resolve_runtime_path
 from .ai_chat import FloatingAIAssistant, build_ai_system_prompt
+from .app_icon import apply_app_icon
 from ..data_update import load_json_data, update_bsp_links_from_github
 from .i18n import get_language, set_language as _save_language, t
 from .runtime_i18n import apply_language
@@ -152,6 +153,7 @@ class MainWindowV2(QMainWindow):
         self._current_page = 0
         self._is_jetson = is_jetson()
         self._remote_connected = False
+        apply_app_icon(self)
 
         refreshed = update_bsp_links_from_github(timeout=(1, 2))
         if not refreshed:
@@ -767,6 +769,7 @@ def main():
     qInstallMessageHandler(_qt_message_handler)
     app = QApplication(sys.argv)
     app.setApplicationName("Seeed Jetson Develop Tool")
+    apply_app_icon()
     
     # 应用全局主题
     apply_app_theme()

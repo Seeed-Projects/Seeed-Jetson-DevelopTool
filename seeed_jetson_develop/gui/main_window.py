@@ -448,11 +448,14 @@ class MainWindow(QMainWindow):
 def main():
     """主函数"""
     from PyQt5.QtWidgets import QApplication
+    from .app_icon import apply_app_icon
     
     app = QApplication(sys.argv)
     app.setApplicationName("Seeed Jetson Flash")
+    apply_app_icon()
     
     window = MainWindow()
+    apply_app_icon(window)
     window.show()
     
     sys.exit(app.exec_())

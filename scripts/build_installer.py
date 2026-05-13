@@ -15,6 +15,7 @@ Output:
 import base64
 import io
 import os
+import re
 import subprocess
 import sys
 import tarfile
@@ -25,7 +26,6 @@ from typing import Optional, Tuple
 ROOT = Path(__file__).parent.parent
 DIST = ROOT / "dist"
 APP_NAME = "seeed-jetson-develop"
-APP_VERSION = "0.2.0"
 APP_ICON_PNG = "assets/seeed-jetson-develop-icon.png"
 APP_ICON_ICO = "assets/seeed-jetson-develop-icon.ico"
 
@@ -38,6 +38,19 @@ EXCLUDE_NAMES = {
 }
 EXCLUDE_SUFFIXES = {".pyc", ".pyo", ".docx"}
 EXCLUDE_PREFIXES = ("video-cover", "video_cover")
+
+
+def read_app_version() -> str:
+    """Keep installer metadata aligned with the packaged app version."""
+    init_file = ROOT / "seeed_jetson_develop" / "__init__.py"
+    text = init_file.read_text(encoding="utf-8")
+    match = re.search(r'^__version__\s*=\s*["\']([^"\']+)["\']', text, re.MULTILINE)
+    if not match:
+        raise RuntimeError(f"Could not find __version__ in {init_file}")
+    return match.group(1)
+
+
+APP_VERSION = read_app_version()
 
 
 def should_exclude(rel: Path) -> bool:
