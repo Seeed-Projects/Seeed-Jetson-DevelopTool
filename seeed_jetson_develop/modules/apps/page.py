@@ -42,6 +42,7 @@ from seeed_jetson_develop.gui.theme import (
     show_error_message as _show_error_message,
     show_info_message as _show_info_message,
     show_warning_message as _show_warning_message,
+    set_emoji_font_for_label,
 )
 
 
@@ -335,12 +336,12 @@ class _InstallDialog(QDialog):
         # ── 自定义标题栏 ──
         titlebar = QWidget()
         titlebar.setFixedHeight(_pt(42))
-        titlebar.setStyleSheet(f"background:#f0f0f0; border:none;")
+        titlebar.setStyleSheet(f"background:{C_BG_DEEP}; border:none;")
         tb_lay = QHBoxLayout(titlebar)
         tb_lay.setContentsMargins(16, 0, 8, 0)
         tb_lay.setSpacing(8)
         title_lbl = QLabel(f"{title}  {app['name']}")
-        title_lbl.setStyleSheet("color:#222; font-size:13px; font-weight:600; background:transparent;")
+        title_lbl.setStyleSheet(f"color:{C_TEXT}; font-size:13px; font-weight:600; background:transparent;")
         tb_lay.addWidget(title_lbl, 1)
 
         # Minimize to background button
@@ -348,17 +349,17 @@ class _InstallDialog(QDialog):
         self._bg_btn.setFixedSize(_pt(44), _pt(32))
         self._bg_btn.setEnabled(False)
         self._bg_btn.setCursor(Qt.PointingHandCursor)
-        self._bg_btn.setStyleSheet("""
-            QPushButton {
+        self._bg_btn.setStyleSheet(f"""
+            QPushButton {{
                 background: transparent;
                 border: none;
-                color: #222;
+                color: {C_TEXT2};
                 font-size: 28px;
                 font-weight: 400;
                 padding-bottom: 6px;
-            }
-            QPushButton:hover { background: rgba(0,0,0,0.10); border-radius: 6px; color: #000; }
-            QPushButton:disabled { color: #aaa; }
+            }}
+            QPushButton:hover {{ background: rgba(255,255,255,0.10); border-radius: 6px; color: {C_TEXT}; }}
+            QPushButton:disabled {{ color: {C_TEXT3}; }}
         """)
         self._bg_btn.clicked.connect(self._send_to_background)
         tb_lay.addWidget(self._bg_btn)
@@ -366,15 +367,15 @@ class _InstallDialog(QDialog):
         close_title_btn = QPushButton("×")
         close_title_btn.setFixedSize(_pt(44), _pt(32))
         close_title_btn.setCursor(Qt.PointingHandCursor)
-        close_title_btn.setStyleSheet("""
-            QPushButton {
+        close_title_btn.setStyleSheet(f"""
+            QPushButton {{
                 background: transparent;
                 border: none;
-                color: #444;
+                color: {C_TEXT2};
                 font-size: 22px;
                 font-weight: 400;
-            }
-            QPushButton:hover { background: #e81123; border-radius: 6px; color: #fff; }
+            }}
+            QPushButton:hover {{ background: {C_RED}; border-radius: 6px; color: {C_TEXT}; }}
         """)
         close_title_btn.clicked.connect(self._confirm_close)
         tb_lay.addWidget(close_title_btn)
@@ -412,6 +413,7 @@ class _InstallDialog(QDialog):
         # App info row
         info_row = QHBoxLayout()
         info_row.addWidget(_lbl(app["icon"], 32))
+        set_emoji_font_for_label(info_row.itemAt(0).widget())
         info_row.addSpacing(12)
         col = QVBoxLayout()
         col.setSpacing(4)
@@ -751,6 +753,7 @@ class AppsPage(ListPageBase):
         row = QHBoxLayout(banner)
         row.setContentsMargins(20, 16, 20, 16)
         row.addWidget(_lbl("📦", 24))
+        set_emoji_font_for_label(row.itemAt(row.count()-1).widget(), size_pt=24)
         row.addSpacing(12)
 
         col = QVBoxLayout()
@@ -1112,6 +1115,7 @@ class AppsPage(ListPageBase):
         icon_lbl.setAlignment(Qt.AlignCenter)
         icon_lbl.setStyleSheet(f"font-size:{_pt(18)}pt; color:{C_TEXT}; background:transparent;")
         icon_lay.addWidget(icon_lbl)
+        set_emoji_font_for_label(icon_lbl)
         top_row.addWidget(icon_box)
 
         info = QVBoxLayout()

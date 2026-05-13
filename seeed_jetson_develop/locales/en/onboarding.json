@@ -1,0 +1,37 @@
+{
+  "onboarding.back": "Back",
+  "onboarding.next": "Next",
+  "onboarding.skip": "Skip",
+  "onboarding.get_started": "Get Started",
+  "onboarding.guide_menu": "First Run Guide",
+  "onboarding.dismiss": "Don't show again",
+
+  "onboarding.step1.title": "Welcome to Seeed Jetson Develop Tool",
+  "onboarding.step1.desc1": "Your all-in-one workspace for Jetson development.",
+  "onboarding.step1.desc2": "Let's get you started in just a few steps.",
+  "onboarding.step1.tip": "💡 This tool supports reComputer, reServer, and other Jetson devices.",
+
+  "onboarding.step2.title": "Connect Your Device",
+  "onboarding.step2.desc1": "Use a USB-C cable to connect your Jetson device to your computer.",
+  "onboarding.step2.desc2": "Make sure the device is powered on and booting normally.",
+  "onboarding.step2.desc3": "Type-C connection supports flashing, serial debug, and data transfer.",
+  "onboarding.step2.tip": "💡 For reComputer series, simply connect the Type-C port to your PC.",
+
+  "onboarding.step3.title": "Network Connection",
+  "onboarding.step3.desc1": "Jetson devices come with a pre-installed OS (JetPack) from factory.",
+  "onboarding.step3.desc2": "Connect the device to your router/switch via Ethernet cable.",
+  "onboarding.step3.desc3": "If you need to reinstall or upgrade, go to the Flash page.",
+  "onboarding.step3.tip": "💡 In most cases, no flashing is needed — the pre-installed system works out of the box!",
+
+  "onboarding.step4.title": "Connect Remotely",
+  "onboarding.step4.desc1": "Use Remote Desktop for a graphical interface to your Jetson.",
+  "onboarding.step4.desc2": "Or use SSH for command-line access directly from the tool.",
+  "onboarding.step4.desc3": "No extra software needed — everything is built in!",
+  "onboarding.step4.tip": "💡 You can switch between Remote Desktop and SSH anytime.",
+
+  "onboarding.step5.title": "Explore Apps & Skills",
+  "onboarding.step5.desc1": "Install popular AI applications from the App Market with one click.",
+  "onboarding.step5.desc2": "Discover and run Skills to automate your Jetson workflows.",
+  "onboarding.step5.desc3": "From LLM inference to computer vision — it's all here.",
+  "onboarding.step5.tip": "🚀 You're all set! Click 'Get Started' to begin your journey."
+}

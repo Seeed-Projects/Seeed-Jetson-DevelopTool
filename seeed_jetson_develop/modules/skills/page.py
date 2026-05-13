@@ -41,6 +41,7 @@ from seeed_jetson_develop.gui.theme import (
     apply_shadow as _shadow,
     show_info_message as _show_info_message,
     input_qss,
+    set_emoji_font_for_label,
 )
 
 
@@ -544,7 +545,10 @@ class SkillsPage(PageBase):
         )
         bl = QHBoxLayout(banner)
         bl.setContentsMargins(20, 16, 20, 16)
-        bl.addWidget(_lbl("💡", 24))
+        banner_emoji = QLabel("💡")
+        banner_emoji.setStyleSheet("background:transparent; border:none;")
+        set_emoji_font_for_label(banner_emoji, size_pt=24)
+        bl.addWidget(banner_emoji)
         bl.addSpacing(12)
         tc = QVBoxLayout()
         tc.setSpacing(4)
@@ -788,24 +792,46 @@ class SkillsPage(PageBase):
         outer.setContentsMargins(16, 12, 16, 12)
         outer.setSpacing(4)
 
-        parts = [f'<span style="font-size:{_pt(15)}pt">{cat_icon}</span>',
-                 f'&nbsp;<b style="font-size:{_pt(13)}pt;color:{C_TEXT}">{group.name}</b>']
+        # Top row: emoji icon | name + badges | duration
+        top_row = QHBoxLayout()
+        top_row.setSpacing(6)
+
+        icon_lbl = QLabel(cat_icon)
+        icon_lbl.setStyleSheet("background:transparent; border:none; padding:0; margin:0;")
+        set_emoji_font_for_label(icon_lbl, size_pt=15)
+        top_row.addWidget(icon_lbl)
+
+        name_col = QVBoxLayout()
+        name_col.setSpacing(2)
+        name_lbl = QLabel(f'<b style="font-size:{_pt(13)}pt;color:{C_TEXT}">{group.name}</b>')
+        name_lbl.setTextFormat(Qt.RichText)
+        name_lbl.setStyleSheet("QLabel { background:transparent; border:none; padding:0; margin:0; }")
+        name_lbl.setContentsMargins(0, 0, 0, 0)
+        name_col.addWidget(name_lbl)
+
+        badge_row = QHBoxLayout()
+        badge_row.setSpacing(4)
         if group.verified:
-            parts.append(f'&nbsp;<span style="font-size:{_pt(9)}pt;color:{C_GREEN};font-weight:700"> {_t("skills.badge.verified")}</span>')
+            badge = QLabel(_t("skills.badge.verified"))
+            badge.setStyleSheet(f"background:rgba(141,194,31,0.15); color:{C_GREEN}; border:none; border-radius:4px; padding:1px 6px; font-size:{_pt(9)}pt; font-weight:700;")
+            badge_row.addWidget(badge)
         if any_done:
-            parts.append(f'&nbsp;<span style="font-size:{_pt(9)}pt;color:{C_GREEN};font-weight:600"> {_t("skills.badge.installed")}</span>')
+            badge = QLabel(_t("skills.badge.installed"))
+            badge.setStyleSheet(f"background:rgba(141,194,31,0.15); color:{C_GREEN}; border:none; border-radius:4px; padding:1px 6px; font-size:{_pt(9)}pt; font-weight:600;")
+            badge_row.addWidget(badge)
         if group.risk:
-            parts.append(f'&nbsp;<span style="font-size:{_pt(9)}pt;color:{C_ORANGE}"> {_t("skills.badge.risk")}</span>')
-        parts.append(f'<span style="float:right;font-size:{_pt(10)}pt;color:{C_TEXT3}">{group.duration_hint}</span>')
-        top_lbl = QLabel("".join(parts))
-        top_lbl.setTextFormat(Qt.RichText)
-        top_lbl.setFrameShape(QFrame.NoFrame)
-        top_lbl.setFrameShadow(QFrame.Plain)
-        top_lbl.setLineWidth(0)
-        top_lbl.setMidLineWidth(0)
-        top_lbl.setContentsMargins(0, 0, 0, 0)
-        top_lbl.setStyleSheet("QLabel { background:transparent; border:none; padding:0; margin:0; }")
-        outer.addWidget(top_lbl)
+            badge = QLabel(_t("skills.badge.risk"))
+            badge.setStyleSheet(f"background:rgba(245,166,35,0.12); color:{C_ORANGE}; border:none; border-radius:4px; padding:1px 6px; font-size:{_pt(9)}pt; font-weight:500;")
+            badge_row.addWidget(badge)
+        name_col.addLayout(badge_row)
+
+        top_row.addLayout(name_col, 1)
+
+        dur_lbl = QLabel(group.duration_hint)
+        dur_lbl.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(10)}pt; background:transparent; border:none; padding:0; margin:0;")
+        top_row.addWidget(dur_lbl)
+
+        outer.addLayout(top_row)
         outer.addWidget(_lbl(group.desc, 11, C_TEXT2, wrap=True))
 
         btn_line = QHBoxLayout()
@@ -827,8 +853,20 @@ class SkillsPage(PageBase):
             skill = group.variants.get(src)
             if skill:
                 btn_line.addWidget(self._make_install_btn(src, skill, (group.id, src) in self._completed))
-        doc_b = _btn("📖", small=True)
+        doc_b = QPushButton()
+        doc_b.setCursor(Qt.PointingHandCursor)
         doc_b.setFixedWidth(BTN_W)
+        doc_b.setText("📖")
+        from PyQt5.QtGui import QFont
+        ef = QFont("Noto Color Emoji")
+        ef.setPointSize(_pt(10))
+        doc_b.setFont(ef)
+        doc_b.setStyleSheet(
+            f"QPushButton {{ background:rgba(255,255,255,0.04); border:none; border-radius:6px;"
+            f"color:{C_TEXT2}; font-size:{_pt(10)}pt; font-weight:500;"
+            f"padding:0 6px; min-height:{_pt(28)}px; }}"
+            f"QPushButton:hover {{ background:rgba(255,255,255,0.09); border-color:rgba(255,255,255,0.15); color:{C_TEXT}; }}"
+        )
         doc_b.clicked.connect(lambda _, g=group: self._open_doc(g))
         btn_line.addWidget(doc_b)
         ai_b = QPushButton(_t("common.ai_short"))
@@ -918,9 +956,18 @@ class SkillsPage(PageBase):
                     if it[0] == "header":
                         _, cname, cnt = it
                         icon = CATEGORY_ICONS.get(cname, "🔧")
+                        icon_lbl = QLabel(icon)
+                        icon_lbl.setStyleSheet("background:transparent; border:none;")
+                        set_emoji_font_for_label(icon_lbl, size_pt=14)
+                        cat_text_lbl = _lbl(f"  {_cat_text(cname)}", 14, C_TEXT2, bold=True)
+                        cat_text_lbl.setStyleSheet("background:transparent; border:none;")
+                        cnt_lbl = _lbl("  " + _t("skills.count.items_short", count=cnt), 10, C_TEXT3)
+                        cnt_lbl.setStyleSheet("background:transparent; border:none;")
                         tr = QHBoxLayout()
-                        tr.addWidget(_lbl(f"{icon}  {_cat_text(cname)}", 14, C_TEXT2, bold=True))
-                        tr.addWidget(_lbl("  " + _t("skills.count.items_short", count=cnt), 10, C_TEXT3))
+                        tr.setSpacing(6)
+                        tr.addWidget(icon_lbl)
+                        tr.addWidget(cat_text_lbl)
+                        tr.addWidget(cnt_lbl)
                         tr.addStretch()
                         tw = QWidget()
                         tw.setStyleSheet("background:transparent;")

@@ -47,6 +47,7 @@ from seeed_jetson_develop.gui.theme import (
     show_warning_message as _show_warning_message,
     apply_shadow as _shadow,
     input_qss,
+    set_emoji_font_for_label,
 )
 from seeed_jetson_develop.gui.widgets.page_base import PageBase
 from seeed_jetson_develop.modules.remote import connector
@@ -87,10 +88,7 @@ def _show_need_connection_dialog(parent: QWidget, tool_name: str):
     icon = QLabel("⚠")
     icon.setAlignment(Qt.AlignTop)
     icon.setStyleSheet(f"color:{C_ORANGE}; font-size:{_pt(26)}px; background:transparent;")
-    from PyQt5.QtGui import QFont
-    f = QFont("Noto Color Emoji")
-    f.setPointSize(_pt(26))
-    icon.setFont(f)
+    set_emoji_font_for_label(icon, size_pt=26)
     row.addWidget(icon)
     col = QVBoxLayout()
     col.addWidget(_lbl(_tt("remote.need_conn.header"), 15, C_TEXT, bold=True))
@@ -180,11 +178,12 @@ class _ApiKeyDialog(QDialog):
         self._key_edit.setStyleSheet(
             input_qss(radius=10, font_size=12)
         )
-        self._toggle_btn = _btn("👁", small=True)
+        self._toggle_btn = _btn("", small=True)
         self._toggle_btn.setFixedWidth(_pt(50))
         self._toggle_btn.setCheckable(True)
         self._toggle_btn.toggled.connect(lambda checked: self._key_edit.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password))
-        self._toggle_btn.toggled.connect(lambda checked: self._toggle_btn.setText("🙈" if checked else "👁"))
+        self._toggle_btn.toggled.connect(self._update_toggle_icon)
+        self._update_toggle_icon(False)
         key_row.addWidget(self._key_edit, 1)
         key_row.addWidget(self._toggle_btn)
         lay.addLayout(key_row)
@@ -266,6 +265,15 @@ class _ApiKeyDialog(QDialog):
             self._status_lbl.setText(_tt("remote.api_key.status.cleared"))
             self._status_lbl.setStyleSheet(f"color:{C_ORANGE}; font-size:{_pt(11)}px; background:transparent;")
             self.key_saved.emit()
+
+
+    def _update_toggle_icon(self, checked: bool):
+        emoji = "🙈" if checked else "👁"
+        self._toggle_btn.setText(emoji)
+        from PyQt5.QtGui import QFont
+        ef = QFont("Noto Color Emoji")
+        ef.setPointSize(_pt(12))
+        self._toggle_btn.setFont(ef)
 
 
 class _SshCmdThread(QThread):
@@ -876,6 +884,7 @@ def build_page() -> QWidget:
         rl = QHBoxLayout(row)
         ic = QLabel(icon)
         ic.setFixedWidth(_pt(40))
+        set_emoji_font_for_label(ic, size_pt=18)
         rl.addWidget(ic)
         info = QVBoxLayout()
         name_lbl = _lbl(_tt(name_key), 13, C_TEXT, bold=True)
