@@ -97,6 +97,45 @@ def _l4t_to_jetpack(l4t: str, l4t_data: list) -> str | None:
     return None
 
 
+def _product_display_name(product: str) -> str:
+    """Return a user-facing product name without changing the data key."""
+    raw = (product or "").strip()
+    if not raw:
+        return raw
+
+    compact = raw.replace(" ", "").lower()
+    suffix_map = {
+        "classic": "Classic",
+        "industrial": "Industrial",
+        "mini": "Mini",
+        "robotics": "Robotics",
+        "s": "Super",
+    }
+
+    import re
+    m = re.fullmatch(r"(j\d+)(classic|industrial|mini|robotics|reserver|s)", compact)
+    if m:
+        model, suffix = m.groups()
+        if suffix == "reserver":
+            return f"reServer {model.upper()}"
+        return f"reComputer {model.upper()} {suffix_map[suffix]}"
+
+    m = re.fullmatch(r"j501-carrieragx-orin(\d+)g", compact)
+    if m:
+        return f"reServer J501 Carrier AGX Orin {m.group(1)}G"
+
+    m = re.fullmatch(r"j501mini-agx-orin-(\d+)g", compact)
+    if m:
+        return f"reComputer J501 Mini AGX Orin {m.group(1)}G"
+
+    m = re.fullmatch(r"j501-agx-orin-(\d+)g", compact)
+    if m:
+        return f"reComputer J501 AGX Orin {m.group(1)}G"
+
+    if compact == "orin-nano-devkit-super":
+        return "Orin Nano Dev Kit Super"
+
+    return f"reComputer {raw}"
 def _open_url(url: str):
     from PyQt5.QtCore import QUrl
     QDesktopServices.openUrl(QUrl(url))
@@ -334,7 +373,8 @@ def build_page() -> QWidget:
     jetpack_badge_w = pt(126)
     flash_product_combo = DropdownButton(max_popup_height=pt(320))
     flash_product_combo.setMinimumWidth(pt(260))
-    flash_product_combo.addItems(sorted(products.keys()))
+    for product_key in sorted(products.keys(), key=_product_display_name):
+        flash_product_combo.addItem(_product_display_name(product_key), product_key)
     prod_row.addWidget(flash_product_combo)
     prod_jetpack_placeholder = QWidget()
     prod_jetpack_placeholder.setFixedWidth(jetpack_badge_w)
@@ -933,7 +973,11 @@ def build_page() -> QWidget:
         if url:
             _open_url(url)
 
-    def _on_flash_product_changed(product):
+    def _current_flash_product_key() -> str:
+        return flash_product_combo.currentData() or flash_product_combo.currentText()
+
+    def _on_flash_product_changed(_display_product):
+        product = _current_flash_product_key()
         flash_l4t_combo.clear()
         if product in products:
             flash_l4t_combo.addItems(products[product])
@@ -980,7 +1024,7 @@ def build_page() -> QWidget:
         _update_cache_label()
 
     def _update_cache_label():
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         if not product or not l4t:
             return
@@ -1053,7 +1097,7 @@ def build_page() -> QWidget:
             flash_prepare_scene.set_download_progress(0.0)
 
     def _clear_firmware_cache():
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         if not product or not l4t:
             return
@@ -1175,7 +1219,7 @@ def build_page() -> QWidget:
         if not _ensure_sudo():
             _flash_log_append(_ft("flash.log.sudo_denied_operation"))
             return
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         if not product or not l4t:
             return
@@ -1235,7 +1279,7 @@ def build_page() -> QWidget:
         _set_wizard_step(1)
         flash_step_stack.setCurrentIndex(1)
         flash_left_stack.setCurrentIndex(1)
-        _build_recovery_guide(flash_product_combo.currentText())
+        _build_recovery_guide(_current_flash_product_key())
         rec_status_lbl.setText(_ft("flash.status.waiting_detection"))
         rec_status_lbl.setStyleSheet(f"color:{C_TEXT2}; background:transparent;")
         rec_flash_btn.setEnabled(False)
@@ -1485,7 +1529,7 @@ def build_page() -> QWidget:
             _flash_log_append(_ft("flash.detect.err_lsusb", error=e))
 
     def _start_flash():
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         if not product or not l4t:
             return
@@ -1495,7 +1539,7 @@ def build_page() -> QWidget:
         _run_flash_thread(product, l4t, flash_only=True)
 
     def _retry_flash():
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         if not product or not l4t:
             return
@@ -1655,7 +1699,7 @@ def build_page() -> QWidget:
             QTimer.singleShot(0, _update_adaptive_layout)
         if ok and not was_flash_only:
             try:
-                flasher = JetsonFlasher(flash_product_combo.currentText(), flash_l4t_combo.currentText())
+                flasher = JetsonFlasher(_current_flash_product_key(), flash_l4t_combo.currentText())
                 ready = flasher.firmware_extracted()
                 if py_platform.system() == "Windows":
                     ready = ready or flasher.firmware_cached()
@@ -1715,7 +1759,7 @@ def build_page() -> QWidget:
     i18n.bind_text(clear_log_btn, "flash.log.clear")
 
     def _refresh_product_summary():
-        product = flash_product_combo.currentText()
+        product = _current_flash_product_key()
         if not product:
             flash_info.setText(_ft("flash.product_summary.waiting"))
             if not flash_device_img.pixmap():
@@ -1748,7 +1792,7 @@ def build_page() -> QWidget:
             _state["lang"] = lang
         i18n.apply(lang)
         if flash_left_stack.currentIndex() == 1:
-            _build_recovery_guide(flash_product_combo.currentText())
+            _build_recovery_guide(_current_flash_product_key())
     page.retranslate_ui = _retranslate_ui
 
     def _show_flash_done_test_state():
