@@ -1,0 +1,37 @@
+{
+  "onboarding.back": "上一步",
+  "onboarding.next": "下一步",
+  "onboarding.skip": "跳过",
+  "onboarding.get_started": "开始使用",
+  "onboarding.guide_menu": "使用引导",
+  "onboarding.dismiss": "不再显示",
+
+  "onboarding.step1.title": "欢迎使用 Seeed Jetson 开发工具",
+  "onboarding.step1.desc1": "您的一站式 Jetson 开发工作台。",
+  "onboarding.step1.desc2": "只需几个步骤，即可开始开发。",
+  "onboarding.step1.tip": "💡 本工具支持 reComputer、reServer 及其他 Jetson 设备。",
+
+  "onboarding.step2.title": "连接您的设备",
+  "onboarding.step2.desc1": "使用 USB-C 数据线将 Jetson 设备连接到电脑。",
+  "onboarding.step2.desc2": "确保设备已通电并正常启动。",
+  "onboarding.step2.desc3": "Type-C 连接可用于刷机、串口调试及数据传输。",
+  "onboarding.step2.tip": "💡 reComputer 系列只需将 Type-C 接口连接到电脑即可识别。",
+
+  "onboarding.step3.title": "网络连接",
+  "onboarding.step3.desc1": "Jetson 设备出厂时已预装操作系统（JetPack）。",
+  "onboarding.step3.desc2": "通过网线将设备接入路由器/交换机，即可联网工作。",
+  "onboarding.step3.desc3": "如需重装或升级系统，可前往「刷机」页面进行操作。",
+  "onboarding.step3.tip": "💡 大多数场景无需刷机，预装系统即可直接使用！",
+
+  "onboarding.step4.title": "远程连接",
+  "onboarding.step4.desc1": "使用远程桌面获得 Jetson 的图形化操作界面。",
+  "onboarding.step4.desc2": "或使用 SSH 终端直接在工具内进行命令行操作。",
+  "onboarding.step4.desc3": "无需安装额外软件——所有功能都已内置！",
+  "onboarding.step4.tip": "💡 您可以随时在远程桌面和 SSH 之间切换。",
+
+  "onboarding.step5.title": "探索应用与 Skills",
+  "onboarding.step5.desc1": "在应用市场一键安装各类热门 AI 应用。",
+  "onboarding.step5.desc2": "发现并使用 Skills 来自动化您的 Jetson 工作流。",
+  "onboarding.step5.desc3": "从大语言模型推理到计算机视觉——应有尽有。",
+  "onboarding.step5.tip": "🚀 准备就绪！点击「开始使用」开启您的 Jetson 之旅。"
+}

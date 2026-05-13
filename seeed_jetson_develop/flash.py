@@ -67,7 +67,11 @@ def find_recovery_device_line() -> str | None:
         from seeed_jetson_develop.wsl_flash import find_nvidia_apx_device
 
         device = find_nvidia_apx_device()
-        return device.raw.strip() if device else None
+        if device:
+            return device.raw.strip()
+        print("[flash] find_recovery_device_line: no NVIDIA APX device found on Windows.")
+        print("[flash] Ensure Jetson is in Recovery mode and a DATA USB cable is connected.")
+        return None
 
     nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623"}
     result = subprocess.run(
@@ -851,6 +855,9 @@ class JetsonFlasher:
         """刷写固件（需已解压，设备已进入 Recovery 模式）。"""
         self._check_cancel()
         if _is_windows_host():
+            print("[Windows] Detected Windows host — using WSL2 flash path")
+            print("[Windows] This path uses WSL2 + usbipd-win to passthrough USB to Linux.")
+            print("[Windows] A PowerShell UAC prompt may appear for: WSL install, usbipd-win install, USB bind.")
             try:
                 from seeed_jetson_develop.wsl_flash import WslFlashManager
 
@@ -872,6 +879,8 @@ class JetsonFlasher:
                 self._emit_log(msg)
                 return False
 
+        print("[Linux] Detected Linux host — using native flash path")
+        print("[Linux] Running NVIDIA l4t_initrd_flash.sh directly with sudo.")
         extract_dir = self.download_dir / "extracted"
 
         actual_dir = getattr(self, '_extracted_dir', None)
@@ -886,19 +895,22 @@ class JetsonFlasher:
             print(self._fmt("flash.flasher.no_flash_script", path=flash_script))
             return False
 
-        print(self._fmt("flash.flasher.workdir", path=actual_dir))
-        print(self._fmt("flash.flasher.flash_script", path=flash_script))
-        print(self._fmt("flash.flasher.flash_start"))
+        print(f"[Linux] Working directory: {actual_dir}")
+        print(f"[Linux] Flash script: {flash_script}")
+        print("[Linux] === Starting native Linux flash (sudo required) ===")
+        print("[Linux] This step requires sudo password and takes 10-30 minutes.")
+        print("[Linux] Ensure the Jetson is in Recovery mode before proceeding.")
 
         try:
             args = ["sudo", "./tools/kernel_flash/l4t_initrd_flash.sh",
                     "--flash-only", "--massflash", "1",
                     "--network", "usb0", "--showlogs"]
+            print(f"[Linux] Running: sudo ./tools/kernel_flash/l4t_initrd_flash.sh --flash-only --massflash 1 --network usb0 --showlogs")
             self._run_cancelable_process(args, cwd=str(actual_dir))
-            print(self._fmt("flash.flasher.flash_ok"))
+            print("[Linux] === Flash completed successfully. ===")
             return True
         except InterruptedError:
             raise
         except subprocess.CalledProcessError as e:
-            print(self._fmt("flash.flasher.flash_fail", code=e.returncode))
+            print(f"[Linux] Flash failed with exit code: {e.returncode}")
             return False

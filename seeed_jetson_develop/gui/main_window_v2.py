@@ -19,6 +19,8 @@ from PyQt5.QtWidgets import (
     QTextEdit, QStackedWidget,
 )
 
+from .widgets.animated_stacked_widget import AnimatedStackedWidget
+
 # 使用新的无边框主题
 from .theme import (
     C_BG, C_BG_DEEP, C_CARD, C_CARD_LIGHT,
@@ -223,7 +225,7 @@ class MainWindowV2(QMainWindow):
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
 
-        self.stack = QStackedWidget()
+        self.stack = AnimatedStackedWidget(mode="fade")
         self.stack.setStyleSheet("background:transparent;")
         from seeed_jetson_develop.modules.flash.page import build_page as _flash_page
         from seeed_jetson_develop.modules.devices.page import build_page as _devices_page
@@ -561,6 +563,27 @@ class MainWindowV2(QMainWindow):
         self._env_dot.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(10)}pt; background:transparent; padding:8px 0 4px {pt(20)}px;")
         lay.addWidget(self._env_dot)
 
+        # 首次引导入口
+        guide_btn = QPushButton("?  " + t("onboarding.guide_menu", lang=self._lang))
+        guide_btn.setCursor(Qt.PointingHandCursor)
+        guide_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent;
+                border: none;
+                color: {C_TEXT3};
+                font-size: {pt(10)}px;
+                text-align: left;
+                padding: 4px 0 4px {pt(20)}px;
+                border-radius: 4px;
+            }}
+            QPushButton:hover {{
+                background: rgba(141,194,31,0.12);
+                color: {C_GREEN};
+            }}
+        """)
+        guide_btn.clicked.connect(self._show_onboarding)
+        lay.addWidget(guide_btn)
+
         ver = make_label("v0.2.0-dev", 9, C_TEXT3)
         ver.setContentsMargins(pt(20), 0, 0, pt(12))
         lay.addWidget(ver)
@@ -760,6 +783,13 @@ class MainWindowV2(QMainWindow):
         from PyQt5.QtCore import QUrl
         QDesktopServices.openUrl(QUrl(url))
 
+    def _show_onboarding(self):
+        """手动打开首次启动引导"""
+        from seeed_jetson_develop.gui.widgets.onboarding_guide import show_onboarding
+        from seeed_jetson_develop.core.config import reset_onboarding
+        reset_onboarding()
+        show_onboarding(parent=self, lang=self._lang)
+
 
 # ─────────────────────────────────────────────
 #  入口
@@ -798,6 +828,16 @@ def main():
         win._normal_geometry = win.geometry()
 
     win.show()
+
+    # 首次启动引导（延迟弹出，等窗口完全渲染）
+    from seeed_jetson_develop.core.config import is_onboarding_dismissed
+    if not is_onboarding_dismissed():
+        from PyQt5.QtCore import QTimer
+        def _show_guide():
+            from seeed_jetson_develop.gui.widgets.onboarding_guide import show_onboarding
+            show_onboarding(parent=win, lang=win._lang if hasattr(win, '_lang') else "zh-CN")
+        QTimer.singleShot(800, _show_guide)
+
     sys.exit(app.exec_())
 
 

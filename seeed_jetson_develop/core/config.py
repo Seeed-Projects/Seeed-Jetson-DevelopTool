@@ -79,3 +79,34 @@ def get_runtime_anthropic_settings() -> dict:
         "base_url": base_url,
         "base_url_source": base_url_source,
     }
+
+
+# ── Onboarding 引导配置 ──────────────────────────────────────────────────────
+
+_ONBOARDING_KEY = "onboarding_dismissed"
+_ONBOARDING_VERSION_KEY = "onboarding_version"
+_CURRENT_ONBOARDING_VERSION = 1  # 引导内容更新时递增
+
+
+def is_onboarding_dismissed() -> bool:
+    """用户是否已勾选"不再显示"并完成过引导。"""
+    data = load()
+    # 如果引导版本已更新，即使之前 dismiss 过也重新显示
+    if data.get(_ONBOARDING_VERSION_KEY, 0) < _CURRENT_ONBOARDING_VERSION:
+        return False
+    return data.get(_ONBOARDING_KEY, False)
+
+
+def set_onboarding_dismissed(dismissed: bool = True):
+    """设置引导的显示/隐藏状态。"""
+    data = load()
+    data[_ONBOARDING_KEY] = dismissed
+    data[_ONBOARDING_VERSION_KEY] = _CURRENT_ONBOARDING_VERSION
+    save(data)
+
+
+def reset_onboarding():
+    """重置引导状态（用于 Help 菜单手动打开）。"""
+    data = load()
+    data[_ONBOARDING_KEY] = False
+    save(data)

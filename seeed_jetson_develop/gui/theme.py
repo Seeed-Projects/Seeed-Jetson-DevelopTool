@@ -271,23 +271,71 @@ def make_button(text: str, primary: bool = False,
     return b
 
 
+class HoverCard(QFrame):
+    """带动画 hover 效果的卡片：悬停时轻微上浮 + 阴影扩散 + 顶部高光增强"""
+    def __init__(self, radius: int = 12, with_shadow: bool = True):
+        super().__init__()
+        self._radius = radius
+        self._with_shadow = with_shadow
+        self._shadow_effect = None
+        self._base_y = 6
+        self._base_blur = 28
+        self._base_alpha = 80
+        self._is_hover = False
+        self._apply_base_style()
+        if with_shadow:
+            self._apply_shadow(self._base_blur, self._base_y, self._base_alpha)
+
+    def _apply_base_style(self):
+        self.setObjectName("SeeedCard")
+        self.setStyleSheet(f"""
+            QFrame#SeeedCard {{
+                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                    stop:0 #1E2D40, stop:1 {C_CARD});
+                border: 1px solid {C_BORDER_CARD};
+                border-top-color: {C_BORDER_SUBTLE};
+                border-radius: {self._radius}px;
+            }}
+        """)
+
+    def _apply_shadow(self, blur: int, y: int, alpha: int):
+        if self._shadow_effect:
+            self._shadow_effect.deleteLater()
+        fx = QGraphicsDropShadowEffect(self)
+        fx.setBlurRadius(blur)
+        fx.setOffset(0, y)
+        fx.setColor(QColor(0, 0, 0, alpha))
+        self._shadow_effect = fx
+        self.setGraphicsEffect(fx)
+
+    def enterEvent(self, event):
+        self._is_hover = True
+        # 顶部高光增强
+        self.setStyleSheet(f"""
+            QFrame#SeeedCard {{
+                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                    stop:0 #24354A, stop:1 {C_CARD_HOVER});
+                border: 1px solid rgba(255,255,255,0.10);
+                border-top-color: rgba(255,255,255,0.14);
+                border-radius: {self._radius}px;
+            }}
+        """)
+        # 阴影扩散
+        if self._with_shadow:
+            self._apply_shadow(self._base_blur + 8, self._base_y + 4, min(255, self._base_alpha + 20))
+        super().enterEvent(event)
+
+    def leaveEvent(self, event):
+        self._is_hover = False
+        self._apply_base_style()
+        if self._with_shadow:
+            self._apply_shadow(self._base_blur, self._base_y, self._base_alpha)
+        super().leaveEvent(event)
+
+
 def make_card(radius: int = 12, with_shadow: bool = True) -> QFrame:
-    """创建卡片 - 带高光顶边和立体阴影"""
-    f = QFrame()
-    f.setObjectName("SeeedCard")
-    f.setStyleSheet(f"""
-        QFrame#SeeedCard {{
-            background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
-                stop:0 #1E2D40, stop:1 {C_CARD});
-            border: 1px solid {C_BORDER_CARD};
-            border-top-color: {C_BORDER_SUBTLE};
-            border-radius: {radius}px;
-        }}
-    """)
-    if with_shadow:
-        fx = apply_shadow(f, blur=28, y=6, alpha=80)
-        f._shadow_effect = fx
-    return f
+    """创建卡片 - 带高光顶边、立体阴影和 hover 动画效果"""
+    return HoverCard(radius, with_shadow)
 
 
 def make_list_card() -> QFrame:
