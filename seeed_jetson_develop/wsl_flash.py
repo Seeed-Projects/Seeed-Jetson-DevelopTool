@@ -43,6 +43,24 @@ NVIDIA_APX_IDS = {"7023", "7223", "7323", "7423", "7523", "7623"}
 NVIDIA_INITRD_USB_IDS = {"7035"}
 
 
+def _hidden_startupinfo():
+    if os.name != "nt":
+        return None
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0
+    return startupinfo
+
+
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    return {
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        "startupinfo": _hidden_startupinfo(),
+    }
+
+
 class WslFlashError(RuntimeError):
     """Raised when the Windows/WSL flashing helper cannot continue."""
 
@@ -100,7 +118,13 @@ def _decode_output(data: bytes) -> str:
 
 
 def _run_capture(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
-    proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
+    proc = subprocess.run(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        timeout=timeout,
+        **_hidden_subprocess_kwargs(),
+    )
     proc.stdout = _decode_output(proc.stdout).encode("utf-8", errors="replace")
     return proc
 
@@ -132,6 +156,7 @@ def _run_elevated(program: str, args: list[str], timeout: int | None = None) -> 
         text=True,
         errors="replace",
         timeout=timeout,
+        **_hidden_subprocess_kwargs(),
     )
     return result.returncode
 
@@ -242,6 +267,7 @@ def get_wsl_download_dir(distro: str | None = None) -> Path | None:
             encoding="utf-8",
             errors="replace",
             timeout=10,
+            **_hidden_subprocess_kwargs(),
         )
         if result.returncode != 0:
             return None
@@ -255,13 +281,14 @@ def get_wsl_download_dir(distro: str | None = None) -> Path | None:
                 encoding="utf-8",
                 errors="replace",
                 timeout=10,
+                **_hidden_subprocess_kwargs(),
             ).stdout.strip()
             wsl_home = f"/home/{user}"
         wsl_dir = wsl_home + "/seeed-jetson-firmware"
         # Create the directory inside WSL
         subprocess.run(
             [wsl, "-d", resolved_distro, "--", "mkdir", "-p", wsl_dir],
-            capture_output=True, timeout=10
+            capture_output=True, timeout=10, **_hidden_subprocess_kwargs()
         )
         unc = _wsl_internal_to_windows(wsl_dir, resolved_distro)
         if unc.exists():
@@ -449,7 +476,12 @@ class WslFlashManager:
             self._log("[WSL status] Could not retrieve WSL version info.")
 
         self._log(f"[WSL] Setting default WSL version to 2...")
-        subprocess.run([wsl, "--set-default-version", "2"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        subprocess.run(
+            [wsl, "--set-default-version", "2"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            **_hidden_subprocess_kwargs(),
+        )
         distros = self._wsl_distros()
         self._log(f"[WSL] Installed distros: {sorted(distros) if distros else '(none)'}")
 
@@ -605,7 +637,12 @@ class WslFlashManager:
             self._log(f"[WSL kernel] Using cached custom kernel at {kernel_path}.")
         self._configure_wsl_kernel(kernel_path)
         self._log("[WSL kernel] WSL kernel configured. Restarting WSL (wsl --shutdown)...")
-        subprocess.run([_wsl_exe(), "--shutdown"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        subprocess.run(
+            [_wsl_exe(), "--shutdown"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            **_hidden_subprocess_kwargs(),
+        )
         time.sleep(2)
         self._log("[STEP 3/7] Custom WSL kernel configured and WSL restarted. ✓")
         self._log("[NOTE] Custom kernel requires WSL restart. Flashing can now proceed.")
@@ -772,6 +809,7 @@ class WslFlashManager:
             stderr=subprocess.STDOUT,
             text=True,
             errors="replace",
+            **_hidden_subprocess_kwargs(),
         )
         text = result.stdout or ""
         lowered = text.lower()
@@ -830,6 +868,7 @@ class WslFlashManager:
                     encoding="utf-8",
                     errors="replace",
                     bufsize=1,
+                    **_hidden_subprocess_kwargs(),
                 )
                 assert self._attach_process.stdout is not None
                 for line in self._attach_process.stdout:
@@ -881,6 +920,7 @@ class WslFlashManager:
                     encoding="utf-8",
                     errors="replace",
                     timeout=15,
+                    **_hidden_subprocess_kwargs(),
                 )
                 text = (result.stdout or "").strip()
                 lowered = text.lower()
@@ -952,6 +992,7 @@ class WslFlashManager:
                         encoding="utf-8",
                         errors="replace",
                         timeout=10,
+                        **_hidden_subprocess_kwargs(),
                     )
                     text = (result.stdout or "").strip()
                     lowered = text.lower()
@@ -1430,6 +1471,7 @@ PY"""
                 encoding="utf-8",
                 errors="replace",
                 bufsize=1,
+                **_hidden_subprocess_kwargs(),
             )
             assert process.stdout is not None
             for line in process.stdout:

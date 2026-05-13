@@ -27,6 +27,24 @@ def _is_linux_host() -> bool:
     return platform.system() == "Linux"
 
 
+def _hidden_startupinfo():
+    if not _is_windows_host():
+        return None
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0
+    return startupinfo
+
+
+def _hidden_subprocess_kwargs() -> dict:
+    if not _is_windows_host():
+        return {}
+    return {
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        "startupinfo": _hidden_startupinfo(),
+    }
+
+
 def sudo_authenticate(password: str) -> bool:
     """用给定密码刷新 sudo 凭证。返回 True 表示密码正确且 sudo 已授权。"""
     if not _is_linux_host():
@@ -97,7 +115,8 @@ def find_recovery_device_line() -> str | None:
 
 class JetsonFlasher:
     def __init__(self, product, l4t_version, progress_callback=None, should_cancel=None,
-                 download_dir: Path | None = None, log_formatter=None, skip_verify: bool = False):
+                 download_dir: Path | None = None, log_formatter=None, skip_verify: bool = False,
+                 probe_wsl_cache: bool = False):
         self.product = product
         self.l4t_version = l4t_version
         self.progress_callback = progress_callback
@@ -111,11 +130,13 @@ class JetsonFlasher:
         elif _is_windows_host():
             windows_dir = Path.home() / "jetson_firmware"
             filename = self.firmware_info["filename"]
-            try:
-                from seeed_jetson_develop.wsl_flash import get_wsl_download_dir
-                wsl_dir = get_wsl_download_dir()
-            except Exception:
-                wsl_dir = None
+            wsl_dir = None
+            if probe_wsl_cache:
+                try:
+                    from seeed_jetson_develop.wsl_flash import get_wsl_download_dir
+                    wsl_dir = get_wsl_download_dir()
+                except Exception:
+                    wsl_dir = None
             if (windows_dir / filename).exists():
                 self.download_dir = windows_dir
             elif wsl_dir and (wsl_dir / filename).exists():
@@ -291,6 +312,7 @@ class JetsonFlasher:
              "bash", "-lc", script],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace", bufsize=1,
+            **_hidden_subprocess_kwargs(),
         )
         checkpoints = 0
         output_tail: list[str] = []
@@ -598,6 +620,7 @@ class JetsonFlasher:
                 encoding="utf-8",
                 errors="replace",
                 timeout=10,
+                **_hidden_subprocess_kwargs(),
             )
             return result.stdout.strip() if result.returncode == 0 else None
         except Exception:
@@ -619,7 +642,7 @@ class JetsonFlasher:
             subprocess.run(
                 [_wsl_exe(), "-d", distro, "-u", "root", "--",
                  "bash", "-c", f"echo -n {shlex.quote(content)} > {shlex.quote(wsl_path)}"],
-                capture_output=True, timeout=10,
+                capture_output=True, timeout=10, **_hidden_subprocess_kwargs(),
             )
         except Exception:
             pass
@@ -636,7 +659,7 @@ class JetsonFlasher:
         result = subprocess.run(
             [_wsl_exe(), "-d", distro, "-u", "root", "--",
              "bash", "-c", f"rm -rf {shlex.quote(wsl_path)}"],
-            capture_output=True, timeout=120,
+            capture_output=True, timeout=120, **_hidden_subprocess_kwargs(),
         )
         if result.returncode != 0:
             raise PermissionError(f"wsl rm -rf failed (exit {result.returncode})")

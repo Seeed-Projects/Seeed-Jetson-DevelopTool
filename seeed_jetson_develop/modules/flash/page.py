@@ -136,8 +136,6 @@ def _product_display_name(product: str) -> str:
         return "Orin Nano Dev Kit Super"
 
     return f"reComputer {raw}"
-
-
 def _open_url(url: str):
     from PyQt5.QtCore import QUrl
     QDesktopServices.openUrl(QUrl(url))
