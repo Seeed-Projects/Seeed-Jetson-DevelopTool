@@ -1043,7 +1043,7 @@ class JetsonNetConfigDialog(QDialog):
         self._apply_btn.setEnabled(False)
         self._log.clear()
         self._stop_cmd_thread(wait_ms=300)
-        self._cmd_thread = _SerialCmdThread(port, user, pwd, "ip link show")
+        self._cmd_thread = _SerialCmdThread(port, user, pwd, "ip link show && echo '--- ifconfig ---' && ifconfig 2>/dev/null || ip addr show")
         self._cmd_thread.output.connect(self._log_append)
         self._cmd_thread.done.connect(self._on_scan_done)
         self._cmd_thread.failed.connect(self._on_scan_failed)
@@ -1131,7 +1131,8 @@ class JetsonNetConfigDialog(QDialog):
             f"echo ok applied via ip command runtime only not persistent; "
             f"fi"
         )
-        command = f"echo '{pwd_escaped}' | sudo -S bash -c '{inner}'"
+        verify_cmd = f"echo; echo === ifconfig {iface} ===; ifconfig {iface} 2>/dev/null || ip addr show {iface}"
+        command = f"echo '{pwd_escaped}' | sudo -S bash -c '{inner}' && {verify_cmd}"
         self._apply_btn.setEnabled(False)
         self._apply_btn.setText(_tr("remote.jetson_net_config.applying", "Applying...", self._lang))
         self._apply_status.setText("")
