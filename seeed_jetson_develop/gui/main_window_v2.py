@@ -627,6 +627,11 @@ class MainWindowV2(QMainWindow):
 
         lay.addStretch()
 
+        # 后台运行中的任务面板（torch 安装、app 安装等最小化后显示在此）
+        from .widgets.running_tasks import RunningTaskPanel
+        self._running_task_panel = RunningTaskPanel()
+        lay.addWidget(self._running_task_panel)
+
         # 底部状态 - 呼吸指示灯 + 文字
         status_container = QWidget()
         status_container.setStyleSheet("background:transparent;")
@@ -645,7 +650,8 @@ class MainWindowV2(QMainWindow):
         lay.addWidget(status_container)
 
         # 首次引导入口
-        guide_btn = make_button("?  " + t("onboarding.guide_menu", lang=self._lang))
+        self._guide_btn = make_button("?  " + t("onboarding.guide_menu", lang=self._lang))
+        guide_btn = self._guide_btn
         guide_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
@@ -873,6 +879,8 @@ class MainWindowV2(QMainWindow):
             self._title_label.setText(t("main.title.tool", lang=self._lang))
         if hasattr(self, "_brand_label"):
             self._brand_label.setText(t("main.brand.workspace", lang=self._lang))
+        if hasattr(self, "_guide_btn"):
+            self._guide_btn.setText("?  " + t("onboarding.guide_menu", lang=self._lang))
         self.setWindowTitle(t("main.app_title", lang=self._lang))
         for btn in getattr(self, "_nav_btns", []):
             key = getattr(btn, "_i18n_key", None)
