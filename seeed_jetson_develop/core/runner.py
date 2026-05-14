@@ -214,7 +214,10 @@ class SSHRunner(Runner):
                         return
                     lines.append(s)
                     if on_output:
-                        on_output(s)
+                        try:
+                            on_output(s)
+                        except Exception:
+                            pass
 
                 def _drain_buf(buf: bytes) -> bytes:
                     parts = re.split(rb"[\r\n]+", buf)

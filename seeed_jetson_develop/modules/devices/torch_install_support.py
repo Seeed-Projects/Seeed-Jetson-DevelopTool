@@ -103,14 +103,36 @@ def select_profiles_for_l4t(l4t_release: str) -> list[TorchProfile]:
     return list(TORCH_PROFILES)
 
 
+MINIFORGE_INSTALLER_URL = (
+    "https://github.com/conda-forge/miniforge/releases/latest/download/"
+    "Miniforge3-Linux-aarch64.sh"
+)
+MINIFORGE_INSTALLER_MIRROR_URL = (
+    "https://mirrors.tuna.tsinghua.edu.cn/github-release/conda-forge/miniforge/"
+    "LatestRelease/Miniforge3-Linux-aarch64.sh"
+)
+MINIFORGE_INSTALL_PATH = "$HOME/miniforge3"
+
+
+def _bootstrap_conda_target(profile: TorchProfile) -> TorchTarget:
+    env_name = f"torch-jp-{profile.python_version.replace('.', '')}"
+    return TorchTarget(
+        id=f"install-miniforge:{env_name}",
+        label=f"Install Miniforge + create env {env_name} (Python {profile.python_version})",
+        kind="install-miniforge",
+        python_version=profile.python_version,
+        python_cmd="python3",
+        conda_bin=f"{MINIFORGE_INSTALL_PATH}/bin/conda",
+        env_name=env_name,
+    )
+
+
 def compatible_targets_for_profile(
     targets: list[TorchTarget],
     profile: TorchProfile,
     conda_bin: str = "",
 ) -> list[TorchTarget]:
     matched = [t for t in targets if t.python_version == profile.python_version]
-    if matched:
-        return matched
     if conda_bin:
         env_name = f"torch-jp-{profile.python_version.replace('.', '')}"
         matched.append(
@@ -124,6 +146,7 @@ def compatible_targets_for_profile(
                 env_name=env_name,
             )
         )
+    matched.append(_bootstrap_conda_target(profile))
     return matched
 
 
@@ -133,15 +156,40 @@ def build_install_commands(profile: TorchProfile, target: TorchTarget) -> list[s
         "sudo apt-get install -y python3-pip libopenblas-dev libjpeg-dev zlib1g-dev git",
     ]
 
-    if target.kind == "new-conda":
+    if target.kind == "install-miniforge":
+        conda_bin = target.conda_bin
+        env_name = shlex.quote(target.env_name)
+        primary_url = shlex.quote(MINIFORGE_INSTALLER_URL)
+        mirror_url = shlex.quote(MINIFORGE_INSTALLER_MIRROR_URL)
+        cmds.extend(
+            [
+                f"test -x {conda_bin} && echo '[skip] Miniforge already installed at {MINIFORGE_INSTALL_PATH}' "
+                f"|| (echo '[1/3] Downloading Miniforge installer (~80MB) ...' && "
+                f"(wget --progress=dot:mega --tries=3 --timeout=30 {primary_url} -O /tmp/miniforge.sh "
+                f"|| (echo '[warn] GitHub download failed, trying TUNA mirror...' && "
+                f"wget --progress=dot:mega --tries=3 --timeout=30 {mirror_url} -O /tmp/miniforge.sh)) && "
+                f"echo '[2/3] Running Miniforge installer (silent, ~1-2 min) ...' && "
+                f"bash /tmp/miniforge.sh -b -p {MINIFORGE_INSTALL_PATH} && "
+                f"echo '[3/3] Miniforge installed at {MINIFORGE_INSTALL_PATH}' && "
+                f"rm -f /tmp/miniforge.sh)",
+                f"echo '[conda] creating env {target.env_name} (python={target.python_version})' && "
+                f"({conda_bin} env list | grep -q {env_name} && {conda_bin} env remove -y -n {env_name} || true) && "
+                f"{conda_bin} create -y --quiet -n {env_name} python={target.python_version} pip",
+            ]
+        )
+        exec_prefix = f"{conda_bin} run --no-capture-output -n {env_name} "
+    elif target.kind == "new-conda":
         conda_bin = shlex.quote(target.conda_bin)
         env_name = shlex.quote(target.env_name)
-        cmds.append(f"{conda_bin} create -y -n {env_name} python={target.python_version}")
-        exec_prefix = f"{conda_bin} run -n {env_name} "
+        cmds.append(
+            f"echo '[conda] creating env {target.env_name} (python={target.python_version})' && "
+            f"{conda_bin} create -y -n {env_name} python={target.python_version}"
+        )
+        exec_prefix = f"{conda_bin} run --no-capture-output -n {env_name} "
     elif target.kind == "conda":
         conda_bin = shlex.quote(target.conda_bin)
         env_name = shlex.quote(target.env_name)
-        exec_prefix = f"{conda_bin} run -n {env_name} "
+        exec_prefix = f"{conda_bin} run --no-capture-output -n {env_name} "
     else:
         exec_prefix = ""
 
@@ -151,7 +199,9 @@ def build_install_commands(profile: TorchProfile, target: TorchTarget) -> list[s
     if profile.needs_cusparselt:
         cmds.extend(
             [
-                "wget -q https://developer.download.nvidia.com/compute/cusparselt/0.7.1/local_installers/"
+                "echo '[cusparselt] downloading installer ...' && "
+                "wget --progress=dot:mega --tries=3 --timeout=30 "
+                "https://developer.download.nvidia.com/compute/cusparselt/0.7.1/local_installers/"
                 "cusparselt-local-tegra-repo-ubuntu2204-0.7.1_1.0-1_arm64.deb -O /tmp/cusparselt.deb",
                 "sudo dpkg -i /tmp/cusparselt.deb",
                 "sudo cp /var/cusparselt-local-tegra-repo-ubuntu2204-0.7.1/cusparselt-*-keyring.gpg /usr/share/keyrings/",

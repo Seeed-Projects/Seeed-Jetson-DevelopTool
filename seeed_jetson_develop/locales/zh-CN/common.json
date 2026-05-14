@@ -8,6 +8,7 @@
   "common.username": "用户名",
   "common.password": "密码",
   "common.stop": "停止",
+  "common.run_in_background": "后台运行",
   "common.ask_ai": "询问 AI",
   "common.ai_short": "AI",
   "common.error": "错误",

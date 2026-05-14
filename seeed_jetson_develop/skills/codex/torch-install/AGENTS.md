@@ -1,6 +1,6 @@
 ---
 name: torch-install
-description: Install NVIDIA-optimized PyTorch with CUDA support on reComputer Jetson devices, covering JetPack 5.1.3 and JetPack 6.2 workflows, cuSPARSELt setup, verification, and managing multiple PyTorch versions with Miniconda.
+description: Install NVIDIA-optimized PyTorch with CUDA support on reComputer Jetson devices, covering JetPack 5.x and JetPack 6.x workflows, cuSPARSELt setup, torch/torchvision pairing, probing multiple Python or conda targets, and managing multiple PyTorch versions with Miniconda.
 ---
 
 # Install PyTorch for reComputer Jetson
@@ -17,10 +17,18 @@ Run one phase at a time. After each phase, verify the expected result before con
 cat /etc/nv_tegra_release
 dpkg -l | grep nvidia-jetpack
 python3 --version
+conda env list || true
 ping -c 2 developer.download.nvidia.com
 ```
 
-Expected: JetPack version identified; Python version noted; internet reachable.
+Expected: JetPack version identified; Python version noted; optional conda envs listed; internet reachable.
+
+If multiple compatible Python targets exist, choose the install target first:
+- system Python, if the wheel ABI matches exactly
+- an existing conda env with matching Python version
+- otherwise create a new conda env with the required Python version
+
+Always install with the selected interpreter's `python -m pip`, not raw `pip` / `pip3`.
 
 ## Phase 2A — Install PyTorch on JetPack 5.1.3
 
@@ -59,11 +67,12 @@ sudo apt-get update
 sudo apt-get -y install libcusparselt0 libcusparselt-dev
 ```
 
-Install PyTorch:
+Install PyTorch and matching TorchVision with the selected interpreter:
 
 ```bash
 wget https://developer.download.nvidia.cn/compute/redist/jp/v61/pytorch/torch-2.5.0a0+872d972e41.nv24.08.17622132-cp310-cp310-linux_aarch64.whl
-pip install torch-2.5.0a0+872d972e41.nv24.08.17622132-cp310-cp310-linux_aarch64.whl
+<selected_python> -m pip install torch-2.5.0a0+872d972e41.nv24.08.17622132-cp310-cp310-linux_aarch64.whl
+<selected_python> -m pip install torchvision-0.20.0a0+afc54f7-cp310-cp310-linux_aarch64.whl
 ```
 
 Verify:
@@ -82,11 +91,12 @@ sudo apt-get -y update
 sudo apt-get install -y python3-pip libopenblas-dev
 ```
 
-Browse [NVIDIA PyTorch wheels](https://developer.download.nvidia.cn/compute/redist/jp/) and download the wheel matching your JetPack and Python version:
+Browse [NVIDIA PyTorch wheels](https://developer.download.nvidia.cn/compute/redist/jp/) and download the wheel matching your JetPack and Python version. If multiple supported torch versions are available for the current JetPack release, present those options to the user before installing:
 
 ```bash
 wget <wheel_url>
-pip install <wheel_filename>.whl
+<selected_python> -m pip install <wheel_filename>.whl
+<selected_python> -m pip install <matching_torchvision>.whl
 ```
 
 Verify:
@@ -124,7 +134,7 @@ conda activate torch_2.0
 | Symptom | Likely cause | Suggested fix |
 |---|---|---|
 | `torch.cuda.is_available()` returns `False` | Wrong wheel for JetPack version | Verify JetPack version and download matching wheel |
-| `pip install` fails with version conflict | Python version mismatch | Check `python3 --version` matches wheel (cp38/cp310) |
+| `pip install` fails with version conflict | Python version mismatch | Check the selected interpreter version matches the wheel tag (cp38/cp310) |
 | `libopenblas` not found | Missing dependency | `sudo apt-get install libopenblas-dev` |
 | cuSPARSELt install fails (JP6) | Wrong Ubuntu version or arch | Verify Ubuntu 22.04 aarch64 on JetPack 6 |
 | `wget` download fails | Network issue or URL changed | Check connectivity; browse NVIDIA redist page for updated URL |

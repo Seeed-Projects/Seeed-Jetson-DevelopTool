@@ -23,7 +23,9 @@ from seeed_jetson_develop.gui.theme import (
     pt as _pt, make_label as _lbl, make_button as _btn,
     make_card as _card, make_input_card as _input_card,
     apply_shadow as _shadow, DropdownButton, input_qss,
+    show_warning_message as _show_warning_message,
 )
+from seeed_jetson_develop.core.platform_detect import is_jetson
 from seeed_jetson_develop.modules.remote.jetson_init import open_jetson_init_dialog
 from .diagnostics import DIAG_ITEMS, PERIPH_ITEMS, run_all, run_periph, collect_info
 from .torch_install_support import (
@@ -353,16 +355,21 @@ class _TorchInstallDialog(QDialog):
         self._start_btn = _btn(t("devices.torch_install.start_btn", lang=lang), primary=True)
         self._stop_btn  = _btn(t("devices.torch_install.stop_btn", lang=lang))
         self._stop_btn.setEnabled(False)
+        self._bg_btn    = _btn(t("common.run_in_background", lang=lang))
+        self._bg_btn.setEnabled(False)
         close_btn = _btn(t("common.close", lang=lang))
         btn_row.addWidget(self._start_btn)
         btn_row.addWidget(self._stop_btn)
+        btn_row.addWidget(self._bg_btn)
         btn_row.addStretch()
         btn_row.addWidget(close_btn)
 
         self._start_btn.clicked.connect(self._start)
         self._stop_btn.clicked.connect(self._stop)
+        self._bg_btn.clicked.connect(self._send_to_background)
         close_btn.clicked.connect(self.close)
         self._start_btn.setEnabled(False)
+        self._task_handle = None
         self._probe_targets()
 
     def showEvent(self, event):
@@ -490,27 +497,93 @@ PY"""
         self._start_btn.setEnabled(True)
 
     def _start(self):
+        from seeed_jetson_develop.gui.widgets.running_tasks import task_registry
         self._log.clear()
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
+        self._bg_btn.setEnabled(True)
+        self._cmd_step = 0
+        self._cmd_total = len(self._commands)
         t = _InstallThread(self._commands)
         t.log.connect(self._append)
+        t.log.connect(self._on_log_line)
         t.done.connect(self._on_done)
         t.start()
         self._thread = t
+        profile = self._current_profile()
+        name = "PyTorch install"
+        if profile is not None:
+            name = f"PyTorch {profile.torch_version.split('+')[0].split('a')[0]}"
+        self._task_handle = task_registry.register(
+            name=name,
+            on_restore=self._restore_from_background,
+            on_cancel=self._cancel_from_tray,
+            sub_text=f"Step 1/{self._cmd_total}",
+        )
+
+    def _on_log_line(self, line: str):
+        if not self._task_handle:
+            return
+        line = (line or "").strip()
+        if line.startswith("$ "):
+            self._cmd_step += 1
+            from seeed_jetson_develop.gui.widgets.running_tasks import task_registry
+            task_registry.update(
+                self._task_handle.task_id,
+                sub_text=f"Step {self._cmd_step}/{self._cmd_total}",
+            )
 
     def _stop(self):
         if self._thread:
             self._thread.cancel()
 
+    def _cancel_from_tray(self):
+        """Called when user clicks ✕ on the sidebar tray row."""
+        if self._thread and self._thread.isRunning():
+            self._thread.cancel()
+
+    def _send_to_background(self):
+        if not (self._thread and self._thread.isRunning()):
+            return
+        self.hide()
+
+    def _restore_from_background(self):
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def closeEvent(self, event):
+        # If task is still running, do not actually close — send to background so
+        # the install keeps running and stays visible in the sidebar tray.
+        if self._thread and self._thread.isRunning():
+            self.hide()
+            event.ignore()
+            return
+        # Task finished; if a tray entry is lingering (e.g. failed state), drop it.
+        if self._task_handle:
+            from seeed_jetson_develop.gui.widgets.running_tasks import task_registry
+            task_registry.remove(self._task_handle.task_id)
+            self._task_handle = None
+        super().closeEvent(event)
+
     def _on_done(self, success: bool):
+        from seeed_jetson_develop.gui.widgets.running_tasks import task_registry
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
+        self._bg_btn.setEnabled(False)
         if success:
             self._append(f"\n✅ {_tt('devices.torch_install.success')}")
             self.install_succeeded.emit()
+            if self._task_handle:
+                task_registry.update(
+                    self._task_handle.task_id, status="success", sub_text="done — click to view"
+                )
         else:
             self._append(f"\n❌ {_tt('devices.torch_install.failed')}")
+            if self._task_handle:
+                task_registry.update(
+                    self._task_handle.task_id, status="failed", sub_text="failed — click to view"
+                )
 
 
 # Main page.
@@ -767,14 +840,20 @@ class DevicesPage(PageBase):
                 # Render each "iface ip" line as a separate label in the scroll container
                 ip_layout = self._info_cards.get("_ip_layout")
                 if ip_layout is not None:
-                    # Clear existing items (keep stretch at end)
-                    while ip_layout.count() > 1:
-                        item = ip_layout.takeAt(0)
-                        if item.widget():
-                            item.widget().deleteLater()
+                    # Remove previously-inserted row widgets, but keep the original
+                    # placeholder lbl (index 0) and the trailing stretch — deleting the
+                    # placeholder leaves a dangling QLabel reference that crashes on the
+                    # next _on_info call.
+                    for i in reversed(range(ip_layout.count())):
+                        item = ip_layout.itemAt(i)
+                        w = item.widget() if item else None
+                        if w is not None and w is not lbl:
+                            ip_layout.takeAt(i)
+                            w.deleteLater()
                     raw = info.get("ip", "—").strip()
                     lines = [l.strip() for l in raw.splitlines() if l.strip()] if raw != "—" else []
                     if lines:
+                        lbl.hide()
                         for line in lines:
                             parts = line.split()
                             if len(parts) >= 2:
@@ -795,7 +874,7 @@ class DevicesPage(PageBase):
                     else:
                         lbl.setText("—")
                         lbl.setStyleSheet(f"color:{C_TEXT}; font-size:{_pt(13)}px; background:transparent; font-weight:600;")
-                        ip_layout.insertWidget(0, lbl)
+                        lbl.show()
             else:
                 lbl.setText(info.get(key, "—"))
                 lbl.setStyleSheet(f"color:{C_TEXT}; font-size:{_pt(14)}px; background:transparent; font-weight:600;")
@@ -828,6 +907,15 @@ class DevicesPage(PageBase):
         self._thread = t
 
     def _open_torch_install(self):
+        if not (is_jetson() or isinstance(get_runner(), SSHRunner)):
+            _show_warning_message(
+                self,
+                _tt("devices.torch_install.title"),
+                "PyTorch 安装命令需要在 Jetson 设备上运行。\n请先在 Remote 页面 SSH 连接到 Jetson 后再试。\n\n"
+                "Installing PyTorch requires running on a Jetson device. "
+                "Please connect to a Jetson via SSH (Remote page) first.",
+            )
+            return
         dlg = _TorchInstallDialog(self._l4t_ver, parent=self)
         dlg.install_succeeded.connect(lambda: self._start("diag"))
         _apply_dlg_lang(dlg, self)
