@@ -65,8 +65,8 @@ class AnimationScene(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(16)     # ~60 fps
-        self.setMinimumSize(_onb(380, 420), _onb(230, 270))
-        self.setMaximumSize(_onb(500, 620), _onb(300, 360))
+        self.setMinimumSize(_onb(380, 420), _onb(230, 310))
+        self.setMaximumSize(_onb(500, 620), _onb(300, 380))
 
     def sizeHint(self):
         return _onb_size(480, 280, 560, 320)
@@ -649,8 +649,8 @@ class StepPage(QWidget):
 
         SceneClass = self.SCENES[self.step_index - 1]
         self._scene = SceneClass(self)
-        self._scene.setMinimumSize(300, 220)
-        self._scene.setMaximumSize(460, 290)
+        self._scene.setMinimumSize(420, 310)
+        self._scene.setMaximumSize(500, 380)
         self._scene.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
         layout.addWidget(self._scene, 1, Qt.AlignVCenter)
 
@@ -699,8 +699,9 @@ class StepPage(QWidget):
         self._tip_container = None
         if tip_text != tip_key:
             tip_container = QFrame(content_widget)
-            tip_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+            tip_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.MinimumExpanding)
             tip_container.setMaximumWidth(480)
+            tip_container.setMinimumHeight(96)
             tip_container.setStyleSheet(f"""
                 QFrame {{
                     background: rgba(141,194,31,0.10);
@@ -709,7 +710,7 @@ class StepPage(QWidget):
                 }}
             """)
             tip_layout = QHBoxLayout(tip_container)
-            tip_layout.setContentsMargins(16, 10, 16, 10)
+            tip_layout.setContentsMargins(16, 14, 16, 14)
             tip_layout.setSpacing(10)
             tip_icon, tip_body = self._split_tip_text(tip_text)
             if tip_icon:
@@ -720,7 +721,9 @@ class StepPage(QWidget):
                 self._tip_icon_lbl = tip_icon_lbl
             tip_lbl = make_label(tip_body if tip_icon else tip_text, size=12, color=C_GREEN, wrap=True)
             tip_lbl.setAlignment(Qt.AlignLeft | Qt.AlignTop)
-            tip_lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+            tip_lbl.setMinimumWidth(380)
+            tip_lbl.setMinimumHeight(68)
+            tip_lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.MinimumExpanding)
             tip_layout.addWidget(tip_lbl, 1)
             content_layout.addSpacing(4)
             content_layout.addWidget(tip_container, 0, Qt.AlignLeft)
@@ -857,50 +860,79 @@ class OnboardingGuide(QDialog):
 
         # 标题栏
         header = QWidget(self._container)
-        header.setFixedHeight(_onb(48, 56))
+        header.setFixedHeight(_onb(52, 60))
         header.setStyleSheet("background:transparent; border:none;")
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(_onb(12, 16), 0, _onb(12, 16), 0)
-        header_layout.setSpacing(_onb(8, 10))
+        header_layout.setContentsMargins(_onb(16, 20), _onb(6, 8), _onb(20, 24), _onb(6, 8))
+        header_layout.setSpacing(_onb(10, 14))
 
-        # 语言切换按钮
-        self._lang_btn = QPushButton("EN / 中文", header)
+        # 语言切换 — 极简分段式（无边框，活动项用绿色高亮）
+        self._lang_btn = QLabel(header)
         self._lang_btn.setCursor(Qt.PointingHandCursor)
-        self._lang_btn.setFlat(True)
-        self._lang_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: rgba(255,255,255,0.06);
-                border: 1px solid {C_BORDER_SUBTLE};
-                border-radius: {pt(6)}px;
-                color: {C_TEXT2};
-                font-size: {pt(11)}px;
-                padding: {pt(4)}px {pt(10)}px;
-            }}
-            QPushButton:hover {{
-                background: rgba(255,255,255,0.10);
-                border-color: rgba(255,255,255,0.15);
-                color: {C_TEXT};
-            }}
-        """)
-        self._lang_btn.clicked.connect(self._toggle_language)
-        header_layout.addWidget(self._lang_btn)
+        self._lang_btn.setTextFormat(Qt.RichText)
+        self._lang_btn.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+        self._lang_btn.setStyleSheet(
+            f"QLabel {{ background: transparent; border: none; "
+            f"font-size: {pt(11)}px; padding: {pt(4)}px {pt(6)}px; }}"
+        )
+        self._lang_btn.mousePressEvent = lambda e: self._toggle_language()
+        self._update_lang_label()
+        header_layout.addWidget(self._lang_btn, 0, Qt.AlignVCenter)
         header_layout.addStretch()
 
+        # "不再显示" 复选框 — 极简扁平风（与 EN · 中文 一致）
+        self._dismiss_cb = QCheckBox(t("onboarding.dismiss", lang=self._lang), header)
+        self._dismiss_cb.setCursor(Qt.PointingHandCursor)
+        self._dismiss_cb.setStyleSheet(f"""
+            QCheckBox {{
+                color: {C_TEXT3}; font-size: {pt(11)}px;
+                spacing: {pt(8)}px; background: transparent;
+                border: none; padding: {pt(4)}px {pt(6)}px;
+            }}
+            QCheckBox:hover {{ color: {C_TEXT2}; }}
+            QCheckBox::indicator {{
+                width: {pt(12)}px; height: {pt(12)}px;
+                border-radius: {pt(2)}px; border: 1px solid {C_TEXT3};
+                background: transparent;
+            }}
+            QCheckBox::indicator:hover {{ border-color: {C_TEXT2}; }}
+            QCheckBox::indicator:checked {{
+                background: {C_GREEN}; border-color: {C_GREEN};
+            }}
+        """)
+        self._dismiss_cb.stateChanged.connect(self._on_dismiss_changed)
+        header_layout.addWidget(self._dismiss_cb, 0, Qt.AlignVCenter)
+
+        # "跳过" 链接 — 极简扁平风
+        self._skip_btn = QPushButton(t("onboarding.skip", lang=self._lang), header)
+        self._skip_btn.setCursor(Qt.PointingHandCursor)
+        self._skip_btn.setFlat(True)
+        self._skip_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent; border: none;
+                color: {C_TEXT3}; font-size: {pt(11)}px;
+                padding: {pt(4)}px {pt(6)}px;
+            }}
+            QPushButton:hover {{ color: {C_TEXT}; }}
+        """)
+        self._skip_btn.clicked.connect(self._on_close)
+        header_layout.addWidget(self._skip_btn, 0, Qt.AlignVCenter)
+
+        # 关闭 ✕ — 极简扁平风（无 hover 背景块）
         self._close_btn = QPushButton("✕", header)
-        self._close_btn.setFixedSize(pt(32), pt(32))
         self._close_btn.setCursor(Qt.PointingHandCursor)
+        self._close_btn.setFlat(True)
         self._close_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; color: {C_TEXT3};
-                font-size: {pt(14)}px; font-weight: bold;
-                border: none; border-radius: {pt(6)}px;
+                font-size: {pt(11)}px; font-weight: 400;
+                border: none; padding: {pt(4)}px {pt(6)}px;
             }}
-            QPushButton:hover {{ background: rgba(255,255,255,0.08); color: {C_TEXT}; }}
-            QPushButton:pressed {{ background: rgba(255,255,255,0.12); }}
+            QPushButton:hover {{ color: {C_TEXT}; }}
         """)
         self._close_btn.setToolTip(t("common.close", lang=self._lang))
         self._close_btn.clicked.connect(self._on_close)
-        header_layout.addWidget(self._close_btn)
+        header_layout.addWidget(self._close_btn, 0, Qt.AlignVCenter)
         container_layout.addWidget(header)
 
         # 页面栈
@@ -916,8 +948,8 @@ class OnboardingGuide(QDialog):
         footer = QWidget(self._container)
         footer.setStyleSheet("background:transparent; border:none;")
         footer_layout = QVBoxLayout(footer)
-        footer_layout.setContentsMargins(_onb(32, 40), _onb(10, 14), _onb(32, 40), _onb(18, 22))
-        footer_layout.setSpacing(_onb(10, 12))
+        footer_layout.setContentsMargins(_onb(32, 40), _onb(0, 0), _onb(32, 40), _onb(18, 22))
+        footer_layout.setSpacing(_onb(14, 20))
 
         self._indicator = StepIndicator(TOTAL_STEPS, footer)
         footer_layout.addWidget(
@@ -983,51 +1015,8 @@ class OnboardingGuide(QDialog):
             self._next_btn.setFixedHeight(52)
         footer_layout.addWidget(btn_row)
 
-        # 附加行
-        extra_row = QWidget(footer)
-        extra_row_layout = QHBoxLayout(extra_row)
-        extra_row_layout.setContentsMargins(0, 0, 0, 0)
-        extra_row_layout.setSpacing(0)
-
-        self._dismiss_cb = QCheckBox(t("onboarding.dismiss", lang=self._lang), extra_row)
-        self._dismiss_cb.setCursor(Qt.PointingHandCursor)
-        self._dismiss_cb.setStyleSheet(f"""
-            QCheckBox {{
-                color: {C_TEXT3}; font-size: {pt(11)}px;
-                spacing: {pt(6)}px; background: transparent;
-            }}
-            QCheckBox::indicator {{
-                width: {pt(14)}px; height: {pt(14)}px;
-                border-radius: {pt(3)}px; border: 1px solid {C_TEXT3};
-                background: transparent;
-            }}
-            QCheckBox::indicator:checked {{
-                background: {C_GREEN}; border-color: {C_GREEN};
-            }}
-            QCheckBox::indicator:hover {{ border-color: {C_TEXT2}; }}
-        """)
-        self._dismiss_cb.stateChanged.connect(self._on_dismiss_changed)
-        extra_row_layout.addWidget(self._dismiss_cb)
-        extra_row_layout.addStretch()
-
-        self._skip_btn = QPushButton(t("onboarding.skip", lang=self._lang), extra_row)
-        self._skip_btn.setCursor(Qt.PointingHandCursor)
-        self._skip_btn.setFlat(True)
-        self._skip_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: transparent; border: none;
-                color: {C_TEXT3}; font-size: {pt(11)}px;
-                text-decoration: underline;
-                padding: {pt(4)}px {pt(8)}px;
-            }}
-            QPushButton:hover {{ color: {C_TEXT2}; }}
-        """)
-        self._skip_btn.clicked.connect(self._on_close)
-        extra_row_layout.addWidget(self._skip_btn)
-        footer_layout.addWidget(extra_row)
         if PLATFORM.is_windows:
             footer_layout.setAlignment(self._indicator, Qt.AlignRight)
-            extra_row_layout.setContentsMargins(0, 6, 0, 0)
         container_layout.addWidget(footer)
 
         main_layout = QVBoxLayout(self)
@@ -1057,12 +1046,28 @@ class OnboardingGuide(QDialog):
         for page in self._pages:
             page.stop_animation()
 
+    def _update_lang_label(self):
+        en_color = C_GREEN if self._lang == "en" else C_TEXT3
+        zh_color = C_GREEN if self._lang != "en" else C_TEXT3
+        en_weight = 600 if self._lang == "en" else 400
+        zh_weight = 600 if self._lang != "en" else 400
+        self._lang_btn.setText(
+            f'<span style="color:{en_color}; font-weight:{en_weight};">EN</span>'
+            f'<span style="color:{C_TEXT3};"> · </span>'
+            f'<span style="color:{zh_color}; font-weight:{zh_weight};">中文</span>'
+        )
+
     def _toggle_language(self):
         new_lang = "zh-CN" if self._lang == "en" else "en"
         self._lang = _save_language(new_lang)
         # 刷新所有页面文字
         for page in self._pages:
             page.set_language(self._lang)
+        self._update_lang_label()
+        self._back_btn.setText(t("onboarding.back", lang=self._lang))
+        self._dismiss_cb.setText(t("onboarding.dismiss", lang=self._lang))
+        self._skip_btn.setText(t("onboarding.skip", lang=self._lang))
+        self._close_btn.setToolTip(t("common.close", lang=self._lang))
         self._update_buttons()
 
     def _update_buttons(self):
@@ -1181,6 +1186,7 @@ class OnboardingGuide(QDialog):
         self._dismiss_cb.setText(t("onboarding.dismiss", lang=lang))
         self._skip_btn.setText(t("onboarding.skip", lang=lang))
         self._close_btn.setToolTip(t("common.close", lang=lang))
+        self._update_lang_label()
 
 
 # ──────────────────────────────────────────────────────────────────────────────

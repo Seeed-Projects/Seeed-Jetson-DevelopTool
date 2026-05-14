@@ -651,7 +651,7 @@ def build_page() -> QWidget:
 
     flash_prepare_scene = FlashAnimationWidget()
     flash_prepare_scene.setFixedHeight(160)
-    flash_prepare_scene.setMinimumHeight(pt(120))
+    flash_prepare_scene.setMinimumHeight(160)
     task_lay.addWidget(flash_prepare_scene)
 
     btn_row = QHBoxLayout()
@@ -803,7 +803,7 @@ def build_page() -> QWidget:
 
     flash_scene = FlashAnimationWidget()
     flash_scene.setFixedHeight(160)
-    flash_scene.setMinimumHeight(pt(120))
+    flash_scene.setMinimumHeight(160)
     run_lay.addWidget(flash_scene)
 
     run_btn_row = QHBoxLayout()
@@ -934,14 +934,14 @@ def build_page() -> QWidget:
         flash_cols.setStretch(1, 1)
         if compact_visual:
             flash_device_img.setFixedSize(pt(200), pt(126))
-            flash_prepare_scene.setFixedHeight(pt(120))
-            flash_scene.setFixedHeight(pt(120))
-            flash_done_scene.setFixedHeight(pt(120))
+            flash_prepare_scene.setFixedHeight(160)
+            flash_scene.setFixedHeight(160)
+            flash_done_scene.setFixedHeight(160)
         else:
             flash_device_img.setFixedSize(pt(320), pt(200))
-            flash_prepare_scene.setFixedHeight(pt(160))
-            flash_scene.setFixedHeight(pt(160))
-            flash_done_scene.setFixedHeight(pt(160))
+            flash_prepare_scene.setFixedHeight(180)
+            flash_scene.setFixedHeight(180)
+            flash_done_scene.setFixedHeight(180)
         _rescale_device_image()
         flash_log.setMinimumHeight(pt(120) if compact_visual else pt(200))
 

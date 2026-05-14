@@ -24,7 +24,7 @@ class FlashAnimationWidget(QWidget):
         self._timer = QTimer(self)
         self._timer.setInterval(33)
         self._timer.timeout.connect(self._on_tick)
-        self.setMinimumSize(220, 150)
+        self.setMinimumSize(340, 160)
 
     def set_mode(self, mode: str):
         if mode not in self.MODES:
