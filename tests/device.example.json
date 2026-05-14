@@ -1,0 +1,7 @@
+{
+  "_comment": "Default test credentials for Seeed Jetson dev kits over USB internal network (RNDIS/ECM). 192.168.55.1 is reserved for the USB link and not externally routable. Copy this file to device.json and adjust if your device uses different credentials.",
+  "host": "192.168.55.1",
+  "username": "seeed",
+  "password": "seeed",
+  "port": 22
+}
