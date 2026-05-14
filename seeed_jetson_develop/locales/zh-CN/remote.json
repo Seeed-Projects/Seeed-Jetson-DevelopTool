@@ -58,6 +58,7 @@
   "remote.conn.warn.ip_required": "请先输入设备 IP 或主机名。",
   "remote.conn.btn.connect": "连接",
   "remote.conn.btn.connecting": "连接中...",
+  "remote.conn.btn.terminal": "打开终端",
   "remote.conn.btn.scan": "扫描局域网",
   "remote.conn.btn.scanning": "扫描中...",
   "remote.scan.scanning_lan": "正在扫描局域网...",

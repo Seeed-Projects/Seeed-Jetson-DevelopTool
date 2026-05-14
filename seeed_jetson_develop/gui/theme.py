@@ -169,6 +169,10 @@ def make_label(text: str, size: int = 13, color: str = C_TEXT,
     """创建标签 - 无背景，纯文字"""
     lbl = QLabel(text)
     weight = 700 if bold else 400
+    font = build_app_font()
+    font.setPixelSize(pt(size))
+    font.setWeight(weight)
+    lbl.setFont(font)
     lbl.setStyleSheet(
         f"color:{color}; font-size:{pt(size)}px; font-weight:{weight}; "
         f"background:transparent; border:none;"

@@ -1514,7 +1514,7 @@ def build_page() -> QWidget:
 
     def _detect_recovery():
         try:
-            line = find_recovery_device_line()
+            line = find_recovery_device_line(log=_flash_log_append)
             if line:
                 _flash_log_append(_ft("flash.detect.log_found", line=line))
                 rec_status_lbl.setText(_ft("flash.detect.status_found"))

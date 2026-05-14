@@ -13,6 +13,7 @@ import shutil
 import stat
 import tarfile
 from pathlib import Path
+from typing import Callable
 import requests
 from tqdm import tqdm
 
@@ -79,19 +80,16 @@ def sudo_check_cached() -> bool:
         return False
 
 
-def find_recovery_device_line() -> str | None:
+def find_recovery_device_line(log: Callable[[str], None] | None = None) -> str | None:
     """Return a host-specific recovery-device description line."""
     if _is_windows_host():
         from seeed_jetson_develop.wsl_flash import find_nvidia_apx_device
 
-        device = find_nvidia_apx_device()
+        device = find_nvidia_apx_device(auto_install=True, log=log)
         if device:
             return device.raw.strip()
-<<<<<<< HEAD
         print("[flash] find_recovery_device_line: no NVIDIA APX device found on Windows.")
         print("[flash] Ensure Jetson is in Recovery mode and a DATA USB cable is connected.")
-=======
->>>>>>> e4de0e2 (Initial commit)
         return None
 
     nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623"}

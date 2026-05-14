@@ -30,7 +30,7 @@ from seeed_jetson_develop.gui.theme import (
     C_GREEN, C_GREEN2, C_GREEN_DIM, C_GREEN_GLOW, C_BLUE, C_ORANGE, C_RED,
     C_TEXT, C_TEXT2, C_TEXT3,
     C_BORDER_SUBTLE, C_BORDER_CARD, C_BORDER_FOCUS,
-    pt, make_label, make_button,
+    pt, make_label, make_button, PLATFORM,
     apply_shadow,
 )
 from seeed_jetson_develop.gui.i18n import t, set_language as _save_language
@@ -38,6 +38,18 @@ from seeed_jetson_develop.resources import resolve_runtime_path
 
 TOTAL_STEPS = 5
 ANIM_DURATION = 350  # ms
+
+
+def _onb(linux_px: int, windows_px: int | None = None) -> int:
+    """Keep Linux onboarding metrics unchanged, while allowing a dedicated
+    Windows layout without touching the Linux composition."""
+    if PLATFORM.is_windows:
+        return windows_px if windows_px is not None else linux_px
+    return pt(linux_px)
+
+
+def _onb_size(linux_w: int, linux_h: int, windows_w: int | None = None, windows_h: int | None = None) -> QSize:
+    return QSize(_onb(linux_w, windows_w), _onb(linux_h, windows_h))
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -53,10 +65,11 @@ class AnimationScene(QWidget):
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
         self._timer.start(16)     # ~60 fps
-        self.setMinimumSize(pt(380), pt(230))
+        self.setMinimumSize(_onb(380, 420), _onb(230, 270))
+        self.setMaximumSize(_onb(500, 620), _onb(300, 360))
 
     def sizeHint(self):
-        return QSize(pt(480), pt(280))
+        return _onb_size(480, 280, 560, 320)
 
     def _tick(self):
         self._time = (self._time + self._speed) % 1.0
@@ -507,14 +520,45 @@ class StepPage(QWidget):
         self._lang = lang
         self._scene = None
         self._desc_labels: list[QLabel] = []
+        self._tip_icon_lbl: QLabel | None = None
         self._tip_lbl: QLabel | None = None
         self._tip_container: QFrame | None = None
         self._build_ui()
 
+    @staticmethod
+    def _split_tip_text(tip_text: str) -> tuple[str, str]:
+        parts = tip_text.strip().split(maxsplit=1)
+        if len(parts) == 2 and len(parts[0]) <= 2:
+            return parts[0], parts[1]
+        return "", tip_text
+
+    def _set_tip_text(self, tip_text: str):
+        if self._tip_lbl is None:
+            return
+        if self._tip_icon_lbl is None:
+            self._tip_lbl.setText(tip_text)
+            return
+
+        tip_icon, tip_body = self._split_tip_text(tip_text)
+        self._tip_icon_lbl.setVisible(bool(tip_icon))
+        self._tip_icon_lbl.setText(tip_icon)
+        self._tip_lbl.setText(tip_body if tip_icon else tip_text)
+
+    def _sync_tip_card_layout(self):
+        if self._tip_lbl is None:
+            return
+        self._tip_lbl.updateGeometry()
+        if self._tip_container is not None:
+            self._tip_container.updateGeometry()
+
     def _build_ui(self):
+        if PLATFORM.is_windows:
+            self._build_ui_windows()
+            return
+
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(pt(40), pt(20), pt(40), pt(16))
-        layout.setSpacing(pt(6))
+        layout.setContentsMargins(_onb(40, 54), _onb(20, 24), _onb(40, 54), _onb(16, 18))
+        layout.setSpacing(_onb(6, 10))
         layout.setAlignment(Qt.AlignCenter)
 
         # 标题
@@ -527,7 +571,7 @@ class StepPage(QWidget):
 
         # 分隔装饰线
         sep = QWidget(self)
-        sep.setFixedSize(pt(32), pt(2))
+        sep.setFixedSize(_onb(32, 40), _onb(2, 3))
         sep.setStyleSheet(f"background:{C_GREEN}; border-radius:2px;")
         sep_layout = QHBoxLayout()
         sep_layout.setContentsMargins(0, 0, 0, 0)
@@ -545,8 +589,8 @@ class StepPage(QWidget):
         content_widget = QWidget(self)
         content_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(pt(12), pt(2), pt(12), pt(2))
-        content_layout.setSpacing(pt(5))
+        content_layout.setContentsMargins(_onb(12, 20), _onb(2, 6), _onb(12, 20), _onb(2, 6))
+        content_layout.setSpacing(_onb(5, 9))
         content_layout.setAlignment(Qt.AlignCenter)
 
         # 描述文字（支持多行，但限制最大高度避免过度挤压 scene）
@@ -561,12 +605,15 @@ class StepPage(QWidget):
             lbl.setAlignment(Qt.AlignCenter)
             lbl.setWordWrap(True)
             lbl.setMaximumHeight(pt(60))  # 限制单行描述最大高度
+            if PLATFORM.is_windows:
+                lbl.setMaximumWidth(_onb(420, 520))
             content_layout.addWidget(lbl)
             self._desc_labels.append(lbl)
 
         # 提示标签
         tip_key = f"onboarding.step{self.step_index}.tip"
         tip_text = t(tip_key, lang=self._lang)
+        self._tip_icon_lbl = None
         self._tip_lbl: QLabel | None = None
         self._tip_container: QFrame | None = None
         if tip_text != tip_key:
@@ -584,6 +631,8 @@ class StepPage(QWidget):
             tip_lbl.setWordWrap(True)
             tip_lbl.setAlignment(Qt.AlignCenter)
             tip_lbl.setMaximumHeight(pt(50))
+            if PLATFORM.is_windows:
+                tip_lbl.setMaximumWidth(_onb(360, 500))
             tip_layout.addWidget(tip_lbl)
             content_layout.addWidget(tip_container, alignment=Qt.AlignCenter)
             self._tip_container = tip_container
@@ -592,6 +641,94 @@ class StepPage(QWidget):
         layout.addWidget(content_widget)
         # 底部小 stretch 让内容整体居中，不挤压 scene
         layout.addStretch(1)
+
+    def _build_ui_windows(self):
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(24, 18, 24, 14)
+        layout.setSpacing(16)
+
+        SceneClass = self.SCENES[self.step_index - 1]
+        self._scene = SceneClass(self)
+        self._scene.setMinimumSize(300, 220)
+        self._scene.setMaximumSize(460, 290)
+        self._scene.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        layout.addWidget(self._scene, 1, Qt.AlignVCenter)
+
+        content_widget = QWidget(self)
+        content_widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+        content_widget.setMinimumWidth(340)
+        content_widget.setMaximumWidth(480)
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(0, 18, 0, 12)
+        content_layout.setSpacing(14)
+        content_layout.setAlignment(Qt.AlignTop)
+
+        self._title = make_label(
+            t(f"onboarding.step{self.step_index}.title", lang=self._lang),
+            size=20, bold=True, color=C_TEXT
+        )
+        self._title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self._title.setWordWrap(True)
+        self._title.setMaximumWidth(480)
+        content_layout.addWidget(self._title)
+
+        sep = QWidget(self)
+        sep.setFixedSize(44, 4)
+        sep.setStyleSheet(f"background:{C_GREEN}; border-radius:2px;")
+        content_layout.addWidget(sep, 0, Qt.AlignLeft)
+
+        self._desc_labels = []
+        desc_key_base = f"onboarding.step{self.step_index}.desc"
+        for i in range(1, 6):
+            key = f"{desc_key_base}{i}"
+            text = t(key, lang=self._lang)
+            if text == key:
+                break
+            lbl = make_label(text, size=13, color=C_TEXT2, wrap=True)
+            lbl.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+            lbl.setWordWrap(True)
+            lbl.setMaximumWidth(480)
+            lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+            content_layout.addWidget(lbl)
+            self._desc_labels.append(lbl)
+
+        tip_key = f"onboarding.step{self.step_index}.tip"
+        tip_text = t(tip_key, lang=self._lang)
+        self._tip_icon_lbl = None
+        self._tip_lbl = None
+        self._tip_container = None
+        if tip_text != tip_key:
+            tip_container = QFrame(content_widget)
+            tip_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+            tip_container.setMaximumWidth(480)
+            tip_container.setStyleSheet(f"""
+                QFrame {{
+                    background: rgba(141,194,31,0.10);
+                    border: 1px solid {C_BORDER_FOCUS};
+                    border-radius: 10px;
+                }}
+            """)
+            tip_layout = QHBoxLayout(tip_container)
+            tip_layout.setContentsMargins(16, 10, 16, 10)
+            tip_layout.setSpacing(10)
+            tip_icon, tip_body = self._split_tip_text(tip_text)
+            if tip_icon:
+                tip_icon_lbl = make_label(tip_icon, size=12, color=C_GREEN)
+                tip_icon_lbl.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+                tip_icon_lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+                tip_layout.addWidget(tip_icon_lbl, 0, Qt.AlignTop)
+                self._tip_icon_lbl = tip_icon_lbl
+            tip_lbl = make_label(tip_body if tip_icon else tip_text, size=12, color=C_GREEN, wrap=True)
+            tip_lbl.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+            tip_lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+            tip_layout.addWidget(tip_lbl, 1)
+            content_layout.addSpacing(4)
+            content_layout.addWidget(tip_container, 0, Qt.AlignLeft)
+            self._tip_container = tip_container
+            self._tip_lbl = tip_lbl
+
+        content_layout.addStretch()
+        layout.addWidget(content_widget, 2)
 
     def stop_animation(self):
         if self._scene:
@@ -614,13 +751,14 @@ class StepPage(QWidget):
             tip_key = f"onboarding.step{self.step_index}.tip"
             tip_text = t(tip_key, lang=lang)
             if tip_text != tip_key:
-                self._tip_lbl.setText(tip_text)
+                self._set_tip_text(tip_text)
+                self._sync_tip_card_layout()
 
     def sizeHint(self):
-        return QSize(pt(640), pt(480))
+        return _onb_size(640, 480, 760, 520)
 
     def minimumSizeHint(self):
-        return QSize(pt(560), pt(400))
+        return _onb_size(560, 400, 700, 470)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -708,7 +846,7 @@ class OnboardingGuide(QDialog):
             QFrame#onboardingContainer {{
                 background: {C_BG_LIGHT};
                 border: 1px solid {C_BORDER_CARD};
-                border-radius: {pt(16)}px;
+                border-radius: {_onb(16, 18)}px;
             }}
         """)
         apply_shadow(self._container, blur=30, y=8, alpha=80)
@@ -719,11 +857,11 @@ class OnboardingGuide(QDialog):
 
         # 标题栏
         header = QWidget(self._container)
-        header.setFixedHeight(pt(48))
+        header.setFixedHeight(_onb(48, 56))
         header.setStyleSheet("background:transparent; border:none;")
         header_layout = QHBoxLayout(header)
-        header_layout.setContentsMargins(pt(12), 0, pt(12), 0)
-        header_layout.setSpacing(pt(8))
+        header_layout.setContentsMargins(_onb(12, 16), 0, _onb(12, 16), 0)
+        header_layout.setSpacing(_onb(8, 10))
 
         # 语言切换按钮
         self._lang_btn = QPushButton("EN / 中文", header)
@@ -778,17 +916,20 @@ class OnboardingGuide(QDialog):
         footer = QWidget(self._container)
         footer.setStyleSheet("background:transparent; border:none;")
         footer_layout = QVBoxLayout(footer)
-        footer_layout.setContentsMargins(pt(32), pt(10), pt(32), pt(18))
-        footer_layout.setSpacing(pt(10))
+        footer_layout.setContentsMargins(_onb(32, 40), _onb(10, 14), _onb(32, 40), _onb(18, 22))
+        footer_layout.setSpacing(_onb(10, 12))
 
         self._indicator = StepIndicator(TOTAL_STEPS, footer)
-        footer_layout.addWidget(self._indicator, alignment=Qt.AlignCenter)
+        footer_layout.addWidget(
+            self._indicator,
+            alignment=Qt.AlignRight if PLATFORM.is_windows else Qt.AlignCenter,
+        )
 
         # 按钮行
         btn_row = QWidget(footer)
         btn_row_layout = QHBoxLayout(btn_row)
         btn_row_layout.setContentsMargins(0, 0, 0, 0)
-        btn_row_layout.setSpacing(pt(12))
+        btn_row_layout.setSpacing(_onb(12, 16))
 
         self._back_btn = QPushButton(t("onboarding.back", lang=self._lang), btn_row)
         self._back_btn.setCursor(Qt.PointingHandCursor)
@@ -835,6 +976,11 @@ class OnboardingGuide(QDialog):
         """)
         self._next_btn.clicked.connect(self._on_next)
         btn_row_layout.addWidget(self._next_btn)
+        if PLATFORM.is_windows:
+            self._back_btn.setMinimumWidth(168)
+            self._back_btn.setFixedHeight(44)
+            self._next_btn.setMinimumWidth(220)
+            self._next_btn.setFixedHeight(52)
         footer_layout.addWidget(btn_row)
 
         # 附加行
@@ -879,20 +1025,23 @@ class OnboardingGuide(QDialog):
         self._skip_btn.clicked.connect(self._on_close)
         extra_row_layout.addWidget(self._skip_btn)
         footer_layout.addWidget(extra_row)
+        if PLATFORM.is_windows:
+            footer_layout.setAlignment(self._indicator, Qt.AlignRight)
+            extra_row_layout.setContentsMargins(0, 6, 0, 0)
         container_layout.addWidget(footer)
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(pt(40), pt(40), pt(40), pt(40))
+        main_layout.setContentsMargins(_onb(40, 72), _onb(40, 60), _onb(40, 72), _onb(40, 60))
         main_layout.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(self._container)
 
-        self.setMinimumSize(pt(720), pt(540))
-        self.resize(pt(780), pt(600))
+        self.setMinimumSize(_onb(720, 900), _onb(540, 650))
+        self.resize(_onb(780, 1020), _onb(600, 700))
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, '_container'):
-            margin = pt(40)
+            margin = _onb(40, 60)
             self._container.setGeometry(
                 margin, margin,
                 self.width() - margin * 2,
@@ -1040,7 +1189,13 @@ class OnboardingGuide(QDialog):
 def show_onboarding(parent=None, lang: str = "zh-CN") -> bool:
     dlg = OnboardingGuide(lang=lang, parent=parent)
     if parent:
-        dlg.resize(int(parent.width() * 0.75), int(parent.height() * 0.75))
+        if PLATFORM.is_windows:
+            dlg.resize(
+                max(dlg.minimumWidth(), min(int(parent.width() * 0.58), 1020)),
+                max(dlg.minimumHeight(), min(int(parent.height() * 0.68), 700)),
+            )
+        else:
+            dlg.resize(int(parent.width() * 0.75), int(parent.height() * 0.75))
         geo = parent.geometry()
         dlg.move(
             geo.x() + (geo.width() - dlg.width()) // 2,

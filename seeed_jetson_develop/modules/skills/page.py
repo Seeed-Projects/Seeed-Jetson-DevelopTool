@@ -795,6 +795,7 @@ class SkillsPage(PageBase):
         # Top row: emoji icon | name + badges | duration
         top_row = QHBoxLayout()
         top_row.setSpacing(6)
+        top_row.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
         icon_lbl = QLabel(cat_icon)
         icon_lbl.setStyleSheet("background:transparent; border:none; padding:0; margin:0;")
@@ -803,14 +804,19 @@ class SkillsPage(PageBase):
 
         name_col = QVBoxLayout()
         name_col.setSpacing(2)
-        name_lbl = QLabel(f'<b style="font-size:{_pt(13)}pt;color:{C_TEXT}">{group.name}</b>')
-        name_lbl.setTextFormat(Qt.RichText)
-        name_lbl.setStyleSheet("QLabel { background:transparent; border:none; padding:0; margin:0; }")
+        name_col.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        name_lbl = QLabel(group.name)
+        name_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        name_lbl.setStyleSheet(
+            f"QLabel {{ background:transparent; border:none; padding:0; margin:0;"
+            f" color:{C_TEXT}; font-size:{_pt(13)}pt; font-weight:700; }}"
+        )
         name_lbl.setContentsMargins(0, 0, 0, 0)
         name_col.addWidget(name_lbl)
 
         badge_row = QHBoxLayout()
         badge_row.setSpacing(4)
+        badge_row.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         if group.verified:
             badge = QLabel(_t("skills.badge.verified"))
             badge.setStyleSheet(f"background:rgba(141,194,31,0.15); color:{C_GREEN}; border:none; border-radius:4px; padding:1px 6px; font-size:{_pt(9)}pt; font-weight:700;")
@@ -959,10 +965,14 @@ class SkillsPage(PageBase):
                         icon_lbl = QLabel(icon)
                         icon_lbl.setStyleSheet("background:transparent; border:none;")
                         set_emoji_font_for_label(icon_lbl, size_pt=14)
-                        cat_text_lbl = _lbl(f"  {_cat_text(cname)}", 14, C_TEXT2, bold=True)
-                        cat_text_lbl.setStyleSheet("background:transparent; border:none;")
-                        cnt_lbl = _lbl("  " + _t("skills.count.items_short", count=cnt), 10, C_TEXT3)
-                        cnt_lbl.setStyleSheet("background:transparent; border:none;")
+                        cat_text_lbl = _lbl(f"  {_cat_text(cname)}", 14, C_TEXT, bold=True)
+                        cat_text_lbl.setStyleSheet(
+                            f"color:{C_TEXT}; background:transparent; border:none;"
+                        )
+                        cnt_lbl = _lbl("  " + _t("skills.count.items_short", count=cnt), 10, C_TEXT2)
+                        cnt_lbl.setStyleSheet(
+                            f"color:{C_TEXT2}; background:transparent; border:none;"
+                        )
                         tr = QHBoxLayout()
                         tr.setSpacing(6)
                         tr.addWidget(icon_lbl)
