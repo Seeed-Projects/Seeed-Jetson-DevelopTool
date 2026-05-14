@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 from dataclasses import dataclass
 from typing import Callable
 from seeed_jetson_develop.core.runner import Runner
@@ -96,8 +97,14 @@ def _net(rc, out):
     return ("Normal", "ok") if rc == 0 else ("Unreachable", "error")
 
 def _torch(rc, out):
-    if rc == 0 and "True" in out:  return ("CUDA Available", "ok")
-    if rc == 0:                    return ("CPU Only", "warn")
+    # _TORCH_PROBE_CMD prints a line like "CUDA @ <python>" or "CPU @ <python>" on success,
+    # or "MISSING" on failure. Scan all output lines (not just the first) because over a
+    # serial console the long for-loop command is line-wrapped and its echoed fragments
+    # appear before the real output.
+    for line in out.splitlines():
+        s = line.strip()
+        if s.startswith("CUDA @"): return ("CUDA Available", "ok")
+        if s.startswith("CPU @"):  return ("CPU Only", "warn")
     return ("Not Installed", "error")
 
 def _docker(rc, out):
@@ -106,10 +113,99 @@ def _jtop(rc, out):
     return ("Installed", "ok") if rc == 0 and out.strip() else ("Not Installed", "warn")
 
 def _camera(rc, out):
-    devices = [l for l in out.splitlines() if l.strip()]
+    devices = []
+    seen = set()
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if re.fullmatch(r"/dev/video\d+", line) and line not in seen:
+            seen.add(line)
+            devices.append(line)
     if rc == 0 and devices:
         return (f"Found {len(devices)}", "ok")
     return ("Not Detected", "warn")
+
+def _video_device_enum_cmd(*, usb_only: bool) -> str:
+    usb_flag = "True" if usb_only else "False"
+    return rf"""python3 - <<'PY'
+import glob
+import os
+import struct
+import sys
+
+try:
+    import fcntl
+except Exception:
+    sys.exit(1)
+
+USB_ONLY = {usb_flag}
+VIDIOC_QUERYCAP = 0x80685600
+V4L2_CAP_VIDEO_CAPTURE = 0x00000001
+V4L2_CAP_VIDEO_CAPTURE_MPLANE = 0x00001000
+V4L2_CAP_DEVICE_CAPS = 0x80000000
+
+def c_string(buf, start, end):
+    return bytes(buf[start:end]).split(b'\0', 1)[0].decode(errors='ignore')
+
+def query_caps(dev):
+    with open(dev, 'rb', buffering=0) as f:
+        buf = bytearray(104)
+        fcntl.ioctl(f.fileno(), VIDIOC_QUERYCAP, buf, True)
+    driver = c_string(buf, 0, 16)
+    card = c_string(buf, 16, 48)
+    bus_info = c_string(buf, 48, 80)
+    capabilities = struct.unpack_from('I', buf, 84)[0]
+    device_caps = struct.unpack_from('I', buf, 88)[0]
+    caps = device_caps if (capabilities & V4L2_CAP_DEVICE_CAPS) else capabilities
+    return driver, card, bus_info, caps
+
+def is_capture_device(caps):
+    return bool(caps & (V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_VIDEO_CAPTURE_MPLANE))
+
+def sysfs_dir_for_dev(dev):
+    return os.path.realpath(f"/sys/class/video4linux/{{os.path.basename(dev)}}")
+
+def find_usb_root(path):
+    cur = os.path.realpath(path)
+    while cur and cur != "/" and cur != os.path.dirname(cur):
+        if os.path.exists(os.path.join(cur, "idVendor")) and os.path.exists(os.path.join(cur, "idProduct")):
+            return cur
+        cur = os.path.dirname(cur)
+    return ""
+
+def is_usb_camera(dev, driver, bus_info):
+    if driver == "uvcvideo" or bus_info.lower().startswith("usb-"):
+        return True
+    dev_path = os.path.join(sysfs_dir_for_dev(dev), "device")
+    return bool(find_usb_root(dev_path))
+
+def device_key(dev, driver, card, bus_info):
+    usb_root = find_usb_root(os.path.join(sysfs_dir_for_dev(dev), "device"))
+    if usb_root:
+        return ("usb", usb_root)
+    return ("capture", driver, card, bus_info or dev)
+
+seen = set()
+selected = []
+for dev in sorted(glob.glob("/dev/video*")):
+    try:
+        driver, card, bus_info, caps = query_caps(dev)
+    except OSError:
+        continue
+    if not is_capture_device(caps):
+        continue
+    if USB_ONLY and not is_usb_camera(dev, driver, bus_info):
+        continue
+    key = device_key(dev, driver, card, bus_info)
+    if key in seen:
+        continue
+    seen.add(key)
+    selected.append(dev)
+
+for dev in selected:
+    print(dev)
+PY"""
 
 def _disk(rc, out):
     if rc != 0 or not out.strip():
@@ -118,30 +214,53 @@ def _disk(rc, out):
     return (line[:40], "info")
 
 
+# Scan likely python interpreters (system + miniforge/miniconda/anaconda/mambaforge envs + /opt/conda)
+# and return on the first one that successfully imports torch. This is required because the
+# bundled install dialog installs torch into a fresh conda env (e.g. ~/miniforge3/envs/torch-jp-310),
+# not into /usr/bin/python3.
+_PY_CANDIDATES_GLOB = (
+    "/usr/bin/python3 /usr/local/bin/python3 "
+    "$HOME/miniforge3/bin/python $HOME/miniforge3/envs/*/bin/python "
+    "$HOME/miniconda3/bin/python $HOME/miniconda3/envs/*/bin/python "
+    "$HOME/anaconda3/bin/python $HOME/anaconda3/envs/*/bin/python "
+    "$HOME/mambaforge/bin/python $HOME/mambaforge/envs/*/bin/python "
+    "/opt/conda/bin/python /opt/conda/envs/*/bin/python"
+)
+
+
+def python_module_check_cmd(probe_py: str) -> str:
+    """Build a shell command that runs `probe_py` against each candidate python on the device.
+
+    `probe_py` must be a single python expression that prints status on success and raises on failure.
+    Returns the first interpreter's output (rc=0) or echoes MISSING (rc=1) when no interpreter passes.
+    """
+    quoted = shlex.quote(probe_py)
+    return (
+        f"for py in {_PY_CANDIDATES_GLOB}; do "
+        '[ -x "$py" ] || continue; '
+        f'out=$("$py" -c {quoted} 2>/dev/null) || continue; '
+        'printf "%s @ %s\\n" "$out" "$py"; exit 0; '
+        "done; echo MISSING; exit 1"
+    )
+
+
+_TORCH_PROBE_CMD = python_module_check_cmd(
+    'import torch; print("CUDA" if torch.cuda.is_available() else "CPU")'
+)
+
+
 # Quick diagnostics.
 DIAG_ITEMS: list[DiagItem] = [
     DiagItem("network", "🌐", "Network Connectivity",
              "ping -c 1 -W 2 8.8.8.8", _net),
     DiagItem("torch",   "⚡", "GPU / Torch",
-             "python3 -c 'import torch; print(torch.cuda.is_available())'", _torch),
+             _TORCH_PROBE_CMD, _torch),
     DiagItem("docker",  "🐳", "Docker Service",
              "docker ps -q", _docker),
     DiagItem("jtop",    "📊", "jtop Monitor",
              "pip3 show jtop 2>/dev/null | grep -i name || python3 -m jtop --version 2>/dev/null || which jtop 2>/dev/null", _jtop),
     DiagItem("camera",  "📷", "USB Camera",
-             r"""bash -lc '
-primary_nodes=()
-for node in /sys/class/video4linux/video*; do
-  [ -e "$node" ] || continue
-  idx_file="$node/index"
-  if [ -f "$idx_file" ]; then
-    idx="$(cat "$idx_file" 2>/dev/null)"
-    [ "$idx" = "0" ] || continue
-  fi
-  primary_nodes+=("/dev/$(basename "$node")")
-done
-printf "%s\n" "${primary_nodes[@]}"
-'""", _camera),
+             _video_device_enum_cmd(usb_only=True), _camera),
     DiagItem("disk",    "💾", "Boot Disk",
              "lsblk -d -o NAME,SIZE,TYPE | grep disk | head -2", _disk),
 ]
@@ -178,19 +297,7 @@ PERIPH_ITEMS: list[DiagItem] = [
     DiagItem("nvme",      "💾", "NVMe SSD",
              "lsblk -d -o NAME,TYPE 2>/dev/null | grep nvme", _nvme),
     DiagItem("cam_dev",   "📷", "Camera",
-             r"""bash -lc '
-primary_nodes=()
-for node in /sys/class/video4linux/video*; do
-  [ -e "$node" ] || continue
-  idx_file="$node/index"
-  if [ -f "$idx_file" ]; then
-    idx="$(cat "$idx_file" 2>/dev/null)"
-    [ "$idx" = "0" ] || continue
-  fi
-  primary_nodes+=("/dev/$(basename "$node")")
-done
-printf "%s\n" "${primary_nodes[@]}"
-'""", _camera),
+             _video_device_enum_cmd(usb_only=False), _camera),
     DiagItem("hdmi",      "🖥",  "HDMI Display",
              "cat /sys/class/drm/card0*/status 2>/dev/null | head -1", _hdmi),
 ]
@@ -215,7 +322,9 @@ INFO_CMDS: dict[str, str] = {
 def run_all(runner: Runner, on_result: Callable[[str, str, str], None]):
     """Run all quick diagnostics and callback on_result(item_id, status_text, color_key)."""
     for item in DIAG_ITEMS:
-        rc, out = runner.run(item.cmd, timeout=10)
+        # torch probe scans multiple conda envs; allow a longer timeout than the rest
+        timeout = 30 if item.id == "torch" else 10
+        rc, out = runner.run(item.cmd, timeout=timeout)
         status, color = item.parse(rc, _strip_prompts(out))
         on_result(item.id, status, color)
 

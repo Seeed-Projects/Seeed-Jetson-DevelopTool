@@ -1,7 +1,10 @@
 """Device management page with info cards, quick diagnostics, and peripheral checks."""
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+import json
+import shlex
+
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -20,9 +23,15 @@ from seeed_jetson_develop.gui.theme import (
     pt as _pt, make_label as _lbl, make_button as _btn,
     make_card as _card, make_input_card as _input_card,
     apply_shadow as _shadow, DropdownButton, input_qss,
+    show_warning_message as _show_warning_message,
 )
+from seeed_jetson_develop.core.platform_detect import is_jetson
 from seeed_jetson_develop.modules.remote.jetson_init import open_jetson_init_dialog
 from .diagnostics import DIAG_ITEMS, PERIPH_ITEMS, run_all, run_periph, collect_info
+from .torch_install_support import (
+    TorchProfile, TorchTarget,
+    select_profiles_for_l4t, compatible_targets_for_profile, build_install_commands,
+)
 from seeed_jetson_develop.gui.widgets.page_base import PageBase
 
 COLOR_MAP = {
@@ -72,7 +81,21 @@ def _lang() -> str:
 
 
 def _tt(key: str, **kwargs) -> str:
-    return t(key, lang=_lang(), **kwargs)
+    fallbacks = {
+        "devices.torch_install.probing": "Probing Python / conda environments on Jetson...",
+        "devices.torch_install.no_profile": "No compatible PyTorch profile found for this Jetson release.",
+        "devices.torch_install.no_target": "No Python target matching Python {py} was found. Install conda first or create a compatible environment.",
+        "devices.torch_install.target_hint": "Install target: {target}",
+    }
+    text = t(key, lang=_lang(), **kwargs)
+    if text == key:
+        text = fallbacks.get(key, key)
+        if kwargs:
+            try:
+                text = text.format(**kwargs)
+            except Exception:
+                pass
+    return text
 
 
 def _display_status(status: str) -> str:
@@ -201,54 +224,27 @@ class _DiagThread(QThread):
         self.finished_all.emit()
 
 
-# PyTorch install thread.
 class _InstallThread(QThread):
-    log     = pyqtSignal(str)
-    done    = pyqtSignal(bool)
+    log = pyqtSignal(str)
+    done = pyqtSignal(bool)
 
-    _CMDS_JP6 = [
-        "sudo apt-get -y update",
-        "sudo apt-get install -y python3-pip libopenblas-dev",
-        "wget -q https://developer.download.nvidia.com/compute/cusparselt/0.7.1/local_installers/"
-        "cusparselt-local-tegra-repo-ubuntu2204-0.7.1_1.0-1_arm64.deb -O /tmp/cusparselt.deb",
-        "sudo dpkg -i /tmp/cusparselt.deb",
-        "sudo cp /var/cusparselt-local-tegra-repo-ubuntu2204-0.7.1/cusparselt-*-keyring.gpg "
-        "/usr/share/keyrings/",
-        "sudo apt-get update -qq",
-        "sudo apt-get -y install libcusparselt0 libcusparselt-dev",
-        "wget -q https://developer.download.nvidia.cn/compute/redist/jp/v61/pytorch/"
-        "torch-2.5.0a0+872d972e41.nv24.08.17622132-cp310-cp310-linux_aarch64.whl "
-        "-O /tmp/torch_jp6.whl",
-        "pip3 install /tmp/torch_jp6.whl",
-        "python3 -c \"import torch; print('CUDA:', torch.cuda.is_available())\"",
-    ]
-    _CMDS_JP5 = [
-        "sudo apt-get -y update",
-        "sudo apt-get install -y python3-pip libopenblas-dev",
-        "wget -q https://developer.download.nvidia.com/compute/redist/jp/v512/pytorch/"
-        "torch-2.1.0a0+41361538.nv23.06-cp38-cp38-linux_aarch64.whl "
-        "-O /tmp/torch_jp5.whl",
-        "pip3 install /tmp/torch_jp5.whl",
-        "python3 -c \"import torch; print('CUDA:', torch.cuda.is_available())\"",
-    ]
-
-    def __init__(self, l4t: str):
+    def __init__(self, commands: list[str]):
         super().__init__()
-        self._l4t = l4t
+        self._commands = commands
         self._cancel = False
 
-    def cancel(self): self._cancel = True
+    def cancel(self):
+        self._cancel = True
 
     def run(self):
-        cmds = self._CMDS_JP6 if "R36" in self._l4t else self._CMDS_JP5
         runner = get_runner()
-        for cmd in cmds:
+        for cmd in self._commands:
             if self._cancel:
                 self.log.emit(f"⚠ {_tt('devices.torch_install.cancelled')}")
                 self.done.emit(False)
                 return
             self.log.emit(f"\n$ {cmd}")
-            rc, out = runner.run(cmd, timeout=300, on_output=lambda l: self.log.emit(l))
+            rc, _ = runner.run(cmd, timeout=3600, on_output=lambda l: self.log.emit(l))
             if rc != 0:
                 self.log.emit(f"\n✖ {_tt('devices.torch_install.cmd_failed', rc=rc)}")
                 self.done.emit(False)
@@ -264,6 +260,10 @@ class _TorchInstallDialog(QDialog):
         super().__init__(parent)
         self._l4t = l4t
         self._thread = None
+        self._targets: list[TorchTarget] = []
+        self._profiles: list[TorchProfile] = select_profiles_for_l4t(l4t)
+        self._commands: list[str] = []
+        self._conda_bin = ""
         lang = get_language()
         self.setWindowTitle(t("devices.torch_install.title", lang=lang))
         self.setMinimumSize(_pt(640), _pt(480))
@@ -296,8 +296,20 @@ class _TorchInstallDialog(QDialog):
         info_row.addStretch()
         lay.addLayout(info_row)
 
+        self._profile_combo = DropdownButton(max_popup_height=_pt(220))
+        self._profile_combo.currentTextChanged.connect(lambda _text: self._refresh_target_options())
+        lay.addWidget(_lbl("PyTorch / TorchVision", 12, C_TEXT2))
+        lay.addWidget(self._profile_combo)
+
+        self._target_combo = DropdownButton(max_popup_height=_pt(220))
+        self._target_combo.currentTextChanged.connect(lambda _text: self._refresh_preview())
+        lay.addWidget(_lbl("Python Target", 12, C_TEXT2))
+        lay.addWidget(self._target_combo)
+
+        self._env_hint = _lbl("", 11, C_TEXT3, wrap=True)
+        lay.addWidget(self._env_hint)
+
         # Command preview.
-        cmds = _InstallThread._CMDS_JP6 if "R36" in l4t else _InstallThread._CMDS_JP5
         preview = QTextEdit()
         preview.setReadOnly(True)
         preview.setFixedHeight(_pt(120))
@@ -310,8 +322,9 @@ class _TorchInstallDialog(QDialog):
             font-size:{_pt(11)}px;
             padding:12px;
         """)
-        preview.setPlainText("\n".join(f"$ {c}" for c in cmds))
+        preview.setPlainText(_tt("devices.torch_install.probing"))
         lay.addWidget(preview)
+        self._preview = preview
 
         # Log area.
         lay.addWidget(_lbl(t("devices.torch_install.log_label", lang=lang), 12, C_TEXT2))
@@ -342,15 +355,22 @@ class _TorchInstallDialog(QDialog):
         self._start_btn = _btn(t("devices.torch_install.start_btn", lang=lang), primary=True)
         self._stop_btn  = _btn(t("devices.torch_install.stop_btn", lang=lang))
         self._stop_btn.setEnabled(False)
+        self._bg_btn    = _btn(t("common.run_in_background", lang=lang))
+        self._bg_btn.setEnabled(False)
         close_btn = _btn(t("common.close", lang=lang))
         btn_row.addWidget(self._start_btn)
         btn_row.addWidget(self._stop_btn)
+        btn_row.addWidget(self._bg_btn)
         btn_row.addStretch()
         btn_row.addWidget(close_btn)
 
         self._start_btn.clicked.connect(self._start)
         self._stop_btn.clicked.connect(self._stop)
+        self._bg_btn.clicked.connect(self._send_to_background)
         close_btn.clicked.connect(self.close)
+        self._start_btn.setEnabled(False)
+        self._task_handle = None
+        self._probe_targets()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -373,28 +393,197 @@ class _TorchInstallDialog(QDialog):
         self._log.insertPlainText(text + "\n")
         self._log.ensureCursorVisible()
 
+    def _probe_targets(self):
+        runner = get_runner()
+        probe = r"""python3 - <<'PY'
+import json, os, pathlib, shutil, subprocess
+def probe(exe):
+    code = 'import json,sys\\nresult={\"py\":f\"{sys.version_info[0]}.{sys.version_info[1]}\",\"torch\":\"\",\"torchvision\":\"\",\"cuda\":\"\"}\\ntry:\\n import torch\\n result[\"torch\"]=getattr(torch,\"__version__\",\"\")\\n result[\"cuda\"]=str(bool(torch.cuda.is_available()))\\nexcept Exception:\\n pass\\ntry:\\n import torchvision\\n result[\"torchvision\"]=getattr(torchvision,\"__version__\",\"\")\\nexcept Exception:\\n pass\\nprint(json.dumps(result))'
+    p = subprocess.run([exe, '-c', code], text=True, capture_output=True)
+    if p.returncode != 0:
+        return None
+    try:
+        return json.loads((p.stdout or p.stderr or '').strip().splitlines()[-1])
+    except Exception:
+        return None
+targets=[]; seen=set(); conda_bin=''
+for c in ['python3','python3.8','python3.10','python3.11','python3.12','/usr/bin/python3','/usr/bin/python3.8','/usr/bin/python3.10','/usr/local/bin/python3','/usr/local/bin/python3.8','/usr/local/bin/python3.10']:
+    exe = c if c.startswith('/') else (shutil.which(c) or '')
+    if not exe or not pathlib.Path(exe).exists():
+        continue
+    meta = probe(exe)
+    if not meta or ('python', exe) in seen:
+        continue
+    seen.add(('python', exe))
+    targets.append({'id':f'python:{exe}','label':f'System {exe} (Python {meta.get(\"py\", \"\")})','kind':'python','python_version':meta.get('py',''),'python_cmd':exe,'installed_torch':meta.get('torch',''),'installed_torchvision':meta.get('torchvision',''),'cuda_available':meta.get('cuda','')})
+for c in [shutil.which('conda') or '', os.path.expanduser('~/miniconda3/bin/conda'), os.path.expanduser('~/anaconda3/bin/conda'), os.path.expanduser('~/miniforge3/bin/conda'), os.path.expanduser('~/mambaforge/bin/conda'), '/opt/conda/bin/conda', '/usr/local/conda/bin/conda']:
+    if c and pathlib.Path(c).exists():
+        conda_bin = c
+        break
+if conda_bin:
+    p = subprocess.run([conda_bin, 'env', 'list', '--json'], text=True, capture_output=True)
+    envs = json.loads(p.stdout or '{}').get('envs', []) if p.returncode == 0 else []
+    for env_path in envs:
+        env_path = pathlib.Path(env_path)
+        env_name = env_path.name
+        exe = env_path / 'bin' / 'python3'
+        if not exe.exists():
+            exe = env_path / 'bin' / 'python'
+        if not exe.exists():
+            continue
+        meta = probe(str(exe))
+        if not meta or ('conda', env_name) in seen:
+            continue
+        seen.add(('conda', env_name))
+        targets.append({'id':f'conda:{env_name}','label':f'Conda {env_name} (Python {meta.get(\"py\", \"\")})','kind':'conda','python_version':meta.get('py',''),'python_cmd':str(exe),'conda_bin':conda_bin,'env_name':env_name,'installed_torch':meta.get('torch',''),'installed_torchvision':meta.get('torchvision',''),'cuda_available':meta.get('cuda','')})
+print(json.dumps({'conda_bin': conda_bin, 'targets': targets}))
+PY"""
+        rc, out = runner.run(probe, timeout=90)
+        payload = {}
+        if rc == 0 and out.strip():
+            try:
+                payload = json.loads(out.splitlines()[-1])
+            except Exception:
+                payload = {}
+        self._conda_bin = str(payload.get("conda_bin", ""))
+        self._targets = [TorchTarget(**item) for item in payload.get("targets", [])]
+        self._profile_combo.clear()
+        for profile in self._profiles:
+            self._profile_combo.addItem(profile.label, profile)
+        if self._profiles:
+            self._profile_combo.setCurrentIndex(0)
+        else:
+            self._preview.setPlainText(_tt("devices.torch_install.no_profile"))
+
+    def _current_profile(self) -> TorchProfile | None:
+        return self._profile_combo.currentData()
+
+    def _current_target(self) -> TorchTarget | None:
+        return self._target_combo.currentData()
+
+    def _refresh_target_options(self):
+        profile = self._current_profile()
+        self._target_combo.clear()
+        if profile is None:
+            self._start_btn.setEnabled(False)
+            return
+        compatible = compatible_targets_for_profile(self._targets, profile, self._conda_bin)
+        for target in compatible:
+            self._target_combo.addItem(target.label, target)
+        if compatible:
+            self._target_combo.setCurrentIndex(0)
+        else:
+            self._env_hint.setText(_tt("devices.torch_install.no_target", py=profile.python_version))
+            self._preview.setPlainText(_tt("devices.torch_install.no_target", py=profile.python_version))
+            self._start_btn.setEnabled(False)
+
+    def _refresh_preview(self):
+        profile = self._current_profile()
+        target = self._current_target()
+        if profile is None or target is None:
+            self._start_btn.setEnabled(False)
+            return
+        self._commands = build_install_commands(profile, target)
+        installed = []
+        if target.installed_torch:
+            installed.append(f"torch={target.installed_torch}")
+        if target.installed_torchvision:
+            installed.append(f"torchvision={target.installed_torchvision}")
+        if target.cuda_available:
+            installed.append(f"cuda={target.cuda_available}")
+        extra = f" ({', '.join(installed)})" if installed else ""
+        self._env_hint.setText(_tt("devices.torch_install.target_hint", target=target.label + extra))
+        self._preview.setPlainText("\n".join(f"$ {c}" for c in self._commands))
+        self._start_btn.setEnabled(True)
+
     def _start(self):
+        from seeed_jetson_develop.gui.widgets.running_tasks import task_registry
         self._log.clear()
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
-        t = _InstallThread(self._l4t)
+        self._bg_btn.setEnabled(True)
+        self._cmd_step = 0
+        self._cmd_total = len(self._commands)
+        t = _InstallThread(self._commands)
         t.log.connect(self._append)
+        t.log.connect(self._on_log_line)
         t.done.connect(self._on_done)
         t.start()
         self._thread = t
+        profile = self._current_profile()
+        name = "PyTorch install"
+        if profile is not None:
+            name = f"PyTorch {profile.torch_version.split('+')[0].split('a')[0]}"
+        self._task_handle = task_registry.register(
+            name=name,
+            on_restore=self._restore_from_background,
+            on_cancel=self._cancel_from_tray,
+            sub_text=f"Step 1/{self._cmd_total}",
+        )
+
+    def _on_log_line(self, line: str):
+        if not self._task_handle:
+            return
+        line = (line or "").strip()
+        if line.startswith("$ "):
+            self._cmd_step += 1
+            from seeed_jetson_develop.gui.widgets.running_tasks import task_registry
+            task_registry.update(
+                self._task_handle.task_id,
+                sub_text=f"Step {self._cmd_step}/{self._cmd_total}",
+            )
 
     def _stop(self):
         if self._thread:
             self._thread.cancel()
 
+    def _cancel_from_tray(self):
+        """Called when user clicks ✕ on the sidebar tray row."""
+        if self._thread and self._thread.isRunning():
+            self._thread.cancel()
+
+    def _send_to_background(self):
+        if not (self._thread and self._thread.isRunning()):
+            return
+        self.hide()
+
+    def _restore_from_background(self):
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def closeEvent(self, event):
+        # If task is still running, do not actually close — send to background so
+        # the install keeps running and stays visible in the sidebar tray.
+        if self._thread and self._thread.isRunning():
+            self.hide()
+            event.ignore()
+            return
+        # Task finished; if a tray entry is lingering (e.g. failed state), drop it.
+        if self._task_handle:
+            from seeed_jetson_develop.gui.widgets.running_tasks import task_registry
+            task_registry.remove(self._task_handle.task_id)
+            self._task_handle = None
+        super().closeEvent(event)
+
     def _on_done(self, success: bool):
+        from seeed_jetson_develop.gui.widgets.running_tasks import task_registry
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
+        self._bg_btn.setEnabled(False)
         if success:
             self._append(f"\n✅ {_tt('devices.torch_install.success')}")
             self.install_succeeded.emit()
+            if self._task_handle:
+                task_registry.update(
+                    self._task_handle.task_id, status="success", sub_text="done — click to view"
+                )
         else:
             self._append(f"\n❌ {_tt('devices.torch_install.failed')}")
+            if self._task_handle:
+                task_registry.update(
+                    self._task_handle.task_id, status="failed", sub_text="failed — click to view"
+                )
 
 
 # Main page.
@@ -651,14 +840,20 @@ class DevicesPage(PageBase):
                 # Render each "iface ip" line as a separate label in the scroll container
                 ip_layout = self._info_cards.get("_ip_layout")
                 if ip_layout is not None:
-                    # Clear existing items (keep stretch at end)
-                    while ip_layout.count() > 1:
-                        item = ip_layout.takeAt(0)
-                        if item.widget():
-                            item.widget().deleteLater()
+                    # Remove previously-inserted row widgets, but keep the original
+                    # placeholder lbl (index 0) and the trailing stretch — deleting the
+                    # placeholder leaves a dangling QLabel reference that crashes on the
+                    # next _on_info call.
+                    for i in reversed(range(ip_layout.count())):
+                        item = ip_layout.itemAt(i)
+                        w = item.widget() if item else None
+                        if w is not None and w is not lbl:
+                            ip_layout.takeAt(i)
+                            w.deleteLater()
                     raw = info.get("ip", "—").strip()
                     lines = [l.strip() for l in raw.splitlines() if l.strip()] if raw != "—" else []
                     if lines:
+                        lbl.hide()
                         for line in lines:
                             parts = line.split()
                             if len(parts) >= 2:
@@ -679,7 +874,7 @@ class DevicesPage(PageBase):
                     else:
                         lbl.setText("—")
                         lbl.setStyleSheet(f"color:{C_TEXT}; font-size:{_pt(13)}px; background:transparent; font-weight:600;")
-                        ip_layout.insertWidget(0, lbl)
+                        lbl.show()
             else:
                 lbl.setText(info.get(key, "—"))
                 lbl.setStyleSheet(f"color:{C_TEXT}; font-size:{_pt(14)}px; background:transparent; font-weight:600;")
@@ -712,6 +907,15 @@ class DevicesPage(PageBase):
         self._thread = t
 
     def _open_torch_install(self):
+        if not (is_jetson() or isinstance(get_runner(), SSHRunner)):
+            _show_warning_message(
+                self,
+                _tt("devices.torch_install.title"),
+                "PyTorch 安装命令需要在 Jetson 设备上运行。\n请先在 Remote 页面 SSH 连接到 Jetson 后再试。\n\n"
+                "Installing PyTorch requires running on a Jetson device. "
+                "Please connect to a Jetson via SSH (Remote page) first.",
+            )
+            return
         dlg = _TorchInstallDialog(self._l4t_ver, parent=self)
         dlg.install_succeeded.connect(lambda: self._start("diag"))
         _apply_dlg_lang(dlg, self)

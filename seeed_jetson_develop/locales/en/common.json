@@ -8,6 +8,7 @@
   "common.username": "Username",
   "common.password": "Password",
   "common.stop": "Stop",
+  "common.run_in_background": "Run in Background",
   "common.ask_ai": "Ask AI",
   "common.ai_short": "AI",
   "common.error": "Error",

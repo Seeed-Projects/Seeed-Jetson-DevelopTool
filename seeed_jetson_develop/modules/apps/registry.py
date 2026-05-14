@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Optional
 
+from seeed_jetson_develop.modules.devices.diagnostics import python_module_check_cmd
+
 _DATA_DIR = Path(__file__).parent / "data"
 _BASE_DATA = _DATA_DIR / "apps.json"
 _GENERATED_DATA = _DATA_DIR / "jetson_examples.json"
@@ -65,7 +67,7 @@ _DEFAULT_APPS = [
         "category": "CV / Vision",
         "desc": "Real-time object detection for Jetson devices.",
         "skill_id": None,
-        "check_cmd": "python3 -c 'import ultralytics' 2>/dev/null",
+        "check_cmd": python_module_check_cmd("import ultralytics"),
         "install_cmds": [
             "pip3 install ultralytics",
             "python3 -c 'import ultralytics; print(\"YOLOv8:\", ultralytics.__version__)'",
@@ -78,7 +80,7 @@ _DEFAULT_APPS = [
         "category": "LLM",
         "desc": "Local Qwen2 inference optimized for Jetson.",
         "skill_id": "qwen_demo",
-        "check_cmd": "python3 -c 'import transformers' 2>/dev/null",
+        "check_cmd": python_module_check_cmd("import transformers"),
         "install_cmds": None,
     },
     {
@@ -88,7 +90,7 @@ _DEFAULT_APPS = [
         "category": "Robotics",
         "desc": "LeRobot toolkit for robot control and imitation learning.",
         "skill_id": "lerobot",
-        "check_cmd": "python3 -c 'import lerobot' 2>/dev/null",
+        "check_cmd": python_module_check_cmd("import lerobot"),
         "install_cmds": None,
     },
 ]

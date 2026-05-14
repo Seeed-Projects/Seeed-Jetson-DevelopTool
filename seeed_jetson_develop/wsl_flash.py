@@ -154,6 +154,55 @@ def _usbipd_exe() -> str | None:
     return None
 
 
+def _log_usbipd(message: str, log: Callable[[str], None] | None = None):
+    if log:
+        log(message)
+
+
+def ensure_usbipd_ready(log: Callable[[str], None] | None = None) -> str:
+    """Ensure usbipd-win is installed and return the executable path."""
+
+    usbipd = _usbipd_exe()
+    if not usbipd:
+        _log_usbipd("[usbipd] usbipd.exe not found on PATH or Program Files.", log)
+        _log_usbipd("[usbipd] Attempting to install via winget...", log)
+        _log_usbipd("[usbipd] A Windows UAC prompt will appear; click 'Yes' to continue.", log)
+        winget = shutil.which("winget") or "winget"
+        code = _run_elevated(
+            winget,
+            [
+                "install",
+                "--interactive",
+                "--exact",
+                "--id",
+                "dorssel.usbipd-win",
+                "--accept-package-agreements",
+                "--accept-source-agreements",
+            ],
+            timeout=None,
+        )
+        _log_usbipd(f"[usbipd] winget install returned code: {code}", log)
+        if code != 0:
+            raise WslFlashError(f"Failed to install usbipd-win with winget (exit {code}).")
+        usbipd = _usbipd_exe()
+        if not usbipd:
+            raise WslFlashError("usbipd-win was installed, but usbipd.exe is not visible yet. Restart the app.")
+        _log_usbipd("[usbipd] usbipd-win installed successfully.", log)
+    else:
+        _log_usbipd(f"[usbipd] Found: {usbipd}", log)
+
+    version = _run_capture([usbipd, "--version"], timeout=20)
+    text = _completed_text(version).strip()
+    _log_usbipd(f"[usbipd] Version: {text or '(unknown)'}", log)
+
+    match = re.search(r"(\d+)\.(\d+)", text)
+    if match and int(match.group(1)) < 4:
+        _log_usbipd(f"[usbipd] Current version {match.group(1)}.{match.group(2)} < 4. Upgrading...", log)
+        _run_elevated("winget", ["upgrade", "--exact", "--id", "dorssel.usbipd-win"], timeout=None)
+        _log_usbipd("[usbipd] Upgrade complete.", log)
+    return usbipd
+
+
 def _wsl_exe() -> str | None:
     return shutil.which("wsl") or str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "wsl.exe")
 
@@ -271,8 +320,11 @@ def get_wsl_download_dir(distro: str | None = None) -> Path | None:
         return None
 
 
-def list_usb_devices() -> list[UsbDevice]:
-    usbipd = _usbipd_exe()
+def list_usb_devices(
+    auto_install: bool = False,
+    log: Callable[[str], None] | None = None,
+) -> list[UsbDevice]:
+    usbipd = ensure_usbipd_ready(log=log) if auto_install else _usbipd_exe()
     if not usbipd:
         raise WslFlashError("usbipd-win is not installed or not on PATH")
     result = _run_capture([usbipd, "list"], timeout=20)
@@ -297,8 +349,11 @@ def list_usb_devices() -> list[UsbDevice]:
     return devices
 
 
-def find_nvidia_apx_device() -> UsbDevice | None:
-    for device in list_usb_devices():
+def find_nvidia_apx_device(
+    auto_install: bool = False,
+    log: Callable[[str], None] | None = None,
+) -> UsbDevice | None:
+    for device in list_usb_devices(auto_install=auto_install, log=log):
         vid, pid = device.hardware_id.split(":", 1)
         desc = device.description.lower()
         if vid == "0955" and (pid in NVIDIA_APX_IDS or "apx" in desc):
@@ -306,8 +361,11 @@ def find_nvidia_apx_device() -> UsbDevice | None:
     return None
 
 
-def find_nvidia_flash_usb_device() -> UsbDevice | None:
-    for device in list_usb_devices():
+def find_nvidia_flash_usb_device(
+    auto_install: bool = False,
+    log: Callable[[str], None] | None = None,
+) -> UsbDevice | None:
+    for device in list_usb_devices(auto_install=auto_install, log=log):
         vid, pid = device.hardware_id.split(":", 1)
         desc = device.description.lower()
         if vid != "0955":
@@ -527,38 +585,7 @@ class WslFlashManager:
 
     def _ensure_usbipd(self):
         self._log("[STEP 2/7] Checking usbipd-win installation...")
-        usbipd = _usbipd_exe()
-        if not usbipd:
-            self._log("[usbipd] usbipd.exe not found on PATH or Program Files.")
-            self._log("[usbipd] Attempting to install via winget...")
-            self._log("[usbipd] A Windows UAC prompt will appear; click 'Yes' to continue.")
-            winget = shutil.which("winget") or "winget"
-            code = _run_elevated(
-                winget,
-                [
-                    "install",
-                    "--interactive",
-                    "--exact",
-                    "--id",
-                    "dorssel.usbipd-win",
-                    "--accept-package-agreements",
-                    "--accept-source-agreements",
-                ],
-                timeout=None,
-            )
-            self._log(f"[usbipd] winget install returned code: {code}")
-            if code != 0:
-                raise WslFlashError(f"Failed to install usbipd-win with winget (exit {code}).")
-            usbipd = _usbipd_exe()
-            if not usbipd:
-                raise WslFlashError("usbipd-win was installed, but usbipd.exe is not visible yet. Restart the app.")
-            self._log("[usbipd] usbipd-win installed successfully.")
-        else:
-            self._log(f"[usbipd] Found: {usbipd}")
-
-        version = _run_capture([usbipd, "--version"], timeout=20)
-        text = _completed_text(version).strip()
-        self._log(f"[usbipd] Version: {text or '(unknown)'}")
+        ensure_usbipd_ready(log=self._log)
 
         # List all devices for diagnostics
         try:
@@ -573,11 +600,6 @@ class WslFlashManager:
         if usbpcap:
             self._log(f"[WARN] {usbpcap}")
             self._log("[WARN] USBPcap may interfere with usbipd. Consider uninstalling USBPcap if flashing fails.")
-        match = re.search(r"(\d+)\.(\d+)", text)
-        if match and int(match.group(1)) < 4:
-            self._log(f"[usbipd] Current version {match.group(1)}.{match.group(2)} < 4. Upgrading...")
-            _run_elevated("winget", ["upgrade", "--exact", "--id", "dorssel.usbipd-win"], timeout=None)
-            self._log("[usbipd] Upgrade complete.")
         self._log("[STEP 2/7] usbipd-win ready ✓")
 
     def _ensure_kernel_if_needed(self):
