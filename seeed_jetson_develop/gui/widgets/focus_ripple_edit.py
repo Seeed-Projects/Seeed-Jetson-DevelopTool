@@ -38,14 +38,17 @@ class FocusRippleLineEdit(QLineEdit):
             self._timer.start(16)
 
     def _tick(self):
-        step = 0.10
-        if self._target_focus > self._focus_progress:
-            self._focus_progress = min(self._target_focus, self._focus_progress + step)
-        elif self._target_focus < self._focus_progress:
-            self._focus_progress = max(self._target_focus, self._focus_progress - step)
-        else:
-            self._timer.stop()
-        self.update()
+        try:
+            step = 0.10
+            if self._target_focus > self._focus_progress:
+                self._focus_progress = min(self._target_focus, self._focus_progress + step)
+            elif self._target_focus < self._focus_progress:
+                self._focus_progress = max(self._target_focus, self._focus_progress - step)
+            else:
+                self._timer.stop()
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         super().paintEvent(event)

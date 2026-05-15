@@ -74,8 +74,11 @@ class _EmptyStateCanvas(QWidget):
         self._timer.start(16)
 
     def _tick(self):
-        self._time = (self._time + 0.006) % 1.0
-        self.update()
+        try:
+            self._time = (self._time + 0.006) % 1.0
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         painter = QPainter(self)

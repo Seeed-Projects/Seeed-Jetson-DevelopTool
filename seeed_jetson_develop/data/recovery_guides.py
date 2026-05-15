@@ -276,6 +276,8 @@ PRODUCT_GUIDE_MAP = {
     # classic
     "j4012classic": "classic", "j4011classic": "classic",
     "j3011classic": "classic", "j3010classic": "classic",
+    # Orin Nano Super official devkit shares the same recovery procedure as classic J3011
+    "orin-nano-devkit-super": "classic",
     # industrial
     "j4012industrial": "industrial", "j4011industrial": "industrial",
     "j3011industrial": "industrial", "j3010industrial": "industrial",

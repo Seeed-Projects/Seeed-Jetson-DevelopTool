@@ -12,7 +12,7 @@ import sys
 from dataclasses import dataclass
 
 from PyQt5.QtCore import Qt, QRect, QPoint, QPointF, QTimer
-from PyQt5.QtGui import QColor, QFont, QFontDatabase, QPainter, QPen
+from PyQt5.QtGui import QColor, QFont, QFontDatabase, QLinearGradient, QPainter, QPen
 from PyQt5.QtWidgets import (
     QApplication, QDialog, QFrame, QGraphicsDropShadowEffect,
     QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QScrollArea, QWidget, QVBoxLayout,
@@ -225,16 +225,19 @@ class RippleButton(QPushButton):
         super().mouseReleaseEvent(event)
 
     def _tick(self):
-        alive = []
-        for r in self._ripples:
-            r["radius"] += r["speed"]
-            r["opacity"] -= r["fade"]
-            if r["opacity"] > 0:
-                alive.append(r)
-        self._ripples = alive
-        if not alive:
-            self._ripple_timer.stop()
-        self.update()
+        try:
+            alive = []
+            for r in self._ripples:
+                r["radius"] += r["speed"]
+                r["opacity"] -= r["fade"]
+                if r["opacity"] > 0:
+                    alive.append(r)
+            self._ripples = alive
+            if not alive:
+                self._ripple_timer.stop()
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         super().paintEvent(event)
@@ -349,11 +352,10 @@ def make_button(text: str, primary: bool = False,
 
 
 class HoverCard(QFrame):
-    """带悬浮阴影呼吸动画的卡片
+    """带悬浮阴影的卡片
 
-    hover 时阴影扩大+下沉，模拟卡片"浮起"效果。
-    使用 QTimer 逐步修改 QGraphicsDropShadowEffect 属性，
-    每次修改前通过 sip.isdeleted 防御检查，避免 C++ 对象已删导致的崩溃。
+    hover 时阴影直接切换为较大值（无动画过渡），避免 QGraphicsDropShadowEffect
+    与 QTimer 快速重绘在 Windows 下触发 painter 冲突导致段错误。
     """
     def __init__(self, radius: int = 12, with_shadow: bool = True, parent=None):
         super().__init__(parent)
@@ -375,15 +377,6 @@ class HoverCard(QFrame):
             }}
         """)
         self._shadow = None
-        self._shadow_timer = QTimer(self)
-        self._shadow_timer.timeout.connect(self._tick_shadow)
-        # 动画状态
-        self._blur_target = 28.0
-        self._blur_current = 28.0
-        self._y_target = 6.0
-        self._y_current = 6.0
-        self._alpha_target = 80
-        self._alpha_current = 80
         if with_shadow:
             self._setup_shadow()
 
@@ -396,92 +389,18 @@ class HoverCard(QFrame):
         self._shadow_effect = self._shadow  # 兼容 clear_shadow
 
     def enterEvent(self, event):
-        self._blur_target = 48.0
-        self._y_target = 10.0
-        self._alpha_target = 110
-        if not self._shadow_timer.isActive():
-            self._shadow_timer.start(16)
+        if self._shadow is not None:
+            self._shadow.setBlurRadius(42)
+            self._shadow.setOffset(QPointF(0, 10))
+            self._shadow.setColor(QColor(0, 0, 0, 100))
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        self._blur_target = 28.0
-        self._y_target = 6.0
-        self._alpha_target = 80
-        if not self._shadow_timer.isActive():
-            self._shadow_timer.start(16)
+        if self._shadow is not None:
+            self._shadow.setBlurRadius(28)
+            self._shadow.setOffset(QPointF(0, 6))
+            self._shadow.setColor(QColor(0, 0, 0, 80))
         super().leaveEvent(event)
-
-    def _tick_shadow(self):
-        """每帧逐步逼近目标阴影参数，带 C++ 对象存活检查。"""
-        if self._shadow is None:
-            self._shadow_timer.stop()
-            return
-        try:
-            from PyQt5 import sip
-            if sip.isdeleted(self._shadow):
-                self._shadow = None
-                self._shadow_timer.stop()
-                return
-        except Exception:
-            self._shadow_timer.stop()
-            return
-
-        step_blur = 3.0
-        step_y = 0.5
-        step_alpha = 4
-        done = True
-
-        # blurRadius
-        diff = self._blur_target - self._blur_current
-        if abs(diff) > 0.5:
-            self._blur_current += step_blur if diff > 0 else -step_blur
-            # 防止超调
-            if diff > 0 and self._blur_current > self._blur_target:
-                self._blur_current = self._blur_target
-            elif diff < 0 and self._blur_current < self._blur_target:
-                self._blur_current = self._blur_target
-            done = False
-            try:
-                self._shadow.setBlurRadius(int(self._blur_current))
-            except RuntimeError:
-                self._shadow = None
-                self._shadow_timer.stop()
-                return
-
-        # offset y
-        diff_y = self._y_target - self._y_current
-        if abs(diff_y) > 0.1:
-            self._y_current += step_y if diff_y > 0 else -step_y
-            if diff_y > 0 and self._y_current > self._y_target:
-                self._y_current = self._y_target
-            elif diff_y < 0 and self._y_current < self._y_target:
-                self._y_current = self._y_target
-            done = False
-            try:
-                self._shadow.setOffset(QPointF(0, self._y_current))
-            except RuntimeError:
-                self._shadow = None
-                self._shadow_timer.stop()
-                return
-
-        # color alpha
-        diff_a = self._alpha_target - self._alpha_current
-        if abs(diff_a) > 0:
-            self._alpha_current += step_alpha if diff_a > 0 else -step_alpha
-            if diff_a > 0 and self._alpha_current > self._alpha_target:
-                self._alpha_current = self._alpha_target
-            elif diff_a < 0 and self._alpha_current < self._alpha_target:
-                self._alpha_current = self._alpha_target
-            done = False
-            try:
-                self._shadow.setColor(QColor(0, 0, 0, int(self._alpha_current)))
-            except RuntimeError:
-                self._shadow = None
-                self._shadow_timer.stop()
-                return
-
-        if done:
-            self._shadow_timer.stop()
 
 
 def make_card(radius: int = 12, with_shadow: bool = True) -> QFrame:
@@ -574,12 +493,12 @@ class AnimatedTabButton(QPushButton):
         self._apply_style()
 
     def _apply_style(self):
-        bg = "rgba(122,179,23,0.15)" if self._active else "transparent"
+        # 选中态：无背景块，仅用文字颜色 + 底部下划线标识，更 subtle
         color = C_GREEN if self._active else C_TEXT2
-        weight = "600" if self._active else "400"
+        weight = "500" if self._active else "400"
         self.setStyleSheet(f"""
             QPushButton {{
-                background: {bg};
+                background: transparent;
                 color: {color};
                 border: none;
                 border-radius: 0px;
@@ -589,7 +508,7 @@ class AnimatedTabButton(QPushButton):
                 min-height: {pt(36)}px;
                 text-align: center;
             }}
-            QPushButton:hover {{ background: rgba(255,255,255,0.06); color:{C_TEXT}; }}
+            QPushButton:hover {{ background: rgba(255,255,255,0.04); color:{C_TEXT}; }}
         """)
 
     def setActive(self, active: bool):
@@ -602,28 +521,21 @@ class AnimatedTabButton(QPushButton):
             self._timer.start(16)
 
     def _tick(self):
-        step = 0.18
-        if self._target_progress > self._underline_progress:
-            self._underline_progress = min(self._target_progress, self._underline_progress + step)
-        elif self._target_progress < self._underline_progress:
-            self._underline_progress = max(self._target_progress, self._underline_progress - step)
-        else:
-            self._timer.stop()
-        self.update()
+        try:
+            step = 0.18
+            if self._target_progress > self._underline_progress:
+                self._underline_progress = min(self._target_progress, self._underline_progress + step)
+            elif self._target_progress < self._underline_progress:
+                self._underline_progress = max(self._target_progress, self._underline_progress - step)
+            else:
+                self._timer.stop()
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
+        # 下划线由外部 _tab_slider 统一绘制，避免与跨按钮滑块重叠
         super().paintEvent(event)
-        if self._underline_progress < 0.01:
-            return
-        p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
-        w, h = self.width(), self.height()
-        line_w = int(w * 0.55 * self._underline_progress)
-        line_x = (w - line_w) // 2
-        line_y = h - 2
-        alpha = int(200 * self._underline_progress)
-        p.setPen(QPen(QColor(141, 194, 31, alpha), 2, Qt.SolidLine, Qt.RoundCap))
-        p.drawLine(line_x, line_y, line_x + line_w, line_y)
 
 
 def make_tab_button(text: str, active: bool = False) -> "QPushButton":
@@ -646,8 +558,11 @@ class ShinyProgressBar(QProgressBar):
         self.setTextVisible(False)
 
     def _tick(self):
-        self._shine_pos = (self._shine_pos + 0.02) % 1.0
-        self.update()
+        try:
+            self._shine_pos = (self._shine_pos + 0.02) % 1.0
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         p = QPainter(self)

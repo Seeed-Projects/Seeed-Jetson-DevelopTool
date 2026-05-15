@@ -26,8 +26,11 @@ class BreathingLogo(QWidget):
         self.setStyleSheet("background:transparent;")
 
     def _tick(self):
-        self._time = (self._time + 0.012) % 1.0
-        self.update()
+        try:
+            self._time = (self._time + 0.012) % 1.0
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         p = QPainter(self)

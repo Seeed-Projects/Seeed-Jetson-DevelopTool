@@ -1,7 +1,7 @@
 """Skills center page."""
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint, QRect
 from PyQt5.QtGui import QTextCursor
 from PyQt5.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton, QLineEdit,
@@ -590,6 +590,12 @@ class SkillsPage(PageBase):
         self._filter_row.addStretch()
         self._tab_count = len(self._tab_btns)
 
+        # Tab slider indicator (matches ListPageBase)
+        self._tab_slider = QFrame(self._tab_container)
+        self._tab_slider.setFixedHeight(_pt(2))
+        self._tab_slider.setStyleSheet("QFrame { background: rgba(141,194,31,0.45); border-radius: 1px; }")
+        self._tab_slider.hide()
+
         # Count row
         count_row = QHBoxLayout()
         self._count_lbl = _lbl("", 12, C_TEXT3)
@@ -615,11 +621,11 @@ class SkillsPage(PageBase):
 
     def _tab_style(self, active: bool) -> str:
         return (
-            f"QPushButton {{ background:{'rgba(122,179,23,0.15)' if active else 'transparent'};"
+            f"QPushButton {{ background:transparent;"
             f"border:none; border-radius:0px; color:{C_GREEN if active else C_TEXT2};"
-            f"font-size:{_pt(14)}px; font-weight:{'600' if active else '400'};"
+            f"font-size:{_pt(14)}px; font-weight:{'500' if active else '400'};"
             f"padding:6px 16px; min-height:{_pt(32)}px; }}"
-            f"QPushButton:hover {{ background:rgba(255,255,255,0.06); color:{C_TEXT}; }}"
+            f"QPushButton:hover {{ background:rgba(255,255,255,0.04); color:{C_TEXT}; }}"
         )
 
     def _add_tab_btn(self, cat: str):
@@ -634,7 +640,31 @@ class SkillsPage(PageBase):
         self._filter["cat"] = label
         for lbl, b in self._tab_btns.items():
             b.setStyleSheet(self._tab_style(lbl == label))
+        self._animate_tab_slider(label)
         self._rebuild()
+
+    def _animate_tab_slider(self, label: str):
+        btn = self._tab_btns.get(label)
+        if not btn or not self._tab_container:
+            return
+        pos = btn.mapTo(self._tab_container, QPoint(0, 0))
+        target_geo = QRect(pos.x(), pos.y() + btn.height() - _pt(2), btn.width(), _pt(2))
+        if not self._tab_slider.isVisible():
+            self._tab_slider.setGeometry(target_geo)
+            self._tab_slider.show()
+            return
+        from PyQt5.QtCore import QPropertyAnimation, QEasingCurve
+        old_anim = getattr(self._tab_slider, '_anim', None)
+        if old_anim is not None:
+            old_anim.stop()
+            old_anim.deleteLater()
+        anim = QPropertyAnimation(self._tab_slider, b"geometry")
+        anim.setDuration(250)
+        anim.setStartValue(self._tab_slider.geometry())
+        anim.setEndValue(target_geo)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.start()
+        self._tab_slider._anim = anim
 
     # Background loading
 
@@ -657,6 +687,7 @@ class SkillsPage(PageBase):
                 self._filter_row.insertWidget(self._tab_count, b)
                 self._tab_count += 1
         self._rebuild()
+        QTimer.singleShot(50, lambda: self._animate_tab_slider(self._filter.get("cat", _ALL_CATEGORY)))
 
     def _on_load_complete(self, variants: list):
         total = len(self._groups)

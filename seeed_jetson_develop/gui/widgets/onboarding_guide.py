@@ -72,8 +72,11 @@ class AnimationScene(QWidget):
         return _onb_size(480, 280, 560, 320)
 
     def _tick(self):
-        self._time = (self._time + self._speed) % 1.0
-        self.update()
+        try:
+            self._time = (self._time + self._speed) % 1.0
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         painter = QPainter(self)

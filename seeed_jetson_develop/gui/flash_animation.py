@@ -45,8 +45,11 @@ class FlashAnimationWidget(QWidget):
         self.set_progress(ratio)
 
     def _on_tick(self):
-        self._tick = (self._tick + 1) % 10000
-        self.update()
+        try:
+            self._tick = (self._tick + 1) % 10000
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         p = QPainter(self)

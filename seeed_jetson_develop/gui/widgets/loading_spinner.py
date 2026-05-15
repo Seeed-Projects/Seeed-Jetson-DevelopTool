@@ -24,8 +24,11 @@ class LoadingSpinner(QWidget):
         self.setStyleSheet("background:transparent;")
 
     def _tick(self):
-        self._angle = (self._angle + 8) % 360
-        self.update()
+        try:
+            self._angle = (self._angle + 8) % 360
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         p = QPainter(self)

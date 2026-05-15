@@ -39,12 +39,15 @@ class ScanLineOverlay(QWidget):
         self._timer.start(16)
 
     def _tick(self):
-        self._progress += self._step
-        if self._progress >= 1.0:
-            self._progress = 1.0
-            self._timer.stop()
-            self.hide()
-        self.update()
+        try:
+            self._progress += self._step
+            if self._progress >= 1.0:
+                self._progress = 1.0
+                self._timer.stop()
+                self.hide()
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         p = QPainter(self)

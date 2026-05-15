@@ -153,8 +153,7 @@ class ListPageBase(PageBase):
         self._tab_slider.setFixedHeight(_pt(2))
         self._tab_slider.setStyleSheet(f"""
             QFrame {{
-                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-                    stop:0 rgba(141,194,31,0.2), stop:0.5 {C_TEXT}, stop:1 rgba(141,194,31,0.2));
+                background: rgba(141,194,31,0.45);
                 border-radius: {_pt(1)}px;
             }}
         """)

@@ -35,14 +35,17 @@ class AnimatedCheckBox(QCheckBox):
             self._timer.start(16)
 
     def _tick(self):
-        step = 0.18
-        if self._target_progress > self._check_progress:
-            self._check_progress = min(self._target_progress, self._check_progress + step)
-        elif self._target_progress < self._check_progress:
-            self._check_progress = max(self._target_progress, self._check_progress - step)
-        else:
-            self._timer.stop()
-        self.update()
+        try:
+            step = 0.18
+            if self._target_progress > self._check_progress:
+                self._check_progress = min(self._target_progress, self._check_progress + step)
+            elif self._target_progress < self._check_progress:
+                self._check_progress = max(self._target_progress, self._check_progress - step)
+            else:
+                self._timer.stop()
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         p = QPainter(self)

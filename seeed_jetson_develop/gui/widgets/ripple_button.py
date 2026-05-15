@@ -46,16 +46,19 @@ class RippleButton(QPushButton):
 
     def _tick(self):
         """每帧更新所有活跃涟漪。"""
-        alive = []
-        for r in self._ripples:
-            r["radius"] += r["speed"]
-            r["opacity"] -= r["fade"]
-            if r["opacity"] > 0:
-                alive.append(r)
-        self._ripples = alive
-        if not alive:
-            self._timer.stop()
-        self.update()
+        try:
+            alive = []
+            for r in self._ripples:
+                r["radius"] += r["speed"]
+                r["opacity"] -= r["fade"]
+                if r["opacity"] > 0:
+                    alive.append(r)
+            self._ripples = alive
+            if not alive:
+                self._timer.stop()
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         """先绘制按钮本体（QSS 样式），再叠加涟漪层。"""

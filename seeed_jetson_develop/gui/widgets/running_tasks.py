@@ -104,8 +104,11 @@ class _PulseDot(QWidget):
         self.update()
 
     def _tick(self):
-        self._phase = (self._phase + 0.05) % 1.0
-        self.update()
+        try:
+            self._phase = (self._phase + 0.05) % 1.0
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, _ev):
         p = QPainter(self)

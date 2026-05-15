@@ -26,8 +26,11 @@ class BreathingButton(QPushButton):
         self.setCursor(Qt.PointingHandCursor)
 
     def _tick(self):
-        self._time = (self._time + self._speed) % 1.0
-        self.update()
+        try:
+            self._time = (self._time + self._speed) % 1.0
+            self.update()
+        except RuntimeError:
+            pass
 
     def paintEvent(self, event):
         p = QPainter(self)

@@ -654,17 +654,24 @@ class MainWindowV2(QMainWindow):
         guide_btn = self._guide_btn
         guide_btn.setStyleSheet(f"""
             QPushButton {{
-                background: transparent;
-                border: none;
-                color: {C_TEXT3};
+                background: rgba(141,194,31,0.08);
+                border: 1px solid rgba(141,194,31,0.25);
+                color: {C_GREEN};
                 font-size: {pt(10)}px;
-                text-align: left;
-                padding: 4px 0 4px {pt(20)}px;
-                border-radius: 4px;
+                font-weight: 600;
+                text-align: center;
+                padding: 6px 0;
+                border-radius: 6px;
+                margin: 0 {pt(16)}px;
             }}
             QPushButton:hover {{
-                background: rgba(141,194,31,0.12);
+                background: rgba(141,194,31,0.18);
+                border-color: rgba(141,194,31,0.45);
                 color: {C_GREEN};
+            }}
+            QPushButton:pressed {{
+                background: rgba(141,194,31,0.25);
+                border-color: rgba(141,194,31,0.55);
             }}
         """)
         guide_btn.clicked.connect(self._show_onboarding)
