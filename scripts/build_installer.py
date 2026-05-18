@@ -1243,6 +1243,45 @@ def ensure_pyinstaller(python_exe: str = sys.executable) -> Optional[str]:
     return None
 
 
+def ensure_build_package(python_exe: str = sys.executable) -> Optional[str]:
+    check_cmd = [python_exe, "-m", "build", "--version"]
+    try:
+        subprocess.run(
+            check_cmd,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=ROOT.parent,
+        )
+        return None
+    except (OSError, subprocess.CalledProcessError):
+        pass
+
+    print()
+    print(f"Python package 'build' is not available for {python_exe}. Installing with pip...",
+          flush=True)
+    try:
+        subprocess.run(
+            [python_exe, "-m", "pip", "install", "build"],
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        return f"build package auto-install failed: {exc}"
+
+    try:
+        subprocess.run(
+            check_cmd,
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=ROOT.parent,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return "The 'build' package was installed but is still not available."
+
+    return None
+
+
 def _python_has_tkinter(python_exe: str) -> bool:
     try:
         subprocess.run(
@@ -1364,6 +1403,10 @@ def build_windows_exe(installer_source: Path) -> Tuple[Optional[Path], Optional[
 
 def build_python_distributions() -> Tuple[Path, Path]:
     """Build the PyPI artifacts and fail fast if the wheel is missing."""
+    build_error = ensure_build_package(sys.executable)
+    if build_error:
+        raise RuntimeError(build_error)
+
     cmd = [
         sys.executable,
         "-m",
@@ -1372,13 +1415,35 @@ def build_python_distributions() -> Tuple[Path, Path]:
         "--wheel",
         "--outdir",
         str(DIST),
+        str(ROOT),
     ]
     try:
-        subprocess.run(cmd, check=True, cwd=ROOT)
+        subprocess.run(cmd, check=True, cwd=ROOT.parent)
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError(
-            f"Python package build failed with exit code {exc.returncode}."
-        ) from exc
+        if sys.platform != "win32":
+            raise RuntimeError(
+                f"Python package build failed with exit code {exc.returncode}."
+            ) from exc
+
+        print()
+        print("Standard `python -m build` failed on Windows. Falling back to setup.py sdist/bdist_wheel...",
+              flush=True)
+        fallback_cmd = [
+            sys.executable,
+            "setup.py",
+            "sdist",
+            "bdist_wheel",
+            "--dist-dir",
+            str(DIST),
+        ]
+        try:
+            subprocess.run(fallback_cmd, check=True, cwd=ROOT)
+        except subprocess.CalledProcessError as fallback_exc:
+            raise RuntimeError(
+                "Python package build failed with both `python -m build` "
+                f"(exit {exc.returncode}) and setup.py fallback "
+                f"(exit {fallback_exc.returncode})."
+            ) from fallback_exc
 
     dist_name = PACKAGE_NAME.replace("-", "_")
     sdist_path = DIST / f"{dist_name}-{APP_VERSION}.tar.gz"
