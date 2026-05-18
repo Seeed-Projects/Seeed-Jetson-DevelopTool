@@ -99,6 +99,24 @@ def _decode_output(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _hidden_startupinfo():
+    if os.name != "nt":
+        return None
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0
+    return startupinfo
+
+
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    return {
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        "startupinfo": _hidden_startupinfo(),
+    }
+
+
 def _run_capture(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
     proc.stdout = _decode_output(proc.stdout).encode("utf-8", errors="replace")
@@ -110,6 +128,29 @@ def _completed_text(proc: subprocess.CompletedProcess) -> str:
     if isinstance(out, bytes):
         return out.decode("utf-8", errors="replace")
     return str(out)
+
+
+def _usbipd_state_attached(state: str) -> bool:
+    return state.strip().lower().startswith("attached")
+
+
+def _usbipd_state_shared(state: str) -> bool:
+    lower = state.strip().lower()
+    return _usbipd_state_attached(state) or lower == "shared" or lower.startswith("shared ")
+
+
+def _usbipd_state_needs_bind(state: str) -> bool:
+    return "not shared" in state.strip().lower()
+
+
+def _looks_like_nfs_mount_failure(text: str) -> bool:
+    lower = (text or "").lower()
+    return (
+        "either the device cannot mount the nfs server on the host" in lower
+        or "error: nfs mount failure during flashing" in lower
+        or ("flash failure" in lower and "nfs server" in lower)
+        or "check your network setting (vpn, firewall" in lower
+    )
 
 
 def _ps_single_quote(value: str) -> str:
@@ -420,6 +461,7 @@ class WslFlashManager:
         self._attach_state_stop = threading.Event()
         self._attach_state_thread: threading.Thread | None = None
         self._last_host_attach_state: str | None = None
+        self._last_wsl_ready_error: str | None = None
 
     def _prefer_archive_distro(self):
         archive = self.download_dir / self.firmware_info["filename"]
@@ -544,12 +586,16 @@ class WslFlashManager:
                     "was registered successfully; continuing."
                 )
 
-        self._log(f"[WSL] Waiting for {self.distro} to become ready (timeout=90s)...")
-        ready = self._wait_for_wsl_ready(timeout=90)
+        self._log(f"[WSL] Waiting for {self.distro} to become ready (timeout=180s)...")
+        ready = self._wait_for_wsl_ready(timeout=180)
         if not ready:
+            detail = self._last_wsl_ready_error or f"{self.distro} is installed but not responding."
             raise WslFlashError(
-                f"{self.distro} is installed but not initialized. "
-                "Open it once from the Start menu, finish first-time setup, then retry."
+                f"{detail} "
+                f"If Ubuntu first-time setup has not completed, open {self.distro} once "
+                "from the Start menu and finish setup. "
+                f"If the distro is stuck, run `wsl --terminate {self.distro}` or "
+                "`wsl --shutdown`, then retry."
             )
         self._log(f"[STEP 1/7] WSL distro ready: {self.distro} ✓")
 
@@ -571,17 +617,191 @@ class WslFlashManager:
             time.sleep(2)
         return latest
 
+    def _restart_unresponsive_wsl_distro(self) -> bool:
+        wsl = _wsl_exe()
+        if not wsl:
+            return False
+        self._log(f"[WSL] {self.distro} is not responding. Restarting this distro and retrying...")
+        try:
+            result = subprocess.run(
+                [wsl, "--terminate", self.distro],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=20,
+                **_hidden_subprocess_kwargs(),
+            )
+        except subprocess.TimeoutExpired:
+            self._log(f"[WSL] Timed out while terminating {self.distro}.")
+            return False
+        except Exception as e:
+            self._log(f"[WSL] Failed to terminate {self.distro}: {e}")
+            return False
+
+        output = _decode_output(result.stdout or b"").strip()
+        if result.returncode != 0:
+            if output:
+                self._log(f"[WSL] terminate output: {output.splitlines()[-1]}")
+            return False
+        time.sleep(3)
+        return True
+
     def _wait_for_wsl_ready(self, timeout: int) -> bool:
         deadline = time.time() + timeout
+        attempt = 0
+        restarted = False
+        self._last_wsl_ready_error = None
         while time.time() < deadline:
-            ready = self._run_wsl(["bash", "-lc", "echo SEEED_WSL_READY"], timeout=30)
-            if ready.returncode == 0 and "SEEED_WSL_READY" in _completed_text(ready):
+            attempt += 1
+            remaining = max(15, int(deadline - time.time()))
+            probe_timeout = min(60, remaining)
+            try:
+                ready = self._run_wsl(["sh", "-c", "echo SEEED_WSL_READY"], timeout=probe_timeout)
+            except subprocess.TimeoutExpired:
+                self._last_wsl_ready_error = (
+                    f"{self.distro} did not respond to WSL commands within {probe_timeout}s."
+                )
+                self._log(
+                    f"[WSL] Ready probe timed out after {probe_timeout}s "
+                    f"(attempt {attempt})."
+                )
+                if not restarted and self._restart_unresponsive_wsl_distro():
+                    restarted = True
+                    continue
+                time.sleep(3)
+                continue
+            except Exception as e:
+                self._last_wsl_ready_error = f"WSL ready probe failed: {e}"
+                self._log(f"[WSL] Ready probe failed: {e}")
+                time.sleep(3)
+                continue
+
+            output = _completed_text(ready).strip()
+            if ready.returncode == 0 and "SEEED_WSL_READY" in output:
+                self._last_wsl_ready_error = None
                 return True
+            if output:
+                self._last_wsl_ready_error = (
+                    f"{self.distro} returned exit code {ready.returncode} while starting."
+                )
+                self._log(f"[WSL] Ready probe output: {output.splitlines()[-1]}")
             time.sleep(3)
         return False
 
     def _run_wsl(self, args: list[str], timeout: int | None = None) -> subprocess.CompletedProcess:
         return _run_capture([_wsl_exe(), "-d", self.distro, "-u", "root", "--", *args], timeout=timeout or 60)
+
+    def _log_diagnostic_output(self, title: str, output: str, returncode: int | None = None, max_lines: int = 24):
+        header = f"[STEP 6/7] {title}"
+        if returncode is not None:
+            header += f" (exit={returncode})"
+        self._log(header)
+        lines = [line.rstrip() for line in (output or "").splitlines() if line.strip()]
+        if not lines:
+            self._log("[STEP 6/7]   (no output)")
+            return
+        for line in lines[:max_lines]:
+            self._log(f"[STEP 6/7]   {line}")
+        if len(lines) > max_lines:
+            self._log(f"[STEP 6/7]   ... {len(lines) - max_lines} more line(s) omitted")
+
+    def _run_wsl_diag(self, title: str, command: str, timeout: int = 20):
+        try:
+            result = self._run_wsl(["bash", "-lc", command], timeout=timeout)
+            self._log_diagnostic_output(title, _completed_text(result), result.returncode)
+        except Exception as e:
+            self._log(f"[STEP 6/7] {title} failed: {e}")
+
+    def _run_host_diag(self, title: str, args: list[str], timeout: int = 15):
+        try:
+            result = subprocess.run(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                **_hidden_subprocess_kwargs(),
+            )
+            self._log_diagnostic_output(title, result.stdout or "", result.returncode)
+        except Exception as e:
+            self._log(f"[STEP 6/7] {title} failed: {e}")
+
+    def _collect_nfs_failure_diagnostics(self, tail_text: str):
+        self._log("[STEP 6/7] ROOT CAUSE: NFS mount failure during flashing.")
+        self._log("[STEP 6/7] The device booted into initrd flash mode, but could not mount the host NFS share.")
+        self._log("[STEP 6/7] Running automatic diagnostics based on Seeed's NFS troubleshooting checklist...")
+        self._log("[STEP 6/7] Note: WSL is less stable than a native Ubuntu host for NFS-based flashing.")
+
+        match = re.search(r"Debug log saved to (\S+)", tail_text)
+        if match:
+            debug_log = match.group(1).rstrip(".")
+            self._run_wsl_diag(
+                f"NVIDIA debug log tail: {debug_log}",
+                f"tail -n 80 {shlex.quote(debug_log)} 2>/dev/null || "
+                f"sed -n '1,80p' {shlex.quote(debug_log)} 2>/dev/null || "
+                f"echo 'debug log not found: {debug_log}'",
+                timeout=20,
+            )
+
+        self._run_wsl_diag(
+            "WSL NFS services",
+            "service rpcbind start >/dev/null 2>&1 || true; "
+            "service nfs-kernel-server start >/dev/null 2>&1 || true; "
+            "service rpcbind status 2>&1 || true; echo '---'; "
+            "service nfs-kernel-server status 2>&1 || true",
+            timeout=20,
+        )
+        self._run_wsl_diag(
+            "WSL exported NFS shares",
+            "exportfs -v 2>&1 || echo 'exportfs unavailable'",
+            timeout=15,
+        )
+        self._run_wsl_diag(
+            "WSL rpcbind/NFS listening ports",
+            "ss -ltnup 2>&1 | grep -E ':(111|2049)\\b' || echo 'rpcbind/NFS ports are not listening'",
+            timeout=15,
+        )
+        self._run_wsl_diag(
+            "WSL usb0 network interface",
+            "ip addr show usb0 2>&1 || echo 'usb0 interface is missing'",
+            timeout=15,
+        )
+        self._run_wsl_diag(
+            "WSL disk space",
+            "df -h / /tmp 2>&1 || true",
+            timeout=15,
+        )
+        self._run_wsl_diag(
+            "WSL firewall status",
+            "command -v ufw >/dev/null 2>&1 && ufw status 2>&1 || echo 'ufw not installed'",
+            timeout=15,
+        )
+        self._run_host_diag(
+            "Windows firewall profiles",
+            ["netsh", "advfirewall", "show", "allprofiles", "state"],
+            timeout=15,
+        )
+        self._run_host_diag(
+            "Windows active VPN-like adapters",
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                (
+                    "Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and "
+                    "($_.Name -match 'VPN|TAP|TUN|WireGuard|AnyConnect|Fortinet|OpenVPN|ZeroTier|Tailscale' -or "
+                    "$_.InterfaceDescription -match 'VPN|TAP|TUN|WireGuard|AnyConnect|Fortinet|OpenVPN|ZeroTier|Tailscale') } | "
+                    "Select-Object -ExpandProperty Name"
+                ),
+            ],
+            timeout=15,
+        )
+        self._log("[STEP 6/7] Manual follow-up if this still fails:")
+        self._log("[STEP 6/7]   1. Temporarily disable VPN / firewall rules that may block NFS over usb0.")
+        self._log("[STEP 6/7]   2. Ensure the target SSD is formatted as ext4 if flashing to external storage.")
+        self._log("[STEP 6/7]   3. Verify there is enough host disk space for the initrd flash workspace.")
+        self._log("[STEP 6/7]   4. If repeated in WSL, retry on a native Ubuntu host.")
 
     def _ensure_usbipd(self):
         self._log("[STEP 2/7] Checking usbipd-win installation...")
@@ -791,11 +1011,21 @@ class WslFlashManager:
             "  - Check Device Manager for 'NVIDIA APX' or '0955' device"
         )
 
-    def _bind_device(self, busid: str):
+    def _bind_device(self, busid: str, state_hint: str | None = None):
+        current_state = (state_hint if state_hint is not None else self._get_host_attach_state(busid)).strip()
         with self._attach_lock:
-            if busid in self._bound_busids:
-                self._log(f"[usbipd] BusID {busid} already bound; skipping.")
+            if _usbipd_state_needs_bind(current_state):
+                self._bound_busids.discard(busid)
+            elif busid in self._bound_busids and _usbipd_state_shared(current_state):
+                self._log(f"[usbipd] BusID {busid} already shared on host ({current_state}); skipping bind.")
                 return
+        if _usbipd_state_shared(current_state):
+            with self._attach_lock:
+                self._bound_busids.add(busid)
+            self._log(f"[usbipd] BusID {busid} already shared on host ({current_state}); skipping bind.")
+            return
+        if _usbipd_state_needs_bind(current_state):
+            self._log(f"[usbipd] BusID {busid} host state is '{current_state}'. Rebinding for WSL passthrough...")
         usbipd = _usbipd_exe()
         self._log(f"[usbipd] Binding BusID {busid} for WSL USB passthrough (requires admin)...")
         result = subprocess.run(
@@ -822,6 +1052,44 @@ class WslFlashManager:
         with self._attach_lock:
             self._bound_busids.add(busid)
         self._log(f"[usbipd] BusID {busid} bound with elevation ✓")
+
+    def _attach_busid_to_wsl(
+        self,
+        busid: str,
+        state_hint: str | None = None,
+        timeout: int = 15,
+    ) -> subprocess.CompletedProcess:
+        usbipd = _usbipd_exe()
+        if not usbipd:
+            raise WslFlashError("usbipd-win is not installed or not on PATH")
+        current_state = (state_hint if state_hint is not None else self._get_host_attach_state(busid)).strip()
+        if _usbipd_state_needs_bind(current_state):
+            self._bind_device(busid, state_hint=current_state)
+
+        command = [usbipd, "attach", "--wsl", "--busid", busid]
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+        lowered = (result.stdout or "").lower()
+        if "device is not shared" in lowered:
+            self._log(f"[usbipd] BusID {busid} lost share state during attach; rebinding and retrying once.")
+            self._bind_device(busid, state_hint="Not shared")
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+            )
+        return result
 
     def _remember_attached_busid(self, busid: str):
         with self._attach_lock:
@@ -892,7 +1160,7 @@ class WslFlashManager:
         while not self._attach_stop.is_set():
             try:
                 state = self._get_host_attach_state(busid)
-                if "attached" in state.lower():
+                if _usbipd_state_attached(state):
                     self._remember_attached_busid(busid)
                     self._attach_confirmed.set()
                     summary = f"{busid}:attached"
@@ -905,15 +1173,7 @@ class WslFlashManager:
                         time.sleep(0.1)
                     continue
 
-                result = subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=15,
-                )
+                result = self._attach_busid_to_wsl(busid, state_hint=state, timeout=15)
                 text = (result.stdout or "").strip()
                 lowered = text.lower()
                 if result.returncode == 0 or "already attached" in lowered or "is now attached" in lowered:
@@ -960,7 +1220,7 @@ class WslFlashManager:
                     busid = device.busid
                     self._remember_attached_busid(busid)
                     state = device.state.lower()
-                    if "attached" in state:
+                    if _usbipd_state_attached(state):
                         self._attach_confirmed.set()
                         summary = f"{busid}:attached"
                         if summary != last_log:
@@ -973,18 +1233,7 @@ class WslFlashManager:
                             time.sleep(0.1)
                         continue
 
-                    if "attached" not in state and "shared" not in state:
-                        self._bind_device(busid)
-
-                    result = subprocess.run(
-                        [usbipd, "attach", "--wsl", "--busid", busid],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        encoding="utf-8",
-                        errors="replace",
-                        timeout=10,
-                    )
+                    result = self._attach_busid_to_wsl(busid, state_hint=device.state, timeout=10)
                     text = (result.stdout or "").strip()
                     lowered = text.lower()
                     if result.returncode == 0 or "already attached" in lowered or "is now attached" in lowered:
@@ -1479,6 +1728,14 @@ PY"""
                 tail_text = "\n".join(output_tail)
                 lowered = tail_text.lower()
                 self._log(f"[STEP 6/7] WSL flash script exited with code {code}.")
+                if _looks_like_nfs_mount_failure(tail_text):
+                    self._collect_nfs_failure_diagnostics(tail_text)
+                    raise WslFlashError(
+                        "NFS mount failure during flashing. "
+                        "The device reached initrd flash mode but could not mount the host NFS share. "
+                        "Automatic diagnostics for NFS services, usb0, disk space, firewall, and VPN adapters "
+                        "have been added to the log above."
+                    )
                 if (
                     "might be timeout in usb write" in lowered
                     or ("tegrarcm_v2" in lowered and "return value 3" in lowered)

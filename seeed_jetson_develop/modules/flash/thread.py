@@ -68,6 +68,14 @@ class _FlashProgressEstimator:
         )
         return self._set_progress(50 + int(48 * min(1.0, fraction)))
 
+    @staticmethod
+    def _looks_like_qspi_flash_success(text: str) -> bool:
+        lower = text.lower()
+        return (
+            "successfully flashed the qspi." in lower
+            or "successfully flash the qspi" in lower
+        )
+
     def update(self, line):
         text = (line or "").strip()
         if not text:
@@ -117,9 +125,9 @@ class _FlashProgressEstimator:
         if "Starting to flash the QSPI." in text:
             self._qspi_started = True
             return self._recompute_flash_progress()
-        if "Successfully flashed the QSPI." in text:
+        if self._looks_like_qspi_flash_success(text):
             self._qspi_done = True
-            return self._recompute_flash_progress()
+            return self._set_progress(99)
         if "Flashing success" in text or "Flash is successful" in text:
             return self._set_progress(99)
 
@@ -180,6 +188,7 @@ class FlashThread(QThread):
         self._flash_progress = _FlashProgressEstimator()
         self._last_log_pct = -1
         self._last_extract_pct = -1
+        self._finalizing_emitted = False
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = t(key, lang=self.lang, **kwargs)
@@ -191,6 +200,7 @@ class FlashThread(QThread):
     def run(self):
         try:
             self._flash_progress.reset()
+            self._finalizing_emitted = False
             flasher = JetsonFlasher(
                 self.product,
                 self.l4t,
@@ -331,3 +341,11 @@ class FlashThread(QThread):
             pct = self._flash_progress.update(line)
             if pct is not None:
                 self.progress_val.emit(pct)
+                if pct >= 99 and not self._finalizing_emitted:
+                    self._finalizing_emitted = True
+                    self.progress_msg.emit(
+                        self._tr(
+                            "flash.thread.finalizing",
+                            "Flash completed, finalizing...",
+                        )
+                    )

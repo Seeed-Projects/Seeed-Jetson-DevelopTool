@@ -123,6 +123,7 @@
   "flash.log.use_existing_extracted": "[INFO] 使用现有解压目录，跳过下载解压",
   "flash.log.archive_exists_skip_download": "[INFO] 压缩包已存在，跳过下载，直接解压",
   "flash.thread.cancelled": "用户已取消",
+  "flash.thread.finalizing": "刷写已完成，正在收尾...",
   "flash.thread.download_progress": "[下载] {cur} / {total} ({pct}%)  剩余 {remaining}",
   "flash.log.downloading": "[下载] {cur} / {total} ({pct}%)  剩余 {remaining}",
   "flash.log.extracting": "[解压] {cur} / {total} ({pct}%)",
