@@ -130,6 +130,19 @@ def _completed_text(proc: subprocess.CompletedProcess) -> str:
     return str(out)
 
 
+def _usbipd_state_attached(state: str) -> bool:
+    return state.strip().lower().startswith("attached")
+
+
+def _usbipd_state_shared(state: str) -> bool:
+    lower = state.strip().lower()
+    return _usbipd_state_attached(state) or lower == "shared" or lower.startswith("shared ")
+
+
+def _usbipd_state_needs_bind(state: str) -> bool:
+    return "not shared" in state.strip().lower()
+
+
 def _ps_single_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
@@ -438,6 +451,7 @@ class WslFlashManager:
         self._attach_state_stop = threading.Event()
         self._attach_state_thread: threading.Thread | None = None
         self._last_host_attach_state: str | None = None
+        self._last_wsl_ready_error: str | None = None
 
     def _prefer_archive_distro(self):
         archive = self.download_dir / self.firmware_info["filename"]
@@ -562,12 +576,16 @@ class WslFlashManager:
                     "was registered successfully; continuing."
                 )
 
-        self._log(f"[WSL] Waiting for {self.distro} to become ready (timeout=90s)...")
-        ready = self._wait_for_wsl_ready(timeout=90)
+        self._log(f"[WSL] Waiting for {self.distro} to become ready (timeout=180s)...")
+        ready = self._wait_for_wsl_ready(timeout=180)
         if not ready:
+            detail = self._last_wsl_ready_error or f"{self.distro} is installed but not responding."
             raise WslFlashError(
-                f"{self.distro} is installed but not initialized. "
-                "Open it once from the Start menu, finish first-time setup, then retry."
+                f"{detail} "
+                f"If Ubuntu first-time setup has not completed, open {self.distro} once "
+                "from the Start menu and finish setup. "
+                f"If the distro is stuck, run `wsl --terminate {self.distro}` or "
+                "`wsl --shutdown`, then retry."
             )
         self._log(f"[STEP 1/7] WSL distro ready: {self.distro} ✓")
 
@@ -589,12 +607,73 @@ class WslFlashManager:
             time.sleep(2)
         return latest
 
+    def _restart_unresponsive_wsl_distro(self) -> bool:
+        wsl = _wsl_exe()
+        if not wsl:
+            return False
+        self._log(f"[WSL] {self.distro} is not responding. Restarting this distro and retrying...")
+        try:
+            result = subprocess.run(
+                [wsl, "--terminate", self.distro],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=20,
+                **_hidden_subprocess_kwargs(),
+            )
+        except subprocess.TimeoutExpired:
+            self._log(f"[WSL] Timed out while terminating {self.distro}.")
+            return False
+        except Exception as e:
+            self._log(f"[WSL] Failed to terminate {self.distro}: {e}")
+            return False
+
+        output = _decode_output(result.stdout or b"").strip()
+        if result.returncode != 0:
+            if output:
+                self._log(f"[WSL] terminate output: {output.splitlines()[-1]}")
+            return False
+        time.sleep(3)
+        return True
+
     def _wait_for_wsl_ready(self, timeout: int) -> bool:
         deadline = time.time() + timeout
+        attempt = 0
+        restarted = False
+        self._last_wsl_ready_error = None
         while time.time() < deadline:
-            ready = self._run_wsl(["bash", "-lc", "echo SEEED_WSL_READY"], timeout=30)
-            if ready.returncode == 0 and "SEEED_WSL_READY" in _completed_text(ready):
+            attempt += 1
+            remaining = max(15, int(deadline - time.time()))
+            probe_timeout = min(60, remaining)
+            try:
+                ready = self._run_wsl(["sh", "-c", "echo SEEED_WSL_READY"], timeout=probe_timeout)
+            except subprocess.TimeoutExpired:
+                self._last_wsl_ready_error = (
+                    f"{self.distro} did not respond to WSL commands within {probe_timeout}s."
+                )
+                self._log(
+                    f"[WSL] Ready probe timed out after {probe_timeout}s "
+                    f"(attempt {attempt})."
+                )
+                if not restarted and self._restart_unresponsive_wsl_distro():
+                    restarted = True
+                    continue
+                time.sleep(3)
+                continue
+            except Exception as e:
+                self._last_wsl_ready_error = f"WSL ready probe failed: {e}"
+                self._log(f"[WSL] Ready probe failed: {e}")
+                time.sleep(3)
+                continue
+
+            output = _completed_text(ready).strip()
+            if ready.returncode == 0 and "SEEED_WSL_READY" in output:
+                self._last_wsl_ready_error = None
                 return True
+            if output:
+                self._last_wsl_ready_error = (
+                    f"{self.distro} returned exit code {ready.returncode} while starting."
+                )
+                self._log(f"[WSL] Ready probe output: {output.splitlines()[-1]}")
             time.sleep(3)
         return False
 
@@ -809,11 +888,21 @@ class WslFlashManager:
             "  - Check Device Manager for 'NVIDIA APX' or '0955' device"
         )
 
-    def _bind_device(self, busid: str):
+    def _bind_device(self, busid: str, state_hint: str | None = None):
+        current_state = (state_hint if state_hint is not None else self._get_host_attach_state(busid)).strip()
         with self._attach_lock:
-            if busid in self._bound_busids:
-                self._log(f"[usbipd] BusID {busid} already bound; skipping.")
+            if _usbipd_state_needs_bind(current_state):
+                self._bound_busids.discard(busid)
+            elif busid in self._bound_busids and _usbipd_state_shared(current_state):
+                self._log(f"[usbipd] BusID {busid} already shared on host ({current_state}); skipping bind.")
                 return
+        if _usbipd_state_shared(current_state):
+            with self._attach_lock:
+                self._bound_busids.add(busid)
+            self._log(f"[usbipd] BusID {busid} already shared on host ({current_state}); skipping bind.")
+            return
+        if _usbipd_state_needs_bind(current_state):
+            self._log(f"[usbipd] BusID {busid} host state is '{current_state}'. Rebinding for WSL passthrough...")
         usbipd = _usbipd_exe()
         self._log(f"[usbipd] Binding BusID {busid} for WSL USB passthrough (requires admin)...")
         result = subprocess.run(
@@ -840,6 +929,44 @@ class WslFlashManager:
         with self._attach_lock:
             self._bound_busids.add(busid)
         self._log(f"[usbipd] BusID {busid} bound with elevation ✓")
+
+    def _attach_busid_to_wsl(
+        self,
+        busid: str,
+        state_hint: str | None = None,
+        timeout: int = 15,
+    ) -> subprocess.CompletedProcess:
+        usbipd = _usbipd_exe()
+        if not usbipd:
+            raise WslFlashError("usbipd-win is not installed or not on PATH")
+        current_state = (state_hint if state_hint is not None else self._get_host_attach_state(busid)).strip()
+        if _usbipd_state_needs_bind(current_state):
+            self._bind_device(busid, state_hint=current_state)
+
+        command = [usbipd, "attach", "--wsl", "--busid", busid]
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+        lowered = (result.stdout or "").lower()
+        if "device is not shared" in lowered:
+            self._log(f"[usbipd] BusID {busid} lost share state during attach; rebinding and retrying once.")
+            self._bind_device(busid, state_hint="Not shared")
+            result = subprocess.run(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+            )
+        return result
 
     def _remember_attached_busid(self, busid: str):
         with self._attach_lock:
@@ -910,7 +1037,7 @@ class WslFlashManager:
         while not self._attach_stop.is_set():
             try:
                 state = self._get_host_attach_state(busid)
-                if "attached" in state.lower():
+                if _usbipd_state_attached(state):
                     self._remember_attached_busid(busid)
                     self._attach_confirmed.set()
                     summary = f"{busid}:attached"
@@ -923,15 +1050,7 @@ class WslFlashManager:
                         time.sleep(0.1)
                     continue
 
-                result = subprocess.run(
-                    command,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    timeout=15,
-                )
+                result = self._attach_busid_to_wsl(busid, state_hint=state, timeout=15)
                 text = (result.stdout or "").strip()
                 lowered = text.lower()
                 if result.returncode == 0 or "already attached" in lowered or "is now attached" in lowered:
@@ -978,7 +1097,7 @@ class WslFlashManager:
                     busid = device.busid
                     self._remember_attached_busid(busid)
                     state = device.state.lower()
-                    if "attached" in state:
+                    if _usbipd_state_attached(state):
                         self._attach_confirmed.set()
                         summary = f"{busid}:attached"
                         if summary != last_log:
@@ -991,18 +1110,7 @@ class WslFlashManager:
                             time.sleep(0.1)
                         continue
 
-                    if "attached" not in state and "shared" not in state:
-                        self._bind_device(busid)
-
-                    result = subprocess.run(
-                        [usbipd, "attach", "--wsl", "--busid", busid],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        encoding="utf-8",
-                        errors="replace",
-                        timeout=10,
-                    )
+                    result = self._attach_busid_to_wsl(busid, state_hint=device.state, timeout=10)
                     text = (result.stdout or "").strip()
                     lowered = text.lower()
                     if result.returncode == 0 or "already attached" in lowered or "is now attached" in lowered:
