@@ -99,6 +99,24 @@ def _decode_output(data: bytes) -> str:
     return data.decode("utf-8", errors="replace")
 
 
+def _hidden_startupinfo():
+    if os.name != "nt":
+        return None
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 0
+    return startupinfo
+
+
+def _hidden_subprocess_kwargs() -> dict:
+    if os.name != "nt":
+        return {}
+    return {
+        "creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        "startupinfo": _hidden_startupinfo(),
+    }
+
+
 def _run_capture(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
     proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
     proc.stdout = _decode_output(proc.stdout).encode("utf-8", errors="replace")
