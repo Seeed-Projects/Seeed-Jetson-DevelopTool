@@ -989,7 +989,37 @@ class AppsPage(ListPageBase):
 
     def _open_install(self, app_id: str):
         app = next(a for a in self.items_data if a["id"] == app_id)
+        if app_id == "browser":
+            self._open_browser_install(app)
+            return
         self._open_dialog(app_id, "install", self._get_cmds(app), self._on_install_done)
+
+    def _open_browser_install(self, app: dict):
+        if not _can_execute_from_current_env(self):
+            return
+        msg = QMessageBox(self)
+        msg.setWindowTitle(_at("apps.browser.title"))
+        msg.setText(_at("apps.browser.body"))
+        msg.setIcon(QMessageBox.Question)
+        chromium_btn = msg.addButton("Chromium", QMessageBox.AcceptRole)
+        firefox_btn = msg.addButton("Firefox", QMessageBox.AcceptRole)
+        cancel_btn = msg.addButton(_at("common.cancel"), QMessageBox.RejectRole)
+        msg.exec_()
+        clicked = msg.clickedButton()
+        if clicked == cancel_btn:
+            return
+        if clicked == chromium_btn:
+            browser_cmd = "sudo snap install chromium"
+        else:
+            browser_cmd = "sudo snap install firefox"
+        cmds = [
+            browser_cmd,
+            "cd /tmp && sudo snap download snapd --revision=24724",
+            "sudo snap ack /tmp/snapd_24724.assert",
+            "sudo snap install /tmp/snapd_24724.snap",
+            "sudo snap refresh --hold snapd",
+        ]
+        self._open_dialog("browser", "install", cmds, self._on_install_done)
 
     def _open_run(self, app_id: str):
         app = next(a for a in self.items_data if a["id"] == app_id)

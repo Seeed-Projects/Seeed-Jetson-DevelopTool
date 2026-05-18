@@ -389,17 +389,23 @@ class HoverCard(QFrame):
         self._shadow_effect = self._shadow  # 兼容 clear_shadow
 
     def enterEvent(self, event):
-        if self._shadow is not None:
-            self._shadow.setBlurRadius(42)
-            self._shadow.setOffset(QPointF(0, 10))
-            self._shadow.setColor(QColor(0, 0, 0, 100))
+        try:
+            if self._shadow is not None:
+                self._shadow.setBlurRadius(42)
+                self._shadow.setOffset(QPointF(0, 10))
+                self._shadow.setColor(QColor(0, 0, 0, 100))
+        except RuntimeError:
+            self._shadow = None
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        if self._shadow is not None:
-            self._shadow.setBlurRadius(28)
-            self._shadow.setOffset(QPointF(0, 6))
-            self._shadow.setColor(QColor(0, 0, 0, 80))
+        try:
+            if self._shadow is not None:
+                self._shadow.setBlurRadius(28)
+                self._shadow.setOffset(QPointF(0, 6))
+                self._shadow.setColor(QColor(0, 0, 0, 80))
+        except RuntimeError:
+            self._shadow = None
         super().leaveEvent(event)
 
 
@@ -451,7 +457,10 @@ def clear_shadow(w):
     fx = getattr(w, "_shadow_effect", None)
     if fx is not None:
         w.setGraphicsEffect(None)
-        fx.deleteLater()
+        try:
+            fx.deleteLater()
+        except RuntimeError:
+            pass
 
 
 def apply_shadow(w, blur: int = 20, y: int = 4, alpha: int = 60):

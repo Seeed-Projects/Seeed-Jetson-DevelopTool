@@ -26,6 +26,7 @@ from typing import Optional, Tuple
 ROOT = Path(__file__).parent.parent
 DIST = ROOT / "dist"
 APP_NAME = "seeed-jetson-develop"
+PACKAGE_NAME = "seeed-jetson-developer"
 APP_ICON_PNG = "assets/seeed-jetson-develop-icon.png"
 APP_ICON_ICO = "assets/seeed-jetson-develop-icon.ico"
 
@@ -1361,14 +1362,53 @@ def build_windows_exe(installer_source: Path) -> Tuple[Optional[Path], Optional[
     return exe_path, None
 
 
+def build_python_distributions() -> Tuple[Path, Path]:
+    """Build the PyPI artifacts and fail fast if the wheel is missing."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "build",
+        "--sdist",
+        "--wheel",
+        "--outdir",
+        str(DIST),
+    ]
+    try:
+        subprocess.run(cmd, check=True, cwd=ROOT)
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            f"Python package build failed with exit code {exc.returncode}."
+        ) from exc
+
+    dist_name = PACKAGE_NAME.replace("-", "_")
+    sdist_path = DIST / f"{dist_name}-{APP_VERSION}.tar.gz"
+    wheel_path = DIST / f"{dist_name}-{APP_VERSION}-py3-none-any.whl"
+    missing = [path.name for path in (sdist_path, wheel_path) if not path.exists()]
+    if missing:
+        raise RuntimeError(
+            "Python package build did not produce expected artifact(s): "
+            + ", ".join(missing)
+        )
+    return sdist_path, wheel_path
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     DIST.mkdir(exist_ok=True)
 
-    print(f"Building installers for {APP_NAME} v{APP_VERSION}")
+    print(f"Building distributions for {APP_NAME} v{APP_VERSION}")
     print(f"Source: {ROOT}")
     print(f"Output: {DIST}")
+    print()
+
+    print("Building Python package (sdist + wheel)...")
+    sdist_path, wheel_path = build_python_distributions()
+    print(f"  sdist: {sdist_path}")
+    print(f"  wheel: {wheel_path}")
+    print()
+
+    print(f"Building installers for {APP_NAME} v{APP_VERSION}")
     print()
 
     # Create archives
@@ -1414,6 +1454,8 @@ def main():
 
     print()
     print("Done! Installers:")
+    print(f"  sdist:   {sdist_path}")
+    print(f"  wheel:   {wheel_path}")
     print(f"  Linux:   {linux_path}")
     if exe_path:
         print(f"  Windows: {exe_path}")

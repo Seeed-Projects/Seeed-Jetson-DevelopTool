@@ -46,5 +46,7 @@
   "apps.msg.confirm_clean.body": "Clean generated data for '{name}'?",
   "apps.msg.no_uninstall_cmd": "'{name}' has no uninstall command configured yet.",
   "apps.msg.confirm_uninstall.title": "Confirm Uninstall",
-  "apps.msg.confirm_uninstall.body": "Uninstall '{name}'?"
+  "apps.msg.confirm_uninstall.body": "Uninstall '{name}'?",
+  "apps.browser.title": "Install Browser",
+  "apps.browser.body": "Please choose a browser to install. After installation, snapd will be fixed and held automatically."
 }

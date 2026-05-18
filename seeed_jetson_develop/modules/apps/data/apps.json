@@ -98,5 +98,23 @@
       "required_disk_gb": 20,
       "required_mem_gb": 8
     }
+  },
+  {
+    "id": "browser",
+    "example_name": null,
+    "icon": "🌐",
+    "name": "Browser",
+    "category": "开发工具",
+    "desc": "安装 Chromium 或 Firefox 浏览器，并自动修复 snapd 以保障浏览器正常运行。",
+    "skill_id": null,
+    "check_cmd": "bash -c 'which chromium-browser >/dev/null 2>&1 || which chromium >/dev/null 2>&1 || which firefox >/dev/null 2>&1'",
+    "install_cmds": [],
+    "run_cmds": null,
+    "clean_cmds": null,
+    "uninstall_cmds": [
+      "sudo snap remove chromium 2>/dev/null || true",
+      "sudo snap remove firefox 2>/dev/null || true",
+      "sudo apt-get remove -y chromium-browser firefox 2>/dev/null || true"
+    ]
   }
 ]

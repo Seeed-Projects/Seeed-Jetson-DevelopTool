@@ -46,5 +46,7 @@
   "apps.msg.confirm_clean.body": "确认清理 “{name}” 生成的数据吗？",
   "apps.msg.no_uninstall_cmd": "“{name}” 尚未配置卸载命令。",
   "apps.msg.confirm_uninstall.title": "确认卸载",
-  "apps.msg.confirm_uninstall.body": "确认卸载 “{name}” 吗？"
+  "apps.msg.confirm_uninstall.body": "确认卸载 “{name}” 吗？",
+  "apps.browser.title": "安装浏览器",
+  "apps.browser.body": "请选择要安装的浏览器，安装完成后将自动修复并锁定 snapd 版本。"
 }
