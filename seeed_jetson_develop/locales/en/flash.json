@@ -123,6 +123,7 @@
   "flash.log.use_existing_extracted": "[INFO] Using existing extracted directory, skipping download and extract",
   "flash.log.archive_exists_skip_download": "[INFO] Archive already exists, skipping download and preparing for flash",
   "flash.thread.cancelled": "Cancelled by user",
+  "flash.thread.finalizing": "Flash completed, finalizing...",
   "flash.thread.download_progress": "[Download] {cur} / {total} ({pct}%)  Remaining {remaining}",
   "flash.log.downloading": "[Download] {cur} / {total} ({pct}%)  Remaining {remaining}",
   "flash.log.extracting": "[Extract] {cur} / {total} ({pct}%)",

@@ -143,6 +143,16 @@ def _usbipd_state_needs_bind(state: str) -> bool:
     return "not shared" in state.strip().lower()
 
 
+def _looks_like_nfs_mount_failure(text: str) -> bool:
+    lower = (text or "").lower()
+    return (
+        "either the device cannot mount the nfs server on the host" in lower
+        or "error: nfs mount failure during flashing" in lower
+        or ("flash failure" in lower and "nfs server" in lower)
+        or "check your network setting (vpn, firewall" in lower
+    )
+
+
 def _ps_single_quote(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
@@ -679,6 +689,119 @@ class WslFlashManager:
 
     def _run_wsl(self, args: list[str], timeout: int | None = None) -> subprocess.CompletedProcess:
         return _run_capture([_wsl_exe(), "-d", self.distro, "-u", "root", "--", *args], timeout=timeout or 60)
+
+    def _log_diagnostic_output(self, title: str, output: str, returncode: int | None = None, max_lines: int = 24):
+        header = f"[STEP 6/7] {title}"
+        if returncode is not None:
+            header += f" (exit={returncode})"
+        self._log(header)
+        lines = [line.rstrip() for line in (output or "").splitlines() if line.strip()]
+        if not lines:
+            self._log("[STEP 6/7]   (no output)")
+            return
+        for line in lines[:max_lines]:
+            self._log(f"[STEP 6/7]   {line}")
+        if len(lines) > max_lines:
+            self._log(f"[STEP 6/7]   ... {len(lines) - max_lines} more line(s) omitted")
+
+    def _run_wsl_diag(self, title: str, command: str, timeout: int = 20):
+        try:
+            result = self._run_wsl(["bash", "-lc", command], timeout=timeout)
+            self._log_diagnostic_output(title, _completed_text(result), result.returncode)
+        except Exception as e:
+            self._log(f"[STEP 6/7] {title} failed: {e}")
+
+    def _run_host_diag(self, title: str, args: list[str], timeout: int = 15):
+        try:
+            result = subprocess.run(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                **_hidden_subprocess_kwargs(),
+            )
+            self._log_diagnostic_output(title, result.stdout or "", result.returncode)
+        except Exception as e:
+            self._log(f"[STEP 6/7] {title} failed: {e}")
+
+    def _collect_nfs_failure_diagnostics(self, tail_text: str):
+        self._log("[STEP 6/7] ROOT CAUSE: NFS mount failure during flashing.")
+        self._log("[STEP 6/7] The device booted into initrd flash mode, but could not mount the host NFS share.")
+        self._log("[STEP 6/7] Running automatic diagnostics based on Seeed's NFS troubleshooting checklist...")
+        self._log("[STEP 6/7] Note: WSL is less stable than a native Ubuntu host for NFS-based flashing.")
+
+        match = re.search(r"Debug log saved to (\S+)", tail_text)
+        if match:
+            debug_log = match.group(1).rstrip(".")
+            self._run_wsl_diag(
+                f"NVIDIA debug log tail: {debug_log}",
+                f"tail -n 80 {shlex.quote(debug_log)} 2>/dev/null || "
+                f"sed -n '1,80p' {shlex.quote(debug_log)} 2>/dev/null || "
+                f"echo 'debug log not found: {debug_log}'",
+                timeout=20,
+            )
+
+        self._run_wsl_diag(
+            "WSL NFS services",
+            "service rpcbind start >/dev/null 2>&1 || true; "
+            "service nfs-kernel-server start >/dev/null 2>&1 || true; "
+            "service rpcbind status 2>&1 || true; echo '---'; "
+            "service nfs-kernel-server status 2>&1 || true",
+            timeout=20,
+        )
+        self._run_wsl_diag(
+            "WSL exported NFS shares",
+            "exportfs -v 2>&1 || echo 'exportfs unavailable'",
+            timeout=15,
+        )
+        self._run_wsl_diag(
+            "WSL rpcbind/NFS listening ports",
+            "ss -ltnup 2>&1 | grep -E ':(111|2049)\\b' || echo 'rpcbind/NFS ports are not listening'",
+            timeout=15,
+        )
+        self._run_wsl_diag(
+            "WSL usb0 network interface",
+            "ip addr show usb0 2>&1 || echo 'usb0 interface is missing'",
+            timeout=15,
+        )
+        self._run_wsl_diag(
+            "WSL disk space",
+            "df -h / /tmp 2>&1 || true",
+            timeout=15,
+        )
+        self._run_wsl_diag(
+            "WSL firewall status",
+            "command -v ufw >/dev/null 2>&1 && ufw status 2>&1 || echo 'ufw not installed'",
+            timeout=15,
+        )
+        self._run_host_diag(
+            "Windows firewall profiles",
+            ["netsh", "advfirewall", "show", "allprofiles", "state"],
+            timeout=15,
+        )
+        self._run_host_diag(
+            "Windows active VPN-like adapters",
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                (
+                    "Get-NetAdapter | Where-Object { $_.Status -eq 'Up' -and "
+                    "($_.Name -match 'VPN|TAP|TUN|WireGuard|AnyConnect|Fortinet|OpenVPN|ZeroTier|Tailscale' -or "
+                    "$_.InterfaceDescription -match 'VPN|TAP|TUN|WireGuard|AnyConnect|Fortinet|OpenVPN|ZeroTier|Tailscale') } | "
+                    "Select-Object -ExpandProperty Name"
+                ),
+            ],
+            timeout=15,
+        )
+        self._log("[STEP 6/7] Manual follow-up if this still fails:")
+        self._log("[STEP 6/7]   1. Temporarily disable VPN / firewall rules that may block NFS over usb0.")
+        self._log("[STEP 6/7]   2. Ensure the target SSD is formatted as ext4 if flashing to external storage.")
+        self._log("[STEP 6/7]   3. Verify there is enough host disk space for the initrd flash workspace.")
+        self._log("[STEP 6/7]   4. If repeated in WSL, retry on a native Ubuntu host.")
 
     def _ensure_usbipd(self):
         self._log("[STEP 2/7] Checking usbipd-win installation...")
@@ -1605,6 +1728,14 @@ PY"""
                 tail_text = "\n".join(output_tail)
                 lowered = tail_text.lower()
                 self._log(f"[STEP 6/7] WSL flash script exited with code {code}.")
+                if _looks_like_nfs_mount_failure(tail_text):
+                    self._collect_nfs_failure_diagnostics(tail_text)
+                    raise WslFlashError(
+                        "NFS mount failure during flashing. "
+                        "The device reached initrd flash mode but could not mount the host NFS share. "
+                        "Automatic diagnostics for NFS services, usb0, disk space, firewall, and VPN adapters "
+                        "have been added to the log above."
+                    )
                 if (
                     "might be timeout in usb write" in lowered
                     or ("tegrarcm_v2" in lowered and "return value 3" in lowered)
