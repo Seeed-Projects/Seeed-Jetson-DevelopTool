@@ -13,7 +13,7 @@ _LINKS = [
     ("📖", "community.link.wiki.name", "community.link.wiki.desc", "https://wiki.seeedstudio.com/"),
     ("💬", "community.link.forum.name", "community.link.forum.desc", "https://forum.seeedstudio.com/"),
     ("🐙", "community.link.github.name", "community.link.github.desc", "https://github.com/Seeed-Studio"),
-    ("🎥", "community.link.video.name", "community.link.video.desc", "https://www.youtube.com/@SeeedStudio"),
+    ("🎥", "community.link.video.name", "community.link.video.desc", "https://www.youtube.com/@SeeedStudioSZ"),
     ("📦", "community.link.ngc.name", "community.link.ngc.desc", "https://catalog.ngc.nvidia.com/"),
     ("🤗", "community.link.hf.name", "community.link.hf.desc", "https://huggingface.co/"),
 ]
