@@ -365,15 +365,13 @@ class HoverCard(QFrame):
             QFrame#SeeedCard {{
                 background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                     stop:0 #1E2D40, stop:1 {C_CARD});
-                border: 1px solid {C_BORDER_CARD};
-                border-top-color: {C_BORDER_SUBTLE};
+                border: none;
                 border-radius: {radius}px;
             }}
             QFrame#SeeedCard:hover {{
                 background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                     stop:0 #24354A, stop:1 {C_CARD_HOVER});
-                border: 1px solid rgba(255,255,255,0.10);
-                border-top-color: rgba(255,255,255,0.16);
+                border: none;
             }}
         """)
         self._shadow = None
@@ -553,10 +551,9 @@ def make_tab_button(text: str, active: bool = False) -> "QPushButton":
 
 
 class ShinyProgressBar(QProgressBar):
-    """带流动光泽的进度条
+    """带流动光泽的进度条，支持动态改色。
 
-    绿色进度块上有一道白色光泽条持续从左到右流动，刷机/下载时非常显眼。
-    原理：QTimer 驱动 shine_pos → paintEvent 完全自定义绘制背景+chunk+光泽。
+    默认绿色，可调用 set_color() 切换为蓝/橙/绿等，下载/上传/执行各阶段视觉区分。
     """
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -565,6 +562,20 @@ class ShinyProgressBar(QProgressBar):
         self._timer.timeout.connect(self._tick)
         self._timer.start(16)
         self.setTextVisible(False)
+        self._top_color = QColor(176, 224, 48)
+        self._bottom_color = QColor(122, 179, 23)
+
+    def set_color(self, top: QColor | str, bottom: QColor | str | None = None):
+        """动态改变进度条颜色，top/bottom 可以是 QColor 或 #RRGGBB 字符串。"""
+        if isinstance(top, str):
+            top = QColor(top)
+        if bottom is None:
+            bottom = top.darker(120)
+        elif isinstance(bottom, str):
+            bottom = QColor(bottom)
+        self._top_color = top
+        self._bottom_color = bottom
+        self.update()
 
     def _tick(self):
         try:
@@ -591,8 +602,8 @@ class ShinyProgressBar(QProgressBar):
         chunk_w = int((w - 4) * progress)
         if chunk_w > 2:
             chunk_grad = QLinearGradient(0, 0, 0, h)
-            chunk_grad.setColorAt(0, QColor(176, 224, 48))
-            chunk_grad.setColorAt(1, QColor(122, 179, 23))
+            chunk_grad.setColorAt(0, self._top_color)
+            chunk_grad.setColorAt(1, self._bottom_color)
             p.setBrush(chunk_grad)
             p.drawRoundedRect(2, 2, chunk_w, h - 4, (h - 4) // 2, (h - 4) // 2)
 

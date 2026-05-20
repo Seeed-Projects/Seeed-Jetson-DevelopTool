@@ -3,6 +3,7 @@
   "main.title.tool": "Jetson Develop Tool",
   "main.brand.workspace": "Jetson 开发工作台",
   "main.nav.flash": "烧录",
+  "main.nav.ota": "OTA 升级",
   "main.nav.devices": "设备管理",
   "main.nav.apps": "应用市场",
   "main.nav.skills": "Skills",

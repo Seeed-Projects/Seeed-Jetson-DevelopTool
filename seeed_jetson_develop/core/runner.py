@@ -130,16 +130,14 @@ class SSHRunner(Runner):
     def _build_remote_shell_command(self, cmd: str) -> str:
         """将用户命令包装成可在远端 SSH 执行的 bash 命令。
 
-        sudo 密码注入：将密码 base64 编码后在远端解码，存入 SEEED_SUDO_PASSWORD。
+        sudo 密码注入：使用 shlex.quote 直接转义后存入 SEEED_SUDO_PASSWORD。
         脚本里需要 root 权限时定义本地 _S() 函数使用：
             _S() { printf '%s\\n' "$SEEED_SUDO_PASSWORD" | command sudo -S -p '' "$@" 2>&1; return $?; }
         """
         wrapper_parts = ["export TERM=${TERM:-xterm-256color};"]
         if self.sudo_password:
-            import base64
-            pwd_b64 = base64.b64encode(self.sudo_password.encode()).decode()
             wrapper_parts.append(
-                f"SEEED_SUDO_PASSWORD=\"$(printf '%s' {pwd_b64} | base64 -d)\"; "
+                f"SEEED_SUDO_PASSWORD={shlex.quote(self.sudo_password)}; "
                 f"export SEEED_SUDO_PASSWORD; "
             )
         wrapper_parts.append(cmd)

@@ -76,6 +76,7 @@ NAV_ITEMS = [
     ("devices", "main.nav.devices"),
     ("apps", "main.nav.apps"),
     ("skills", "main.nav.skills"),
+    ("ota", "main.nav.ota"),
     ("community", "main.nav.community"),
 ]
 
@@ -209,6 +210,7 @@ class MainWindowV2(QMainWindow):
 
         bus.device_connected.connect(self._on_remote_connected)
         bus.device_disconnected.connect(self._on_remote_disconnected)
+        bus.navigate_to.connect(self._set_page)
 
         self.l4t_data = []
         self.product_images = {}
@@ -274,10 +276,11 @@ class MainWindowV2(QMainWindow):
         self.stack = QStackedWidget()
         self.stack.setStyleSheet("background:transparent;")
         from seeed_jetson_develop.modules.flash.page import build_page as _flash_page
+        from seeed_jetson_develop.modules.ota.page import build_page as _ota_page
         from seeed_jetson_develop.modules.devices.page import build_page as _devices_page
         from seeed_jetson_develop.modules.community.page import build_page as _community_page
         from seeed_jetson_develop.modules.remote.page import build_page as _remote_page
-        # 顺序必须与 NAV_ITEMS 一致: flash, remote, devices, apps, skills, community
+        # 顺序必须与 NAV_ITEMS 一致: flash, remote, devices, apps, skills, ota, community
         self.stack.addWidget(_flash_page())        # 0
         self.stack.addWidget(_remote_page())       # 1
         self.stack.addWidget(_devices_page())      # 2
@@ -291,7 +294,8 @@ class MainWindowV2(QMainWindow):
         self._skills_placeholder.setStyleSheet(f"background:{C_BG};")
         self._skills_built = False
         self.stack.addWidget(self._skills_placeholder) # 4: skills
-        self.stack.addWidget(_community_page(self.products, self.product_images))  # 5: community
+        self.stack.addWidget(_ota_page())          # 5
+        self.stack.addWidget(_community_page(self.products, self.product_images))  # 6: community
         content_layout.addWidget(self.stack)
 
         body_layout.addWidget(content_area, 1)

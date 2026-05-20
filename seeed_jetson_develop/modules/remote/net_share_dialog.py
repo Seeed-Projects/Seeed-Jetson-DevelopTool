@@ -148,7 +148,7 @@ class _JetsonGatewayThread(QThread):
 
     def run(self):
         cmd = build_jetson_gateway_cmd(self._runner.sudo_password, self._gateway)
-        rc, out = self._runner.run(cmd, timeout=15)
+        rc, out = self._runner.run(cmd, timeout=20)
         if rc == 0:
             # 验证连通性
             rc2, out2 = self._runner.run("ping -c 1 -W 3 8.8.8.8", timeout=10)

@@ -549,9 +549,9 @@ _S ip route replace default via "$GW" && echo "[ok] route set" || echo "[warn] r
 _S ip route add default via "$GW" 2>/dev/null || true
 
 echo "[3/4] configure DNS"
-if command -v resolvectl >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet systemd-resolved 2>/dev/null && [ -n "$IFACE" ]; then
-  _S resolvectl dns "$IFACE" $DNS_LIST >/dev/null 2>&1 && echo "[ok] resolvectl dns set" || echo "[warn] resolvectl failed"
-  _S resolvectl domain "$IFACE" '~.' >/dev/null 2>&1 || true
+if command -v resolvectl >/dev/null 2>&1 && command -v systemctl >/dev/null 2>&1 && timeout 3 systemctl is-active --quiet systemd-resolved 2>/dev/null && [ -n "$IFACE" ]; then
+  _S timeout 3 resolvectl dns "$IFACE" $DNS_LIST >/dev/null 2>&1 && echo "[ok] resolvectl dns set" || echo "[warn] resolvectl failed"
+  _S timeout 3 resolvectl domain "$IFACE" '~.' >/dev/null 2>&1 || true
   _S ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf 2>/dev/null || true
 else
   if [ -L /etc/resolv.conf ] && readlink /etc/resolv.conf 2>/dev/null | grep -q 'stub-resolv.conf'; then
@@ -566,10 +566,10 @@ fi
 
 echo "[4/4] persist via nmcli (if available)"
 if command -v nmcli >/dev/null 2>&1 && [ -n "$IFACE" ]; then
-  CON="$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: -v dev="$IFACE" '$2==dev {{print $1; exit}}')"
+  CON="$(timeout 3 nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: -v dev="$IFACE" '$2==dev {{print $1; exit}}')"
   if [ -n "$CON" ]; then
-    _S nmcli connection modify "$CON" ipv4.gateway "$GW" ipv4.ignore-auto-dns yes ipv4.dns "$DNS_LIST" >/dev/null 2>&1 && echo "[ok] nmcli modified" || echo "[warn] nmcli modify failed"
-    _S nmcli connection up "$CON" >/dev/null 2>&1 || _S nmcli device reapply "$IFACE" >/dev/null 2>&1 || true
+    _S timeout 5 nmcli connection modify "$CON" ipv4.gateway "$GW" ipv4.ignore-auto-dns yes ipv4.dns "$DNS_LIST" >/dev/null 2>&1 && echo "[ok] nmcli modified" || echo "[warn] nmcli modify failed"
+    _S timeout 5 nmcli device reapply "$IFACE" >/dev/null 2>&1 || true
   else
     echo "[info] no active nmcli connection on $IFACE, skip"
   fi

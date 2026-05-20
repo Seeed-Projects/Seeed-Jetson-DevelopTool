@@ -3,6 +3,7 @@
   "main.title.tool": "Jetson Develop Tool",
   "main.brand.workspace": "Jetson Developer Workspace",
   "main.nav.flash": "Flash",
+  "main.nav.ota": "OTA Update",
   "main.nav.devices": "Devices",
   "main.nav.apps": "App Market",
   "main.nav.skills": "Skills",
