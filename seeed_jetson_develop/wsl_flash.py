@@ -1639,9 +1639,9 @@ PY"""
                 'ls /sys/bus/usb/drivers/rndis_host/ 2>/dev/null || echo "  (rndis_host driver dir not found)"',
                 'ls /sys/bus/usb/drivers/usb0/ 2>/dev/null || echo "  (usb0 driver dir not found)"',
                 'cd "$L4T_DIR"',
-                'echo "[WSL] Flash command: ./tools/kernel_flash/l4t_initrd_flash.wsl.sh --flash-only --massflash 1 --network usb0 --showlogs"',
+                'echo "[WSL] Flash command: ./tools/kernel_flash/l4t_initrd_flash.sh --flash-only --massflash 1 --network usb0 --showlogs"',
                 'echo "[WSL] Starting l4t_initrd_flash.sh..."',
-                "./tools/kernel_flash/l4t_initrd_flash.wsl.sh --flash-only --massflash 1 --network usb0 --showlogs",
+                "./tools/kernel_flash/l4t_initrd_flash.sh --flash-only --massflash 1 --network usb0 --showlogs",
             ]
         ) + "\n"
         self._log("[STEP 6/7] Executing WSL flash script (may take 10-30 minutes)...")
