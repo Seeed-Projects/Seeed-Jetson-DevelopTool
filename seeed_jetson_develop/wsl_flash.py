@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import locale
 import os
 import re
 import shlex
@@ -41,6 +43,38 @@ FLASH_PACKAGES = (
 )
 NVIDIA_APX_IDS = {"7023", "7223", "7323", "7423", "7523", "7623"}
 NVIDIA_INITRD_USB_IDS = {"7035"}
+WSL_RELEASE_API = os.environ.get("SEEED_WSL_RELEASE_API", "https://api.github.com/repos/microsoft/WSL/releases/latest")
+WSL_DISTRO_INFO_URL = os.environ.get(
+    "SEEED_WSL_DISTRO_INFO_URL",
+    "https://raw.githubusercontent.com/microsoft/WSL/master/distributions/DistributionInfo.json",
+)
+MANUAL_APPX_URLS = {
+    "Ubuntu-18.04": ["https://aka.ms/wsl-ubuntu-1804"],
+    "Ubuntu-20.04": ["https://aka.ms/wslubuntu2004"],
+    "Ubuntu-22.04": ["https://aka.ms/wslubuntu2204"],
+    "Ubuntu-24.04": ["https://aka.ms/wslubuntu2404"],
+}
+UBUNTU_WSL_CODENAMES = {
+    "Ubuntu-22.04": "jammy",
+    "Ubuntu-24.04": "noble",
+}
+WSL_DISTRO_VERSION_ALIASES = {
+    "Ubuntu-18.04": {"18.04"},
+    "Ubuntu-20.04": {"20.04"},
+    "Ubuntu-22.04": {"22.04"},
+    "Ubuntu-24.04": {"24.04"},
+}
+FALLBACK_ROOTFS_URLS = {
+    "Ubuntu-20.04": [],
+    "Ubuntu-22.04": [
+        "https://cloud-images.ubuntu.com/wsl/releases/22.04/current/"
+        "ubuntu-jammy-wsl-amd64-wsl.rootfs.tar.gz",
+    ],
+    "Ubuntu-24.04": [
+        "https://cloud-images.ubuntu.com/wsl/releases/24.04/current/"
+        "ubuntu-noble-wsl-amd64-24.04lts.rootfs.tar.gz"
+    ],
+}
 
 
 class WslFlashError(RuntimeError):
@@ -79,6 +113,8 @@ def _preferred_wsl_distros_for_l4t(l4t_version: str) -> list[str]:
         return [DEFAULT_WSL_DISTRO]
     if major <= 32:
         return ["Ubuntu-18.04"]
+    if major <= 35:
+        return ["Ubuntu-20.04", "Ubuntu-18.04"]
     if major <= 36:
         return ["Ubuntu-22.04", "Ubuntu-20.04"]
     return [DEFAULT_WSL_DISTRO]
@@ -89,13 +125,21 @@ def _decode_output(data: bytes) -> str:
         return ""
     if b"\x00" in data:
         try:
-            return data.decode("utf-8", errors="replace").replace("\x00", "")
-        except Exception:
-            pass
-        try:
             return data.decode("utf-16le", errors="replace").replace("\x00", "")
         except Exception:
             pass
+    encodings: list[str] = ["utf-8"]
+    preferred = locale.getpreferredencoding(False)
+    if preferred and preferred.lower() not in {enc.lower() for enc in encodings}:
+        encodings.append(preferred)
+    for extra in ("mbcs", "gbk"):
+        if extra.lower() not in {enc.lower() for enc in encodings}:
+            encodings.append(extra)
+    for encoding in encodings:
+        try:
+            return data.decode(encoding)
+        except Exception:
+            continue
     return data.decode("utf-8", errors="replace")
 
 
@@ -126,7 +170,7 @@ def _run_capture(args: list[str], timeout: int = 60) -> subprocess.CompletedProc
 def _completed_text(proc: subprocess.CompletedProcess) -> str:
     out = proc.stdout or b""
     if isinstance(out, bytes):
-        return out.decode("utf-8", errors="replace")
+        return _decode_output(out)
     return str(out)
 
 
@@ -158,6 +202,10 @@ def _ps_single_quote(value: str) -> str:
 
 
 def _run_elevated(program: str, args: list[str], timeout: int | None = None) -> int:
+    return _run_elevated_capture(program, args, timeout=timeout).returncode
+
+
+def _run_elevated_capture(program: str, args: list[str], timeout: int | None = None) -> subprocess.CompletedProcess:
     arg_string = subprocess.list2cmdline(args)
     script = (
         "$p = Start-Process -FilePath "
@@ -174,7 +222,7 @@ def _run_elevated(program: str, args: list[str], timeout: int | None = None) -> 
         errors="replace",
         timeout=timeout,
     )
-    return result.returncode
+    return result
 
 
 def _with_download_flag(url: str) -> str:
@@ -183,6 +231,39 @@ def _with_download_flag(url: str) -> str:
         return url
     sep = "&" if "?" in url else "?"
     return f"{url}{sep}download=1"
+
+
+def _split_env_urls(name: str) -> list[str]:
+    raw = os.environ.get(name, "")
+    return [part.strip() for part in re.split(r"[;\n,]+", raw) if part.strip()]
+
+
+def _download_file(urls: list[str], dest: Path, log: Callable[[str], None] | None = None) -> Path:
+    last_error: Exception | None = None
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    for url in urls:
+        try:
+            if log:
+                log(f"[WSL offline] Downloading {url}")
+            with requests.get(_with_download_flag(url), stream=True, timeout=(15, 120)) as response:
+                response.raise_for_status()
+                with tempfile.NamedTemporaryFile(delete=False, dir=str(dest.parent), suffix=dest.suffix) as tmp:
+                    tmp_path = Path(tmp.name)
+                    for chunk in response.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            tmp.write(chunk)
+            tmp_path.replace(dest)
+            return dest
+        except Exception as exc:
+            last_error = exc
+            try:
+                if "tmp_path" in locals() and tmp_path.exists():
+                    tmp_path.unlink()
+            except Exception:
+                pass
+            if log:
+                log(f"[WSL offline] Download failed: {exc}")
+    raise WslFlashError(f"Failed to download WSL offline package. Last error: {last_error}")
 
 
 def _usbipd_exe() -> str | None:
@@ -198,6 +279,226 @@ def _usbipd_exe() -> str | None:
 def _log_usbipd(message: str, log: Callable[[str], None] | None = None):
     if log:
         log(message)
+
+
+def _safe_last_nonempty_line(text: str) -> str | None:
+    lines = [line.strip() for line in (text or "").splitlines() if line.strip()]
+    return lines[-1] if lines else None
+
+
+def _normalize_version_id(value: str | None) -> str | None:
+    if not value:
+        return None
+    normalized = str(value).strip().strip("'\"")
+    return normalized or None
+
+
+def _summarize_timeout(context: str, timeout: int | None) -> str:
+    if timeout:
+        return f"{context} timed out after {timeout} seconds"
+    return f"{context} timed out"
+
+
+def _usbipd_service_status() -> str:
+    try:
+        result = _run_capture(["sc.exe", "query", "usbipd"], timeout=10)
+        text = _completed_text(result).strip()
+        return text or "(no output)"
+    except Exception as e:
+        return f"(failed to query service: {e})"
+
+
+def _restart_usbipd_service(log: Callable[[str], None] | None = None) -> bool:
+    _log_usbipd("[usbipd] Attempting automatic recovery by restarting the usbipd service...", log)
+    for args in (["stop", "usbipd"], ["start", "usbipd"]):
+        code = _run_elevated("sc.exe", args, timeout=None)
+        _log_usbipd(f"[usbipd] sc.exe {' '.join(args)} exited with code {code}", log)
+        if args[0] == "start" and code != 0:
+            return False
+        time.sleep(2)
+    return True
+
+
+def _wait_for_usbipd_exe(
+    timeout: int = 30,
+    poll_interval: float = 2.0,
+    log: Callable[[str], None] | None = None,
+) -> str | None:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        usbipd = _usbipd_exe()
+        if usbipd:
+            return usbipd
+        time.sleep(poll_interval)
+    _log_usbipd(f"[usbipd] usbipd.exe still not visible after waiting {timeout}s.", log)
+    return _usbipd_exe()
+
+
+def _wsl_status_summary(wsl: str | None = None) -> list[str]:
+    wsl = wsl or _wsl_exe()
+    if not wsl:
+        return ["wsl.exe not found"]
+    summary: list[str] = []
+    for label, args, timeout in (
+        ("status", [wsl, "--status"], 15),
+        ("distros", [wsl, "-l", "-v"], 20),
+    ):
+        try:
+            result = _run_capture(args, timeout=timeout)
+            text = _completed_text(result).strip()
+            if text:
+                for line in text.splitlines():
+                    if line.strip():
+                        summary.append(f"{label}: {line.strip()}")
+            else:
+                summary.append(f"{label}: (no output)")
+        except subprocess.TimeoutExpired:
+            summary.append(f"{label}: timeout after {timeout}s")
+        except Exception as e:
+            summary.append(f"{label}: failed: {e}")
+    return summary
+
+
+def _run_wsl_host(args: list[str], timeout: int = 60) -> subprocess.CompletedProcess:
+    return _run_capture([_wsl_exe(), *args], timeout=timeout)
+
+
+def _looks_like_wsl_usage_help(text: str) -> bool:
+    lower = (text or "").lower()
+    return (
+        ("usage:" in lower and "wsl.exe" in lower)
+        or ("用法" in text and "wsl.exe" in text)
+    )
+
+
+def _looks_like_reboot_required(text: str) -> bool:
+    lower = (text or "").lower()
+    return (
+        "restart" in lower
+        and ("required" in lower or "reboot" in lower)
+    ) or "需要重新启动" in text or "重新启动系统" in text
+
+
+def _unsupported_wsl_cli_message(wsl_output: str | None = None) -> str:
+    message = (
+        "This Windows WSL command-line interface is too old or incomplete for automatic flashing. "
+        "The tool needs WSL commands such as `wsl -l -q`, `wsl -l -v`, and `wsl -d <distro> -- ...`. "
+        "Please install/update WSL using Microsoft's manual/offline WSL installation path, then install "
+        "Ubuntu 20.04 and run it once before retrying. "
+        "Docs: https://learn.microsoft.com/windows/wsl/install-manual"
+    )
+    last_line = _safe_last_nonempty_line(wsl_output or "")
+    if last_line:
+        message += f" Last WSL output: {last_line}"
+    return message
+
+
+def _reboot_required_message() -> str:
+    return (
+        "Windows accepted a WSL setup step but requires a reboot before WSL can continue. "
+        "Restart Windows, then run the tool again."
+    )
+
+
+def _latest_wsl_msi_urls(log: Callable[[str], None] | None = None) -> list[str]:
+    mirror_urls = _split_env_urls("SEEED_WSL_MSI_URLS")
+    urls = list(mirror_urls)
+    try:
+        response = requests.get(WSL_RELEASE_API, timeout=(10, 30))
+        response.raise_for_status()
+        data = response.json()
+        for asset in data.get("assets", []):
+            name = str(asset.get("name", "")).lower()
+            url = asset.get("browser_download_url")
+            if url and name.endswith(".msi") and ("x64" in name or "amd64" in name):
+                urls.append(url)
+    except Exception as exc:
+        if log:
+            log(f"[WSL offline] Could not query latest WSL MSI release: {exc}")
+    return urls
+
+
+def _distro_offline_urls(distro: str, log: Callable[[str], None] | None = None) -> list[str]:
+    urls = _split_env_urls("SEEED_WSL_DISTRO_URLS")
+    try:
+        response = requests.get(WSL_DISTRO_INFO_URL, timeout=(10, 30))
+        response.raise_for_status()
+        data = response.json()
+        for entry in data.get("Distributions", []):
+            name = str(entry.get("Name", ""))
+            friendly = str(entry.get("FriendlyName", ""))
+            if name.lower() == distro.lower() or friendly.lower().startswith(distro.lower()):
+                for key in ("Amd64Url", "PackageUrl", "Url"):
+                    url = entry.get(key)
+                    if url:
+                        urls.append(str(url))
+                break
+    except Exception as exc:
+        if log:
+            log(f"[WSL offline] Could not query WSL distribution info: {exc}")
+    return urls
+
+
+def _rootfs_urls(distro: str) -> list[str]:
+    urls = _split_env_urls("SEEED_WSL_ROOTFS_URLS")
+    urls.extend(FALLBACK_ROOTFS_URLS.get(distro, []))
+    return urls
+
+
+def _manual_appx_urls(distro: str) -> list[str]:
+    urls = _split_env_urls("SEEED_WSL_APPX_URLS")
+    urls.extend(MANUAL_APPX_URLS.get(distro, []))
+    return urls
+
+
+def _read_command_status(args: list[str], timeout: int = 15) -> str | None:
+    try:
+        result = _run_capture(args, timeout=timeout)
+    except Exception:
+        return None
+    return _safe_last_nonempty_line(_completed_text(result))
+
+
+def _wsl_install_failure_hint() -> str | None:
+    feature_vmp = _read_command_status(
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "(Get-WindowsOptionalFeature -Online -FeatureName 'VirtualMachinePlatform').State",
+        ]
+    )
+    feature_wsl = _read_command_status(
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "(Get-WindowsOptionalFeature -Online -FeatureName 'Microsoft-Windows-Subsystem-Linux').State",
+        ]
+    )
+    firmware_virt = _read_command_status(
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "(Get-CimInstance Win32_Processor | Select-Object -First 1 -ExpandProperty VirtualizationFirmwareEnabled)",
+        ]
+    )
+    hypervisor_launch = _read_command_status(["bcdedit", "/enum", "{current}"], timeout=10)
+
+    hints: list[str] = []
+    if feature_vmp and feature_vmp.strip().lower() != "enabled":
+        hints.append("enable the Windows 'Virtual Machine Platform' feature")
+    if feature_wsl and feature_wsl.strip().lower() != "enabled":
+        hints.append("enable the Windows 'Windows Subsystem for Linux' feature")
+    if firmware_virt and firmware_virt.strip().lower() == "false":
+        hints.append("turn on CPU virtualization in BIOS/UEFI")
+    if hypervisor_launch and "hypervisorlaunchtype" in hypervisor_launch.lower() and "off" in hypervisor_launch.lower():
+        hints.append("re-enable the Windows hypervisor (`bcdedit /set hypervisorlaunchtype auto`) and reboot")
+
+    if not hints:
+        return None
+    return "WSL2 prerequisites look incomplete: " + "; ".join(hints) + "."
 
 
 def ensure_usbipd_ready(log: Callable[[str], None] | None = None) -> str:
@@ -225,14 +526,43 @@ def ensure_usbipd_ready(log: Callable[[str], None] | None = None) -> str:
         _log_usbipd(f"[usbipd] winget install returned code: {code}", log)
         if code != 0:
             raise WslFlashError(f"Failed to install usbipd-win with winget (exit {code}).")
-        usbipd = _usbipd_exe()
+        _log_usbipd("[usbipd] Waiting for usbipd.exe to become visible after installation...", log)
+        usbipd = _wait_for_usbipd_exe(log=log)
         if not usbipd:
-            raise WslFlashError("usbipd-win was installed, but usbipd.exe is not visible yet. Restart the app.")
+            raise WslFlashError(
+                "usbipd-win was installed, but usbipd.exe is not visible yet. "
+                "Wait a few seconds and retry. If it still does not appear, restart the app."
+            )
         _log_usbipd("[usbipd] usbipd-win installed successfully.", log)
     else:
         _log_usbipd(f"[usbipd] Found: {usbipd}", log)
 
-    version = _run_capture([usbipd, "--version"], timeout=20)
+    try:
+        version = _run_capture([usbipd, "--version"], timeout=20)
+    except subprocess.TimeoutExpired:
+        usbpcap = _usbpcap_status()
+        command_repr = repr([usbipd, "--version"])
+        _log_usbipd(f"[usbipd] {_summarize_timeout(f'Command {command_repr}', 20)}.", log)
+        _log_usbipd(f"[usbipd] Windows service status before recovery:\n{_usbipd_service_status()}", log)
+        if usbpcap:
+            _log_usbipd(f"[usbipd] USBPcap status: {usbpcap}", log)
+        if _restart_usbipd_service(log=log):
+            try:
+                version = _run_capture([usbipd, "--version"], timeout=30)
+                text = _completed_text(version).strip()
+                _log_usbipd(f"[usbipd] Automatic recovery succeeded. Version: {text or '(unknown)'}", log)
+            except subprocess.TimeoutExpired:
+                _log_usbipd(f"[usbipd] Windows service status after recovery:\n{_usbipd_service_status()}", log)
+                raise WslFlashError(
+                    "usbipd.exe still did not respond after restarting the usbipd service. "
+                    "This usually points to USBPcap interference or endpoint security software blocking usbipd."
+                )
+        else:
+            _log_usbipd(f"[usbipd] Windows service status after failed recovery:\n{_usbipd_service_status()}", log)
+            raise WslFlashError(
+                "usbipd.exe timed out and the tool could not restart the usbipd service automatically. "
+                "Administrator policy or endpoint security may be blocking service control."
+            )
     text = _completed_text(version).strip()
     _log_usbipd(f"[usbipd] Version: {text or '(unknown)'}", log)
 
@@ -511,6 +841,9 @@ class WslFlashManager:
             self._log("WSL flash workflow completed successfully. ✓")
             self._log("=" * 60)
             return True
+        except WslFlashError as e:
+            self._emit_failure_diagnostics(str(e))
+            raise
         finally:
             self._stop_attach_state_monitor()
             self._stop_auto_attach()
@@ -532,6 +865,125 @@ class WslFlashManager:
         if self.should_cancel and self.should_cancel():
             raise InterruptedError("cancel requested")
 
+    def _ensure_modern_wsl_cli(self, wsl: str, probe_output: str | None = None) -> str:
+        if probe_output and not _looks_like_wsl_usage_help(probe_output):
+            return wsl
+
+        self._log("[WSL] Current wsl.exe appears to be too old or incomplete; attempting offline WSL update.")
+        web_update = _run_elevated_capture(wsl, ["--install", "--web-download", "--no-distribution"], timeout=None)
+        code = web_update.returncode
+        web_update_text = _completed_text(web_update)
+        self._log(f"[WSL] `wsl --install --web-download --no-distribution` returned code: {code}")
+        if _looks_like_wsl_usage_help(web_update_text):
+            self._log("[WSL] This wsl.exe does not support --web-download; falling back to WSL MSI.")
+        if _looks_like_reboot_required(web_update_text):
+            raise WslFlashError(_reboot_required_message())
+        if code == 0:
+            refreshed = _wsl_exe() or wsl
+            try:
+                check = _run_capture([refreshed, "-l", "-q"], timeout=30)
+                text = _completed_text(check)
+                if not _looks_like_wsl_usage_help(text):
+                    return refreshed
+            except Exception as exc:
+                self._log(f"[WSL] WSL CLI check after web-download update failed: {exc}")
+
+        urls = _latest_wsl_msi_urls(log=self._log)
+        if not urls:
+            raise WslFlashError(_unsupported_wsl_cli_message(probe_output))
+
+        msi = Path(tempfile.gettempdir()) / "seeed-wsl-latest-x64.msi"
+        _download_file(urls, msi, log=self._log)
+        self._log(f"[WSL offline] Installing WSL MSI package: {msi}")
+        code = _run_elevated("msiexec.exe", ["/i", str(msi), "/quiet", "/norestart"], timeout=None)
+        self._log(f"[WSL offline] WSL MSI installer returned code: {code}")
+        if code in (3010, 1641):
+            raise WslFlashError(_reboot_required_message())
+        if code != 0:
+            raise WslFlashError(f"Failed to install/update WSL MSI package (exit {code}).")
+
+        refreshed = _wsl_exe() or wsl
+        check = _run_capture([refreshed, "-l", "-q"], timeout=30)
+        text = _completed_text(check)
+        if _looks_like_wsl_usage_help(text):
+            raise WslFlashError(_unsupported_wsl_cli_message(text))
+        return refreshed
+
+    def _install_wsl_distro_web_download(self, wsl: str) -> bool:
+        self._log(f"[WSL] Trying web-download install for '{self.distro}'...")
+        result = _run_elevated_capture(wsl, ["--install", "--web-download", "-d", self.distro], timeout=None)
+        code = result.returncode
+        text = _completed_text(result)
+        self._log(f"[WSL] web-download installer returned code: {code}")
+        if _looks_like_wsl_usage_help(text):
+            self._log("[WSL] This wsl.exe does not support --web-download distro install; falling back to offline distro package.")
+            return False
+        if _looks_like_reboot_required(text):
+            raise WslFlashError(_reboot_required_message())
+        if code in (3010, 1641):
+            raise WslFlashError(_reboot_required_message())
+        return code == 0
+
+    def _install_wsl_distro_from_file(self, wsl: str) -> bool:
+        urls = _distro_offline_urls(self.distro, log=self._log)
+        if not urls:
+            self._log(f"[WSL offline] No offline download URL found for {self.distro}.")
+            return False
+        package = Path(tempfile.gettempdir()) / f"seeed-{self.distro}.wsl"
+        _download_file(urls, package, log=self._log)
+        self._log(f"[WSL offline] Installing distro from file: {package}")
+        result = _run_elevated_capture(wsl, ["--install", "--from-file", str(package)], timeout=None)
+        code = result.returncode
+        text = _completed_text(result)
+        self._log(f"[WSL offline] distro from-file installer returned code: {code}")
+        if _looks_like_wsl_usage_help(text):
+            self._log("[WSL offline] This wsl.exe does not support --from-file. WSL MSI update is required before installing distros.")
+            return False
+        if _looks_like_reboot_required(text):
+            raise WslFlashError(_reboot_required_message())
+        if code in (3010, 1641):
+            raise WslFlashError(_reboot_required_message())
+        return code == 0
+
+    def _install_wsl_distro_from_rootfs(self, wsl: str) -> bool:
+        urls = _rootfs_urls(self.distro)
+        if not urls:
+            self._log(f"[WSL rootfs] No rootfs URL configured for {self.distro}.")
+            return False
+        suffix = ".tar.gz" if any(url.lower().endswith(".tar.gz") for url in urls) else ".tar"
+        rootfs = Path(tempfile.gettempdir()) / f"seeed-{self.distro}-rootfs{suffix}"
+        _download_file(urls, rootfs, log=self._log)
+        install_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "Seeed" / "WSL" / self.distro
+        install_dir.mkdir(parents=True, exist_ok=True)
+        self._log(f"[WSL rootfs] Importing {self.distro} to {install_dir}")
+        result = _run_elevated_capture(wsl, ["--import", self.distro, str(install_dir), str(rootfs), "--version", "2"], timeout=None)
+        text = _completed_text(result)
+        if _looks_like_wsl_usage_help(text):
+            self._log("[WSL rootfs] This wsl.exe does not support --import.")
+            return False
+        if _looks_like_reboot_required(text):
+            raise WslFlashError(_reboot_required_message())
+        self._log(f"[WSL rootfs] wsl --import returned code: {result.returncode}")
+        return result.returncode == 0
+
+    def _install_wsl_distro_from_appx(self) -> bool:
+        urls = _manual_appx_urls(self.distro)
+        if not urls:
+            self._log(f"[WSL appx] No Appx URL configured for {self.distro}.")
+            return False
+        appx = Path(tempfile.gettempdir()) / f"seeed-{self.distro}.appx"
+        _download_file(urls, appx, log=self._log)
+        self._log(f"[WSL appx] Installing distro Appx package: {appx}")
+        script = f"Add-AppxPackage -Path {_ps_single_quote(str(appx))}"
+        result = _run_elevated_capture("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script], timeout=None)
+        text = _completed_text(result)
+        if _looks_like_reboot_required(text):
+            raise WslFlashError(_reboot_required_message())
+        self._log(f"[WSL appx] Add-AppxPackage returned code: {result.returncode}")
+        if result.returncode != 0 and text.strip():
+            self._log(f"[WSL appx] Last output: {_safe_last_nonempty_line(text) or text.strip()}")
+        return result.returncode == 0
+
     def _ensure_wsl(self):
         wsl = _wsl_exe()
         if not wsl or not Path(wsl).exists():
@@ -549,12 +1001,27 @@ class WslFlashManager:
             self._log("[WSL status] Could not retrieve WSL version info.")
 
         self._log(f"[WSL] Setting default WSL version to 2...")
-        subprocess.run(
+        default_version_result = subprocess.run(
             [wsl, "--set-default-version", "2"],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             **_hidden_subprocess_kwargs(),
         )
+        default_version_text = _decode_output(default_version_result.stdout or b"").strip()
+        if _looks_like_wsl_usage_help(default_version_text):
+            wsl = self._ensure_modern_wsl_cli(wsl, default_version_text)
+            self._log(f"[WSL] Retrying default WSL version setup after WSL update...")
+            default_version_result = subprocess.run(
+                [wsl, "--set-default-version", "2"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                **_hidden_subprocess_kwargs(),
+            )
+            default_version_text = _decode_output(default_version_result.stdout or b"").strip()
+            if _looks_like_wsl_usage_help(default_version_text):
+                raise WslFlashError(_unsupported_wsl_cli_message(default_version_text))
+        if _looks_like_reboot_required(default_version_text):
+            raise WslFlashError(_reboot_required_message())
         distros = self._wsl_distros()
         self._log(f"[WSL] Installed distros: {sorted(distros) if distros else '(none)'}")
 
@@ -563,22 +1030,66 @@ class WslFlashManager:
         ]
         self._log(f"[WSL] Preferred distro order: {candidate_order}")
 
-        for candidate in candidate_order:
-            if candidate in distros:
-                self.distro = candidate
-                self._log(f"[WSL] Selected existing distro: {self.distro}")
-                break
+        matched_distro = self._match_existing_distro(distros)
+        if matched_distro:
+            self.distro = matched_distro
+            self._log(f"[WSL] Selected existing distro: {self.distro}")
         if self.distro not in distros:
             self._log(f"[WSL] Installing WSL distro '{self.distro}'. Approve the Windows UAC prompt if it appears.")
             self._log("[WSL] If the installer hangs waiting for reboot, restart Windows and try again.")
             code = _run_elevated(wsl, ["--install", "-d", self.distro], timeout=None)
             self._log(f"[WSL] WSL installer returned code: {code}")
             distros = self._wait_for_distro_registration(timeout=120)
+            if self.distro not in distros:
+                try:
+                    if self._install_wsl_distro_web_download(wsl):
+                        distros = self._wait_for_distro_registration(timeout=120)
+                except WslFlashError:
+                    raise
+                except Exception as exc:
+                    self._log(f"[WSL] web-download install attempt failed: {exc}")
+            if self.distro not in distros:
+                try:
+                    if self._install_wsl_distro_from_file(wsl):
+                        distros = self._wait_for_distro_registration(timeout=120)
+                except WslFlashError:
+                    raise
+                except Exception as exc:
+                    self._log(f"[WSL offline] distro from-file install attempt failed: {exc}")
+            if self.distro not in distros:
+                try:
+                    if self._install_wsl_distro_from_rootfs(wsl):
+                        distros = self._wait_for_distro_registration(timeout=120)
+                except WslFlashError as exc:
+                    if "requires a reboot" in str(exc):
+                        raise
+                    self._log(f"[WSL rootfs] distro import attempt failed: {exc}")
+                except Exception as exc:
+                    self._log(f"[WSL rootfs] distro import attempt failed: {exc}")
+            if self.distro not in distros:
+                try:
+                    if self._install_wsl_distro_from_appx():
+                        distros = self._wait_for_distro_registration(timeout=120)
+                except WslFlashError as exc:
+                    if "requires a reboot" in str(exc):
+                        raise
+                    self._log(f"[WSL appx] distro Appx install attempt failed: {exc}")
+                except Exception as exc:
+                    self._log(f"[WSL appx] distro Appx install attempt failed: {exc}")
             self._log(f"[WSL] Distros after install attempt: {sorted(distros) if distros else '(none)'}")
             if self.distro not in distros:
+                for line in _wsl_status_summary(wsl):
+                    self._log(f"[WSL diag] {line}")
+                prereq_hint = _wsl_install_failure_hint()
+                if prereq_hint:
+                    self._log(f"[WSL diag] {prereq_hint}")
+                if code == 4294967295:
+                    self._log("[WSL diag] Installer returned 4294967295 (-1). Common causes: reboot required, first-run init incomplete, or endpoint policy/UAC blocked the install.")
+                extra_hint = f" {prereq_hint}" if prereq_hint else ""
                 raise WslFlashError(
                     f"Failed to install {self.distro} (exit {code}). "
                     "If Windows asks for a restart, restart and run the tool again."
+                    f"{extra_hint}"
                 )
             if code != 0:
                 self._log(
@@ -589,6 +1100,13 @@ class WslFlashManager:
         self._log(f"[WSL] Waiting for {self.distro} to become ready (timeout=180s)...")
         ready = self._wait_for_wsl_ready(timeout=180)
         if not ready:
+            recovered = self._attempt_wsl_first_run_recovery()
+            if recovered:
+                self._log("[WSL] Retrying readiness probe after automatic recovery...")
+                ready = self._wait_for_wsl_ready(timeout=90)
+        if not ready:
+            for line in _wsl_status_summary(wsl):
+                self._log(f"[WSL diag] {line}")
             detail = self._last_wsl_ready_error or f"{self.distro} is installed but not responding."
             raise WslFlashError(
                 f"{detail} "
@@ -601,11 +1119,83 @@ class WslFlashManager:
 
     def _wsl_distros(self) -> set[str]:
         result = _run_capture([_wsl_exe(), "-l", "-q"], timeout=30)
+        text = _completed_text(result)
+        if _looks_like_wsl_usage_help(text):
+            raise WslFlashError(_unsupported_wsl_cli_message(text))
         names = {
             line.replace("\x00", "").strip().lstrip("*").strip()
-            for line in _completed_text(result).splitlines()
+            for line in text.splitlines()
         }
         return {name for name in names if name}
+
+    def _read_wsl_release_version(self, distro: str) -> str | None:
+        try:
+            result = _run_wsl_host(
+                [
+                    "-d",
+                    distro,
+                    "-u",
+                    "root",
+                    "--",
+                    "sh",
+                    "-c",
+                    ". /etc/os-release 2>/dev/null && printf '%s' \"$VERSION_ID\"",
+                ],
+                timeout=30,
+            )
+        except Exception as exc:
+            self._log(f"[WSL] Could not query distro version for {distro}: {exc}")
+            return None
+        if result.returncode != 0:
+            output = _completed_text(result).strip()
+            if output:
+                self._log(
+                    f"[WSL] Could not query distro version for {distro}: "
+                    f"{_safe_last_nonempty_line(output) or output}"
+                )
+            return None
+        return _normalize_version_id(_completed_text(result).strip())
+
+    def _match_existing_distro(self, distros: set[str]) -> str | None:
+        candidate_order = [self.distro] + [
+            d for d in self._preferred_distros if d.lower() != self.distro.lower()
+        ]
+        for candidate in candidate_order:
+            if candidate in distros:
+                return candidate
+
+        if "Ubuntu" not in distros:
+            return None
+
+        acceptable_versions: dict[str, set[str]] = {}
+        for candidate in candidate_order:
+            aliases = WSL_DISTRO_VERSION_ALIASES.get(candidate)
+            if aliases:
+                acceptable_versions[candidate] = aliases
+
+        if not acceptable_versions:
+            return None
+
+        ubuntu_version = self._read_wsl_release_version("Ubuntu")
+        for candidate, required_versions in acceptable_versions.items():
+            if ubuntu_version in required_versions:
+                self._log(
+                    f"[WSL] Reusing generic distro 'Ubuntu' because VERSION_ID={ubuntu_version} "
+                    f"matches acceptable distro {candidate}."
+                )
+                return "Ubuntu"
+
+        if ubuntu_version:
+            self._log(
+                f"[WSL] Generic distro 'Ubuntu' has VERSION_ID={ubuntu_version}, "
+                f"which does not satisfy any acceptable distro in {candidate_order}."
+            )
+        else:
+            self._log(
+                f"[WSL] Found generic distro 'Ubuntu', but could not determine whether it "
+                f"matches any acceptable distro in {candidate_order}."
+            )
+        return None
 
     def _wait_for_distro_registration(self, timeout: int) -> set[str]:
         deadline = time.time() + timeout
@@ -616,6 +1206,45 @@ class WslFlashManager:
                 return latest
             time.sleep(2)
         return latest
+
+    def _attempt_wsl_first_run_recovery(self) -> bool:
+        wsl = _wsl_exe()
+        if not wsl:
+            return False
+        self._log(f"[WSL] Attempting automatic first-run recovery for {self.distro}...")
+        try:
+            warmup = _run_wsl_host(["-d", self.distro, "-u", "root", "--", "sh", "-c", "true"], timeout=45)
+            output = _completed_text(warmup).strip()
+            if warmup.returncode == 0:
+                self._log(f"[WSL] First-run recovery warmup succeeded for {self.distro}.")
+                return True
+            if output:
+                self._log(f"[WSL] First-run warmup output: {_safe_last_nonempty_line(output) or output}")
+        except subprocess.TimeoutExpired:
+            self._log(f"[WSL] First-run warmup timed out for {self.distro}; trying WSL shutdown recovery...")
+        except Exception as e:
+            self._log(f"[WSL] First-run warmup failed: {e}")
+
+        try:
+            _run_wsl_host(["--shutdown"], timeout=30)
+            self._log("[WSL] Ran `wsl --shutdown` as part of automatic recovery.")
+            time.sleep(3)
+        except Exception as e:
+            self._log(f"[WSL] `wsl --shutdown` failed during recovery: {e}")
+
+        try:
+            warmup = _run_wsl_host(["-d", self.distro, "-u", "root", "--", "sh", "-c", "true"], timeout=45)
+            output = _completed_text(warmup).strip()
+            if warmup.returncode == 0:
+                self._log("[WSL] First-run recovery succeeded after WSL shutdown.")
+                return True
+            if output:
+                self._log(f"[WSL] Post-shutdown warmup output: {_safe_last_nonempty_line(output) or output}")
+        except subprocess.TimeoutExpired:
+            self._log(f"[WSL] Post-shutdown warmup still timed out for {self.distro}.")
+        except Exception as e:
+            self._log(f"[WSL] Post-shutdown warmup failed: {e}")
+        return False
 
     def _restart_unresponsive_wsl_distro(self) -> bool:
         wsl = _wsl_exe()
@@ -726,6 +1355,31 @@ class WslFlashManager:
             self._log_diagnostic_output(title, result.stdout or "", result.returncode)
         except Exception as e:
             self._log(f"[STEP 6/7] {title} failed: {e}")
+
+    def _emit_failure_diagnostics(self, reason: str):
+        self._log("=" * 60)
+        self._log(f"[DIAG] Collecting Windows/WSL diagnostics because: {reason}")
+        self._log("=" * 60)
+        self._run_host_diag("Windows whoami /groups", ["whoami", "/groups"], timeout=15)
+        self._run_host_diag("Windows WSL status", [_wsl_exe(), "--status"], timeout=20)
+        self._run_host_diag("Windows WSL distros", [_wsl_exe(), "-l", "-v"], timeout=20)
+        self._run_host_diag("Windows usbipd service", ["sc.exe", "query", "usbipd"], timeout=15)
+        usbipd = _usbipd_exe()
+        if usbipd:
+            self._run_host_diag("Windows usbipd version", [usbipd, "--version"], timeout=20)
+            self._run_host_diag("Windows usbipd list", [usbipd, "list"], timeout=20)
+        usbpcap = _usbpcap_status()
+        self._log(f"[DIAG] USBPcap status: {usbpcap or '(not detected)'}")
+        try:
+            self._run_wsl_diag("WSL uname", "uname -a", timeout=15)
+            self._run_wsl_diag(
+                "WSL USBIP kernel config",
+                "zcat /proc/config.gz 2>/dev/null | grep -E 'CONFIG_USBIP_VHCI_HCD|CONFIG_USB_NET_RNDIS_HOST' || true",
+                timeout=15,
+            )
+            self._run_wsl_diag("WSL lsusb", "lsusb 2>/dev/null || true", timeout=15)
+        except Exception as e:
+            self._log(f"[DIAG] WSL diagnostics unavailable: {e}")
 
     def _collect_nfs_failure_diagnostics(self, tail_text: str):
         self._log("[STEP 6/7] ROOT CAUSE: NFS mount failure during flashing.")
@@ -1639,9 +2293,9 @@ PY"""
                 'ls /sys/bus/usb/drivers/rndis_host/ 2>/dev/null || echo "  (rndis_host driver dir not found)"',
                 'ls /sys/bus/usb/drivers/usb0/ 2>/dev/null || echo "  (usb0 driver dir not found)"',
                 'cd "$L4T_DIR"',
-                'echo "[WSL] Flash command: ./tools/kernel_flash/l4t_initrd_flash.sh --flash-only --massflash 1 --network usb0 --showlogs"',
+                'echo "[WSL] Flash command: ./tools/kernel_flash/l4t_initrd_flash.wsl.sh --flash-only --massflash 1 --network usb0 --showlogs"',
                 'echo "[WSL] Starting l4t_initrd_flash.sh..."',
-                "./tools/kernel_flash/l4t_initrd_flash.sh --flash-only --massflash 1 --network usb0 --showlogs",
+                "./tools/kernel_flash/l4t_initrd_flash.wsl.sh --flash-only --massflash 1 --network usb0 --showlogs",
             ]
         ) + "\n"
         self._log("[STEP 6/7] Executing WSL flash script (may take 10-30 minutes)...")
