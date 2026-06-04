@@ -851,6 +851,15 @@
     "sha256": "b3b23880aad514962cdf689f3f26362e373ce825f7d737adc8cba5b153cbaeaa"
   },
   {
+    "product": "orin-nano-devkit-super",
+    "l4t": "39.2",
+    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQAtEIsLvP0aSq_E-szjmVKPAa8Mm7NGFySApRVVlRbpZV8?e=6WmUbS",
+    "mirrorlink": "",
+    "filename": "mfi_jetson-orin-nano-devkit-super.tar.gz",
+    "foldername": "mfi_jetson-orin-nano-devkit-super",
+    "sha256": "3ec45a61e779c0697204b5068ad3c3536a2e5934890df4b770f0afb0acb92693"
+  },
+  {
     "product": "j4011industrial",
     "l4t": "36.4.3",
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EWw6iP0DHf5Cl3YI2z3sHDoBl0JPabJHzEMjCItaHiOKVQ?e=fmpMfC",
