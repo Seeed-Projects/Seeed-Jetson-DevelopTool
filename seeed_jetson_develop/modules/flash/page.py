@@ -72,6 +72,12 @@ def _page_header(title: str, subtitle: str) -> tuple[QWidget, QLabel, QLabel]:
 
 
 
+# Fallback mapping for L4T versions whose filenames don't embed the JetPack version.
+_L4T_TO_JETPACK_FALLBACK = {
+    "39.2": "7.2",
+}
+
+
 def _l4t_to_jetpack(l4t: str, l4t_data: list) -> str | None:
     """Extract JetPack version from l4t_data based on L4T version match."""
     import re
@@ -96,7 +102,8 @@ def _l4t_to_jetpack(l4t: str, l4t_data: list) -> str | None:
             match = re.search(r'(?:jp)?-?(\d+(?:\.\d+)*)-' + re.escape(pure_l4t) + r'(?:\.tar|\.tgz|-\d{4}|)', filename, re.IGNORECASE)
             if match:
                 return match.group(1)
-    return None
+    # Fallback for known L4T versions without embedded JP version in filename
+    return _L4T_TO_JETPACK_FALLBACK.get(pure_l4t)
 
 
 def _product_display_name(product: str) -> str:
