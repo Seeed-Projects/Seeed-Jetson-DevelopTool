@@ -420,8 +420,8 @@ ZH_EN_EXACT = {
     "模型与数据集下载": "Model & dataset downloads",
     "打开 →": "Open →",
     # ── flash page ────────────────────────────────────────────────────────────
-    "步骤一：准备固件": "Step 1: Prepare Firmware",
-    "步骤二：进入 Recovery 模式": "Step 2: Enter Recovery Mode",
+    "步骤一：准备固件": "Step 2: Prepare Firmware",
+    "步骤二：进入 Recovery 模式": "Step 1: Enter Recovery Mode",
     "步骤三：开始刷写": "Step 3: Flash",
     "步骤四：完成": "Step 4: Done",
     "下载/解压 BSP": "Download / Extract BSP",
