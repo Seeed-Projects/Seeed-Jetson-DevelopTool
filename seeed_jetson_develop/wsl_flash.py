@@ -41,6 +41,7 @@ FLASH_PACKAGES = (
 )
 NVIDIA_APX_IDS = {"7023", "7223", "7323", "7423", "7523", "7623", "7e19"}
 NVIDIA_INITRD_USB_IDS = {"7035"}
+WINDOWS_SHELL_HW_DETECTION_SERVICE = "ShellHWDetection"
 
 
 class WslFlashError(RuntimeError):
@@ -281,6 +282,34 @@ def _usbpcap_status() -> str | None:
     return None
 
 
+def _sc_exe() -> str:
+    found = shutil.which("sc.exe")
+    if found:
+        return found
+    return str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "sc.exe")
+
+
+def _parse_sc_state(text: str) -> str | None:
+    match = re.search(r"\bSTATE\s*:\s*\d+\s+(\S+)", text or "", re.IGNORECASE)
+    if not match:
+        return None
+    return match.group(1).upper()
+
+
+def _windows_service_state(service_name: str) -> str | None:
+    if os.name != "nt":
+        return None
+    try:
+        result = _run_capture([_sc_exe(), "query", service_name], timeout=10)
+    except Exception:
+        return None
+    return _parse_sc_state(_completed_text(result))
+
+
+def _run_elevated_service_control(action: str, service_name: str) -> int:
+    return _run_elevated(_sc_exe(), [action, service_name], timeout=120)
+
+
 def _parse_wsl_unc_path(path: Path) -> tuple[str, str] | None:
     r"""Convert \\wsl$\<distro>\path to (distro, /internal/path)."""
     raw = str(path)
@@ -462,6 +491,7 @@ class WslFlashManager:
         self._attach_state_thread: threading.Thread | None = None
         self._last_host_attach_state: str | None = None
         self._last_wsl_ready_error: str | None = None
+        self._restore_shell_hw_detection = False
 
     def _prefer_archive_distro(self):
         archive = self.download_dir / self.firmware_info["filename"]
@@ -502,6 +532,7 @@ class WslFlashManager:
             self._pre_stage_archive()
             device = self._find_or_attach_recovery()
             self._remember_attached_busid(device.busid)
+            self._suspend_shell_hardware_detection()
             self._start_auto_attach(device.busid)
             self._start_attach_state_monitor(device.busid)
             self._wait_for_usbipd_attach_stable(device.busid, timeout=120)
@@ -514,6 +545,7 @@ class WslFlashManager:
         finally:
             self._stop_attach_state_monitor()
             self._stop_auto_attach()
+            self._restore_shell_hardware_detection_if_needed()
 
     def _log(self, line: str):
         try:
@@ -861,6 +893,51 @@ class WslFlashManager:
         time.sleep(2)
         self._log("[STEP 3/7] Custom WSL kernel configured and WSL restarted. ✓")
         self._log("[NOTE] Custom kernel requires WSL restart. Flashing can now proceed.")
+
+    def _suspend_shell_hardware_detection(self):
+        if os.name != "nt" or os.environ.get("SEEED_WSL_KEEP_SHELL_HW_DETECTION") == "1":
+            return
+        service = WINDOWS_SHELL_HW_DETECTION_SERVICE
+        state = _windows_service_state(service)
+        if state is None:
+            self._log("[Windows shell] Could not read Shell Hardware Detection state; skipping popup suppression.")
+            return
+        if state != "RUNNING":
+            self._log(f"[Windows shell] Shell Hardware Detection is {state}; leaving it unchanged.")
+            return
+
+        self._log("[Windows shell] Temporarily stopping Shell Hardware Detection to suppress AutoPlay disk popups...")
+        self._log("[Windows shell] A Windows UAC prompt may appear; click 'Yes' to continue.")
+        code = _run_elevated_service_control("stop", service)
+        if code != 0:
+            self._log(f"[Windows shell] Could not stop Shell Hardware Detection (exit {code}); continuing.")
+            return
+
+        deadline = time.time() + 20
+        while time.time() < deadline:
+            current = _windows_service_state(service)
+            if current == "STOPPED":
+                self._restore_shell_hw_detection = True
+                self._log("[Windows shell] Shell Hardware Detection stopped for this flash session.")
+                return
+            time.sleep(1)
+
+        self._log("[Windows shell] Shell Hardware Detection stop did not settle in time; continuing.")
+
+    def _restore_shell_hardware_detection_if_needed(self):
+        if not self._restore_shell_hw_detection:
+            return
+        service = WINDOWS_SHELL_HW_DETECTION_SERVICE
+        self._log("[Windows shell] Restoring Shell Hardware Detection...")
+        code = _run_elevated_service_control("start", service)
+        if code == 0:
+            self._restore_shell_hw_detection = False
+            self._log("[Windows shell] Shell Hardware Detection restored.")
+        else:
+            self._log(
+                f"[Windows shell] WARNING: failed to restore Shell Hardware Detection (exit {code}). "
+                "Run 'sc start ShellHWDetection' as Administrator to restore it manually."
+            )
 
     def _sha256_matches(self, path: Path, expected: str) -> bool:
         h = hashlib.sha256()
@@ -1639,9 +1716,9 @@ PY"""
                 'ls /sys/bus/usb/drivers/rndis_host/ 2>/dev/null || echo "  (rndis_host driver dir not found)"',
                 'ls /sys/bus/usb/drivers/usb0/ 2>/dev/null || echo "  (usb0 driver dir not found)"',
                 'cd "$L4T_DIR"',
-                'echo "[WSL] Flash command: ./tools/kernel_flash/l4t_initrd_flash.wsl.sh --flash-only --massflash 1 --network usb0 --showlogs"',
+                'echo "[WSL] Flash command: ./tools/kernel_flash/l4t_initrd_flash.sh --flash-only --massflash 1 --network usb0 --showlogs"',
                 'echo "[WSL] Starting l4t_initrd_flash.sh..."',
-                "./tools/kernel_flash/l4t_initrd_flash.wsl.sh --flash-only --massflash 1 --network usb0 --showlogs",
+                "./tools/kernel_flash/l4t_initrd_flash.sh --flash-only --massflash 1 --network usb0 --showlogs",
             ]
         ) + "\n"
         self._log("[STEP 6/7] Executing WSL flash script (may take 10-30 minutes)...")
