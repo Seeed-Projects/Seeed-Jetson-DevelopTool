@@ -22,6 +22,7 @@ from seeed_jetson_develop.core.events import bus
 from seeed_jetson_develop.flash import (
     JetsonFlasher,
     find_recovery_device_line,
+    get_recovery_module_info,
     sudo_authenticate,
     sudo_check_cached,
 )
@@ -70,6 +71,7 @@ def _page_header(title: str, subtitle: str) -> tuple[QWidget, QLabel, QLabel]:
     return header, title_lbl, sub_lbl
 
 
+
 def _l4t_to_jetpack(l4t: str, l4t_data: list) -> str | None:
     """Extract JetPack version from l4t_data based on L4T version match."""
     import re
@@ -98,7 +100,6 @@ def _l4t_to_jetpack(l4t: str, l4t_data: list) -> str | None:
 
 
 def _product_display_name(product: str) -> str:
-    """Return a user-facing product name without changing the data key."""
     raw = (product or "").strip()
     if not raw:
         return raw
@@ -136,6 +137,39 @@ def _product_display_name(product: str) -> str:
         return "Orin Nano Dev Kit Super"
 
     return f"reComputer {raw}"
+
+
+# Product key prefix -> module name mapping for display hints
+_PRODUCT_MODULE_PREFIXES = [
+    ("j3010", "Orin Nano 4GB"),
+    ("j3011", "Orin Nano 8GB"),
+    ("j4011", "Orin NX 8GB"),
+    ("j4012", "Orin NX 16GB"),
+    ("j2011", "Xavier NX 8GB"),
+    ("j2012", "Xavier NX 16GB"),
+    ("j501", "AGX Orin"),
+    ("orin-nano-devkit-super", "Orin Nano 8GB"),
+]
+
+
+def _product_module_hint(product: str) -> str:
+    """Return the Jetson module name for a given product key."""
+    raw = (product or "").strip().lower()
+    for prefix, module in _PRODUCT_MODULE_PREFIXES:
+        if raw.startswith(prefix):
+            return module
+    return ""
+
+
+def _product_display_name_with_module(product: str) -> str:
+    """Return a user-facing product name that includes the module hint."""
+    name = _product_display_name(product)
+    module = _product_module_hint(product)
+    if module:
+        return f"{name}  \u2014  {module}"
+    return name
+
+
 def _open_url(url: str):
     from PyQt5.QtCore import QUrl
     QDesktopServices.openUrl(QUrl(url))
@@ -244,8 +278,8 @@ def build_page() -> QWidget:
     wizard_outer.setSpacing(0)
 
     step_key_order = [
-        "flash.wizard.step.select_device",
         "flash.wizard.step.enter_recovery",
+        "flash.wizard.step.download_extract",
         "flash.wizard.step.start_flash",
         "flash.wizard.step.done",
     ]
@@ -373,8 +407,8 @@ def build_page() -> QWidget:
     jetpack_badge_w = pt(126)
     flash_product_combo = DropdownButton(max_popup_height=pt(320))
     flash_product_combo.setMinimumWidth(pt(260))
-    for product_key in sorted(products.keys(), key=_product_display_name):
-        flash_product_combo.addItem(_product_display_name(product_key), product_key)
+    for product_key in sorted(products.keys(), key=_product_display_name_with_module):
+        flash_product_combo.addItem(_product_display_name_with_module(product_key), product_key)
     prod_row.addWidget(flash_product_combo)
     prod_jetpack_placeholder = QWidget()
     prod_jetpack_placeholder.setFixedWidth(jetpack_badge_w)
@@ -512,9 +546,9 @@ def build_page() -> QWidget:
 
     rec_guide_scroll.setWidget(rec_guide_content)
     rec_guide_outer.addWidget(rec_guide_scroll, 1)
-    flash_left_stack.addWidget(rec_guide_card)
+    left_col.addWidget(rec_guide_card)
 
-    # Left page 2: post-flash quick start
+    # Left page 1: post-flash quick start
     guide_card = make_card(12)
     guide_outer = QVBoxLayout(guide_card)
     guide_outer.setContentsMargins(pt(24), pt(20), pt(24), pt(20))
@@ -689,9 +723,22 @@ def build_page() -> QWidget:
     """)
     flash_clear_btn.clicked.connect(lambda: _clear_firmware_cache())
 
-    flash_next_btn = RippleButton(_ft("flash.btn.next"))
+    flash_back_btn = RippleButton(_ft("flash.btn.back"))
+    flash_back_btn.setCursor(Qt.PointingHandCursor)
+    flash_back_btn.setStyleSheet(f"""
+        QPushButton {{
+            background: {C_CARD_LIGHT};
+            border: none; border-radius: 8px;
+            color: {C_TEXT2}; font-size: {pt(12)}pt; font-weight: 600;
+            padding: 0 {pt(20)}px; min-height: {pt(42)}px;
+        }}
+        QPushButton:hover {{ background: rgba(255,255,255,0.08); }}
+    """)
+    flash_back_btn.clicked.connect(lambda: _flash_go_step1())
+
+    flash_next_btn = RippleButton(_ft("flash.btn.start_flash"))
     flash_next_btn.setCursor(Qt.PointingHandCursor)
-    flash_next_btn.setToolTip(_ft("flash.btn.next_tip"))
+    flash_next_btn.setToolTip(_ft("flash.btn.start_flash_tip"))
     flash_next_btn.setStyleSheet(f"""
         QPushButton {{
             background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
@@ -705,14 +752,23 @@ def build_page() -> QWidget:
         QPushButton:disabled {{ background: #1A232E; color: #5A6B7A; }}
     """)
     flash_next_btn.setEnabled(False)
-    flash_next_btn.clicked.connect(lambda: _flash_go_next_step())
+    flash_next_btn.clicked.connect(lambda: _start_flash())
 
-    btn_row.addWidget(flash_download_btn)
-    btn_row.addWidget(flash_clear_btn)
-    btn_row.addWidget(flash_cancel_btn)
-    btn_row.addStretch()
-    btn_row.addWidget(flash_next_btn)
-    task_lay.addLayout(btn_row)
+    # Two-row button layout to prevent truncation on narrow screens
+    btn_outer = QVBoxLayout()
+    btn_outer.setSpacing(pt(8))
+    btn_row_top = QHBoxLayout()
+    btn_row_top.addWidget(flash_download_btn)
+    btn_row_top.addWidget(flash_clear_btn)
+    btn_row_top.addWidget(flash_cancel_btn)
+    btn_row_top.addStretch()
+    btn_outer.addLayout(btn_row_top)
+    btn_row_bottom = QHBoxLayout()
+    btn_row_bottom.addWidget(flash_back_btn)
+    btn_row_bottom.addStretch()
+    btn_row_bottom.addWidget(flash_next_btn)
+    btn_outer.addLayout(btn_row_bottom)
+    task_lay.addLayout(btn_outer)
 
     flash_cache_lbl = make_label("", 11, C_TEXT3)
     task_lay.addWidget(flash_cache_lbl)
@@ -731,6 +787,19 @@ def build_page() -> QWidget:
 
     rec_status_lbl = make_label(_ft("flash.status.waiting_detection"), 13, C_TEXT2)
     rec_lay.addWidget(rec_status_lbl)
+
+    # Module info label: prominently shows detected module after recovery detection
+    rec_module_lbl = QLabel("")
+    rec_module_lbl.setWordWrap(True)
+    rec_module_lbl.setMinimumWidth(0)
+    rec_module_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+    rec_module_lbl.setStyleSheet(f"""
+        color: {C_GREEN}; font-size: {pt(14)}pt; font-weight: 700;
+        background: rgba(122,179,23,0.12); border-radius: 8px;
+        padding: {pt(10)}px {pt(14)}px;
+    """)
+    rec_module_lbl.setVisible(False)
+    rec_lay.addWidget(rec_module_lbl)
 
     rec_btn_row = QHBoxLayout()
     rec_back_btn = RippleButton(_ft("flash.btn.back"))
@@ -760,7 +829,7 @@ def build_page() -> QWidget:
     """)
     rec_detect_btn.clicked.connect(lambda: _detect_recovery())
 
-    rec_flash_btn = RippleButton(_ft("flash.btn.start_flash"))
+    rec_flash_btn = RippleButton(_ft("flash.btn.next"))
     rec_flash_btn.setCursor(Qt.PointingHandCursor)
     rec_flash_btn.setEnabled(False)
     rec_flash_btn.setStyleSheet(f"""
@@ -775,7 +844,7 @@ def build_page() -> QWidget:
         QPushButton:pressed {{ background: #6BA30F; }}
         QPushButton:disabled {{ background: #1A232E; color: #5A6B7A; }}
     """)
-    rec_flash_btn.clicked.connect(lambda: _start_flash())
+    rec_flash_btn.clicked.connect(lambda: _flash_go_next_step())
 
     rec_btn_row.addWidget(rec_back_btn)
     rec_btn_row.addWidget(rec_detect_btn)
@@ -924,6 +993,8 @@ def build_page() -> QWidget:
     def _cancel_flash():
         if _state["flash_thread"]:
             _state["flash_thread"].cancel()
+            _state["active_status_label"].setText(_ft("flash.status.cancelling"))
+            _flash_log_append(_ft("flash.log.cancel_requested"))
 
     def _update_adaptive_layout():
         width = flash_cols_host.width() or page.width()
@@ -1022,6 +1093,8 @@ def build_page() -> QWidget:
         else:
             flash_jetpack_lbl.setVisible(False)
         _update_cache_label()
+        _validate_device_selection()
+        _build_recovery_guide(_current_flash_product_key())
 
     def _update_cache_label():
         product = _current_flash_product_key()
@@ -1042,13 +1115,11 @@ def build_page() -> QWidget:
                 if not flash_cancel_btn.isVisible():
                     flash_prepare_scene.set_mode("idle")
                     flash_prepare_scene.set_download_progress(0.0)
-                _set_next_enabled(False)
             elif has_extracted:
                 flash_cache_lbl.setText(t("flash.cache.extracted_ready", lang=get_language()))
                 flash_cache_lbl.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(11)}pt; background:transparent;")
                 flash_prepare_scene.set_mode("idle")
                 flash_prepare_scene.set_download_progress(1.0)
-                _set_next_enabled(True)
             elif has_archive:
                 fp = flasher.download_dir / flasher.firmware_info['filename']
                 size_mb = fp.stat().st_size / 1024 / 1024
@@ -1059,7 +1130,6 @@ def build_page() -> QWidget:
                 if not flash_cancel_btn.isVisible():
                     flash_prepare_scene.set_mode("idle")
                     flash_prepare_scene.set_download_progress(1.0 if needs_archive_for_windows else 0.0)
-                _set_next_enabled(needs_archive_for_windows)
             else:
                 flash_cache_lbl.setText(t("flash.cache.no_local", lang=get_language()))
                 flash_cache_lbl.setStyleSheet(f"""
@@ -1069,7 +1139,6 @@ def build_page() -> QWidget:
                 if not flash_cancel_btn.isVisible():
                     flash_prepare_scene.set_mode("idle")
                     flash_prepare_scene.set_download_progress(0.0)
-                _set_next_enabled(False)
         except Exception:
             flash_cache_lbl.setText("")
 
@@ -1095,6 +1164,12 @@ def build_page() -> QWidget:
         elif not flash_cancel_btn.isVisible():
             flash_prepare_scene.set_mode("idle")
             flash_prepare_scene.set_download_progress(0.0)
+
+    def _validate_device_selection():
+        """Enable Next button as long as a valid product and L4T are selected."""
+        product = _current_flash_product_key()
+        l4t = flash_l4t_combo.currentText()
+        _set_next_enabled(bool(product and l4t))
 
     def _clear_firmware_cache():
         product = _current_flash_product_key()
@@ -1169,7 +1244,8 @@ def build_page() -> QWidget:
         except Exception as e:
             _flash_log_append(_ft("flash.log.cache_clear_failed", error=e))
         _update_cache_label()
-        _set_next_enabled(False)
+        # Next button is no longer tied to cache state; keep current selection validity.
+        _validate_device_selection()
 
     def _ensure_sudo() -> bool:
         import getpass as _getpass
@@ -1248,7 +1324,7 @@ def build_page() -> QWidget:
             clicked = msg.clickedButton()
             if clicked is skip_btn:
                 _flash_log_append(_ft("flash.log.use_existing_extracted"))
-                _set_next_enabled(True)
+                _validate_device_selection()
                 return
             elif clicked is overwrite_btn:
                 _run_flash_thread(product, l4t, force_redownload=True, prepare_only=True)
@@ -1277,20 +1353,6 @@ def build_page() -> QWidget:
 
     def _flash_go_next_step():
         _set_wizard_step(1)
-        flash_step_stack.setCurrentIndex(1)
-        flash_left_stack.setCurrentIndex(1)
-        _build_recovery_guide(_current_flash_product_key())
-        rec_status_lbl.setText(_ft("flash.status.waiting_detection"))
-        rec_status_lbl.setStyleSheet(f"color:{C_TEXT2}; background:transparent;")
-        rec_flash_btn.setEnabled(False)
-        flash_scene.set_mode("idle")
-        flash_scene.set_download_progress(0.0)
-        flash_prepare_scene.set_mode("idle")
-        flash_prepare_scene.set_download_progress(1.0 if flash_next_btn.isEnabled() else 0.0)
-        flash_run_back_btn.setVisible(False)
-
-    def _flash_go_step1():
-        _set_wizard_step(0)
         flash_step_stack.setCurrentIndex(0)
         flash_left_stack.setCurrentIndex(0)
         flash_scene.set_mode("idle")
@@ -1298,10 +1360,22 @@ def build_page() -> QWidget:
         flash_prepare_scene.set_mode("idle")
         flash_prepare_scene.set_download_progress(1.0 if flash_next_btn.isEnabled() else 0.0)
         flash_run_back_btn.setVisible(False)
+        rec_back_btn.setVisible(True)
+
+    def _flash_go_step1():
+        _set_wizard_step(0)
+        flash_step_stack.setCurrentIndex(1)
+        flash_left_stack.setCurrentIndex(0)
+        flash_scene.set_mode("idle")
+        flash_scene.set_download_progress(0.0)
+        flash_prepare_scene.set_mode("idle")
+        flash_prepare_scene.set_download_progress(1.0 if flash_next_btn.isEnabled() else 0.0)
+        flash_run_back_btn.setVisible(False)
+        rec_back_btn.setVisible(False)
 
     def _flash_reset_to_start():
         _set_wizard_step(0)
-        flash_step_stack.setCurrentIndex(0)
+        flash_step_stack.setCurrentIndex(1)
         flash_left_stack.setCurrentIndex(0)
         flash_status_lbl.setText(_ft("flash.status.not_started"))
         flash_status_lbl.setStyleSheet(f"color:{C_TEXT2}; background:transparent;")
@@ -1317,6 +1391,14 @@ def build_page() -> QWidget:
         flash_done_scene.set_mode("success")
         flash_done_scene.set_download_progress(1.0)
         flash_run_back_btn.setVisible(False)
+        # Reset recovery state
+        rec_status_lbl.setText(_ft("flash.status.waiting_detection"))
+        rec_status_lbl.setStyleSheet(f"color:{C_TEXT2}; background:transparent;")
+        rec_module_lbl.setVisible(False)
+        rec_module_lbl.setText("")
+        rec_flash_btn.setEnabled(False)
+        rec_back_btn.setVisible(False)
+        _validate_device_selection()
 
     def _build_recovery_guide(product: str):
         from seeed_jetson_develop.data.recovery_guides import get_guide
@@ -1514,16 +1596,25 @@ def build_page() -> QWidget:
 
     def _detect_recovery():
         try:
-            line = find_recovery_device_line(log=_flash_log_append)
-            if line:
+            info = get_recovery_module_info(log=_flash_log_append)
+            if info:
+                line = info["line"]
+                module_name = info.get("module_name", "Unknown")
                 _flash_log_append(_ft("flash.detect.log_found", line=line))
                 rec_status_lbl.setText(_ft("flash.detect.status_found"))
                 rec_status_lbl.setStyleSheet(f"color:{C_GREEN}; background:transparent;")
+                # Show prominent module info
+                rec_module_lbl.setText(
+                    _ft("flash.detect.module_info", module=module_name)
+                )
+                rec_module_lbl.setVisible(True)
                 rec_flash_btn.setEnabled(True)
                 last_detect_state["found"] = True
             else:
                 rec_status_lbl.setText(_ft("flash.detect.status_not_found"))
                 rec_status_lbl.setStyleSheet(f"color:{C_ORANGE}; background:transparent;")
+                rec_module_lbl.setVisible(False)
+                rec_module_lbl.setText("")
                 rec_flash_btn.setEnabled(False)
                 if last_detect_state["found"] is not False:
                     _flash_log_append(_ft("flash.detect.warn_no_apx"))
@@ -1542,7 +1633,8 @@ def build_page() -> QWidget:
         if not _ensure_sudo():
             _flash_log_append(_ft("flash.log.sudo_flash_cancelled"))
             return
-        _run_flash_thread(product, l4t, flash_only=True)
+        # Run full pipeline: download (if needed) -> verify -> extract -> flash
+        _run_flash_thread(product, l4t)
 
     def _retry_flash():
         product = _current_flash_product_key()
@@ -1553,7 +1645,8 @@ def build_page() -> QWidget:
         if not _ensure_sudo():
             _flash_log_append(_ft("flash.log.sudo_retry_cancelled"))
             return
-        _run_flash_thread(product, l4t, flash_only=True)
+        # Run full pipeline: download (if needed) -> verify -> extract -> flash
+        _run_flash_thread(product, l4t)
 
     def _run_flash_thread(product, l4t, force_redownload=False,
                           download_only=False, prepare_only=False, flash_only=False):
@@ -1586,7 +1679,7 @@ def build_page() -> QWidget:
         if is_actual_flash:
             _set_wizard_step(2)
             flash_step_stack.setCurrentIndex(2)
-            flash_left_stack.setCurrentIndex(1)
+            flash_left_stack.setCurrentIndex(0)
             flash_run_cancel_btn.setVisible(True)
             flash_run_retry_btn.setVisible(False)
             flash_run_back_btn.setVisible(False)
@@ -1622,6 +1715,11 @@ def build_page() -> QWidget:
                 flash_prepare_scene.set_mode("downloading")
             elif "complete" in msg_lower:
                 flash_prepare_scene.set_mode("idle")
+        if flash_step_stack.currentIndex() == 2:
+            if any(k in msg_lower for k in ("extract", "skip download", "download", "verify", "initialize")):
+                flash_scene.set_mode("downloading")
+            elif "flash" in msg_lower:
+                flash_scene.set_mode("flashing")
 
     def _on_flash_progress(value):
         _state["active_progress"].setValue(value)
@@ -1652,6 +1750,8 @@ def build_page() -> QWidget:
             )
             if flash_step_stack.currentIndex() == 0:
                 flash_prepare_scene.set_download_progress(pct / 100)
+            if flash_step_stack.currentIndex() == 2:
+                flash_scene.set_download_progress(pct / 100)
         else:
             downloaded = max(0, downloaded)
             bar.setRange(0, 0)
@@ -1695,11 +1795,11 @@ def build_page() -> QWidget:
             flash_done_status_lbl.setText(f"\u2713 {msg}")
             flash_done_status_lbl.setStyleSheet(f"color:{C_GREEN}; background:transparent;")
             flash_step_stack.setCurrentIndex(3)
-            flash_left_stack.setCurrentIndex(2)
+            flash_left_stack.setCurrentIndex(1)
             QTimer.singleShot(0, _update_adaptive_layout)
         elif was_actual_flash and not ok:
             flash_step_stack.setCurrentIndex(2)
-            flash_left_stack.setCurrentIndex(1)
+            flash_left_stack.setCurrentIndex(0)
             flash_run_retry_btn.setVisible(True)
             flash_run_back_btn.setVisible(True)
             QTimer.singleShot(0, _update_adaptive_layout)
@@ -1709,7 +1809,8 @@ def build_page() -> QWidget:
                 ready = flasher.firmware_extracted()
                 if py_platform.system() == "Windows":
                     ready = ready or flasher.firmware_cached()
-                _set_next_enabled(ready)
+                # Next button state is based on selection, not cache; just re-validate.
+                _validate_device_selection()
             except Exception:
                 pass
         _update_cache_label()
@@ -1750,11 +1851,12 @@ def build_page() -> QWidget:
     i18n.bind_tooltip(flash_download_btn, "flash.btn.download_extract_tip")
     i18n.bind_text(flash_clear_btn, "flash.btn.clear_cache")
     i18n.bind_tooltip(flash_clear_btn, "flash.btn.clear_cache_tip")
-    i18n.bind_text(flash_next_btn, "flash.btn.next")
-    i18n.bind_tooltip(flash_next_btn, "flash.btn.next_tip")
+    i18n.bind_text(flash_next_btn, "flash.btn.start_flash")
+    i18n.bind_tooltip(flash_next_btn, "flash.btn.start_flash_tip")
+    i18n.bind_text(flash_back_btn, "flash.btn.back")
     i18n.bind_text(rec_back_btn, "flash.btn.back")
     i18n.bind_text(rec_detect_btn, "flash.btn.detect_device")
-    i18n.bind_text(rec_flash_btn, "flash.btn.start_flash")
+    i18n.bind_text(rec_flash_btn, "flash.btn.next")
     i18n.bind_text(flash_run_cancel_btn, "flash.btn.cancel")
     i18n.bind_text(flash_run_retry_btn, "flash.btn.retry_flash")
     i18n.bind_text(flash_run_back_btn, "flash.btn.back_to_recovery")
@@ -1797,15 +1899,14 @@ def build_page() -> QWidget:
             _FLASH_LANG_OVERRIDE = lang
             _state["lang"] = lang
         i18n.apply(lang)
-        if flash_left_stack.currentIndex() == 1:
-            _build_recovery_guide(_current_flash_product_key())
+        _build_recovery_guide(_current_flash_product_key())
     page.retranslate_ui = _retranslate_ui
 
     def _show_flash_done_test_state():
         msg = os.environ.get("SEEED_FLASH_TEST_DONE_MESSAGE", "Flash completed!")
         _set_wizard_step(3)
         flash_step_stack.setCurrentIndex(3)
-        flash_left_stack.setCurrentIndex(2)
+        flash_left_stack.setCurrentIndex(1)
         flash_scene.set_mode("success")
         flash_scene.set_download_progress(1.0)
         flash_done_scene.set_mode("success")
@@ -1822,6 +1923,7 @@ def build_page() -> QWidget:
     flash_product_combo.currentTextChanged.connect(_on_flash_product_changed)
     flash_l4t_combo.currentTextChanged.connect(lambda l4t: _update_jetpack_display(l4t))
     flash_l4t_combo.currentTextChanged.connect(lambda _: _update_cache_label())
+    flash_l4t_combo.currentTextChanged.connect(lambda _: _validate_device_selection())
 
     # Initial state.
     page.retranslate_ui(get_language())
@@ -1830,6 +1932,8 @@ def build_page() -> QWidget:
     if flash_l4t_combo.currentText():
         _update_jetpack_display(flash_l4t_combo.currentText())
     QTimer.singleShot(0, _update_adaptive_layout)
+    QTimer.singleShot(0, _validate_device_selection)
+    QTimer.singleShot(0, _flash_reset_to_start)
     if os.environ.get("SEEED_FLASH_TEST_DONE") == "1":
         QTimer.singleShot(0, _show_flash_done_test_state)
 

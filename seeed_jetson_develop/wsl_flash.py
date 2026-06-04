@@ -39,7 +39,7 @@ FLASH_PACKAGES = (
     "binutils",
     "usbutils",
 )
-NVIDIA_APX_IDS = {"7023", "7223", "7323", "7423", "7523", "7623"}
+NVIDIA_APX_IDS = {"7023", "7223", "7323", "7423", "7523", "7623", "7e19"}
 NVIDIA_INITRD_USB_IDS = {"7035"}
 
 
