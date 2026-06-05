@@ -222,6 +222,11 @@ class MainWindowV2(QMainWindow):
             app.installEventFilter(self)
         self._init_ui()
 
+        # Start periodic device status detection for top-right status dot
+        self._status_timer = QTimer(self)
+        self._status_timer.timeout.connect(self._update_top_status)
+        self._status_timer.start(3000)  # check every 3 seconds
+
     def _load_data(self):
         try:
             self.l4t_data = load_json_data("l4t_data.json", [])
@@ -826,6 +831,61 @@ class MainWindowV2(QMainWindow):
         self._remote_connected = False
         self._update_env_label()
 
+    # ── 顶部状态栏 — 设备连接状态检测 ───────────
+    def _detect_device_status(self) -> tuple[str, str]:
+        """Detect Jetson device status and return (status_key, color).
+
+        Priority: Recovery > SSH > Serial > Idle
+        Returns status i18n key and color constant.
+        """
+        # 1. Recovery mode check
+        try:
+            from seeed_jetson_develop.flash import find_recovery_device_line
+            if find_recovery_device_line():
+                return ("common.status.recovery", C_GREEN)
+        except Exception:
+            pass
+
+        # 2. SSH connection check
+        if self._remote_connected:
+            return ("common.status.ssh", C_BLUE)
+        # Also try to ping known remote device if configured
+        try:
+            from seeed_jetson_develop.modules.remote.connector import check_ssh
+            from seeed_jetson_develop.core.config import load_config
+            cfg = load_config()
+            remote_ip = cfg.get("remote_ip", "")
+            if remote_ip and check_ssh(remote_ip, timeout=1):
+                return ("common.status.ssh", C_BLUE)
+        except Exception:
+            pass
+
+        # 3. Serial connection check
+        try:
+            import glob
+            serial_ports = glob.glob("/dev/ttyACM*") + glob.glob("/dev/ttyUSB*")
+            if serial_ports:
+                return ("common.status.serial", C_ORANGE)
+        except Exception:
+            pass
+
+        # 4. Idle / no device
+        return ("common.ready", C_TEXT3)
+
+    def _update_top_status(self):
+        """Update the top-right status_dot label with current device state."""
+        if not hasattr(self, "status_dot"):
+            return
+        key, color = self._detect_device_status()
+        text = t(key, lang=self._lang)
+        self.status_dot.setText(text)
+        self.status_dot.setStyleSheet(f"""
+            color: {color};
+            font-size: {pt(11)}pt;
+            background: transparent;
+            padding: 0;
+        """)
+
     # ── 通用页面头部 - 无边框无accent bar ───────
     def _page_header(self, title, subtitle, badge=None):
         header = QWidget()
@@ -885,7 +945,7 @@ class MainWindowV2(QMainWindow):
         if hasattr(self, "_sidebar"):
             self._sidebar.setFixedWidth(pt(220) if self._lang == "en" else pt(200))
         if hasattr(self, "status_dot"):
-            self.status_dot.setText(t("common.ready", lang=self._lang))
+            self._update_top_status()
         if hasattr(self, "_title_label"):
             self._title_label.setText(t("main.title.tool", lang=self._lang))
         if hasattr(self, "_brand_label"):

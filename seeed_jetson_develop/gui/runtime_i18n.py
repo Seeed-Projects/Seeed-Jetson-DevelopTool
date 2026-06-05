@@ -297,6 +297,9 @@ ZH_EN_EXACT = {
     "Jetson 本机": "Jetson Local",
     "远程已连接": "Remote Connected",
     "未连接设备": "No Device Connected",
+    "Recovery 模式": "Recovery Mode",
+    "SSH 已连接": "SSH Connected",
+    "串口已连接": "Serial Connected",
     "就绪": "Ready",
     "语言": "Language",
     # ── community page ────────────────────────────────────────────────────────
