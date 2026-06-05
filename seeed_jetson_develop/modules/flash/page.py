@@ -1014,12 +1014,12 @@ def build_page() -> QWidget:
         flash_cols.setStretch(0, 1)
         flash_cols.setStretch(1, 1)
         if compact_visual:
-            flash_device_img.setFixedSize(pt(200), pt(126))
+            flash_device_img.setFixedSize(pt(300), pt(189))
             flash_prepare_scene.setFixedHeight(160)
             flash_scene.setFixedHeight(160)
             flash_done_scene.setFixedHeight(160)
         else:
-            flash_device_img.setFixedSize(pt(320), pt(200))
+            flash_device_img.setFixedSize(pt(480), pt(300))
             flash_prepare_scene.setFixedHeight(180)
             flash_scene.setFixedHeight(180)
             flash_done_scene.setFixedHeight(180)
