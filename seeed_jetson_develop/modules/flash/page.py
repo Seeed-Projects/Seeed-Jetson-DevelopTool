@@ -446,7 +446,7 @@ def build_page() -> QWidget:
 
     # Device image
     flash_device_img = QLabel()
-    flash_device_img.setFixedSize(420 if PLATFORM.win_min_w > 1024 else 380, 280 if PLATFORM.win_min_w > 1024 else 240)
+    flash_device_img.setFixedSize(520 if PLATFORM.win_min_w > 1024 else 480, 360 if PLATFORM.win_min_w > 1024 else 320)
     flash_device_img.setMinimumSize(pt(160), pt(100))
     flash_device_img.setAlignment(Qt.AlignCenter)
     flash_device_img.setScaledContents(False)
@@ -507,7 +507,6 @@ def build_page() -> QWidget:
     skip_verify_cb.setChecked(True)
     opt_lay.addWidget(skip_verify_cb)
     left_col.addWidget(opt_card)
-    left_col.addStretch()
 
     left_page0 = QScrollArea()
     left_page0.setWidgetResizable(True)
@@ -515,7 +514,7 @@ def build_page() -> QWidget:
     left_page0.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     left_page0.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     left_page0.setFrameShape(QFrame.NoFrame)
-    left_page0.setMinimumHeight(pt(420))
+    left_page0.setMinimumHeight(pt(540))
     left_page0.setStyleSheet(
         "QScrollArea { background:transparent; border:none; }"
         "QScrollBar:vertical { background:transparent; width:6px; border-radius:3px; }"
@@ -538,6 +537,7 @@ def build_page() -> QWidget:
     rec_guide_scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     rec_guide_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     rec_guide_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    rec_guide_scroll.setMinimumHeight(pt(280))
     rec_guide_scroll.setStyleSheet("background:transparent; border:none;")
 
     rec_guide_content = QWidget()
@@ -553,7 +553,10 @@ def build_page() -> QWidget:
 
     rec_guide_scroll.setWidget(rec_guide_content)
     rec_guide_outer.addWidget(rec_guide_scroll, 1)
+    # Make recovery guide more noticeable with a subtle left accent border
+    rec_guide_card.setStyleSheet(rec_guide_card.styleSheet() + f"; border-left: 3px solid {C_GREEN};")
     left_col.addWidget(rec_guide_card)
+    left_col.addStretch()
 
     # Left page 1: post-flash quick start
     guide_card = make_card(12)
