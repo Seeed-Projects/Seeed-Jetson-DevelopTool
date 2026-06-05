@@ -446,7 +446,7 @@ def build_page() -> QWidget:
 
     # Device image
     flash_device_img = QLabel()
-    flash_device_img.setFixedSize(320 if PLATFORM.win_min_w > 1024 else 280, 200 if PLATFORM.win_min_w > 1024 else 160)
+    flash_device_img.setFixedSize(420 if PLATFORM.win_min_w > 1024 else 380, 280 if PLATFORM.win_min_w > 1024 else 240)
     flash_device_img.setMinimumSize(pt(160), pt(100))
     flash_device_img.setAlignment(Qt.AlignCenter)
     flash_device_img.setScaledContents(False)
