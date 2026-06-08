@@ -92,7 +92,7 @@ def find_recovery_device_line(log: Callable[[str], None] | None = None) -> str |
         print("[flash] Ensure Jetson is in Recovery mode and a DATA USB cable is connected.")
         return None
 
-    nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623"}
+    nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623", "7e19"}
     result = subprocess.run(
         ["lsusb"],
         capture_output=True,
@@ -111,6 +111,79 @@ def find_recovery_device_line(log: Callable[[str], None] | None = None) -> str |
         pid = parts[1].split()[0].split(":")[-1].lower()
         if pid in nvidia_apx_ids:
             return line.strip()
+    return None
+
+
+# PID -> 模组名称映射（与 recovery_guides.py 中的 usb_ids 保持一致）
+_PID_TO_MODULE = {
+    "7023": "AGX Orin 64GB",
+    "7223": "AGX Orin 32GB",
+    "7323": "Orin NX 16GB",
+    "7423": "Orin NX 8GB",
+    "7523": "Orin Nano 8GB",
+    "7623": "Orin Nano 4GB",
+    "7e19": "Xavier NX",
+}
+
+
+def get_recovery_module_info(log: Callable[[str], None] | None = None) -> dict | None:
+    """Return recovery device info including module name from USB PID.
+
+    Returns dict with keys: line, pid, module_name; or None if not found.
+    """
+    if _is_windows_host():
+        from seeed_jetson_develop.wsl_flash import find_nvidia_apx_device, NVIDIA_APX_IDS
+
+        device = find_nvidia_apx_device(auto_install=True, log=log)
+        if not device:
+            return None
+        vid, pid = device.hardware_id.split(":", 1)
+        pid = pid.lower()
+        if vid == "0955" and pid in NVIDIA_APX_IDS:
+            return {
+                "line": device.raw.strip(),
+                "pid": pid,
+                "module_name": _PID_TO_MODULE.get(pid, "Unknown NVIDIA APX"),
+            }
+        # Fallback: try matching by raw string if hardware_id parse failed
+        raw_lower = device.raw.lower()
+        for known_pid, name in _PID_TO_MODULE.items():
+            if known_pid in raw_lower:
+                return {
+                    "line": device.raw.strip(),
+                    "pid": known_pid,
+                    "module_name": name,
+                }
+        return {
+            "line": device.raw.strip(),
+            "pid": pid,
+            "module_name": "Unknown NVIDIA APX",
+        }
+
+    nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623", "7e19"}
+    result = subprocess.run(
+        ["lsusb"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=5,
+    )
+    for line in result.stdout.splitlines():
+        line_lower = line.lower()
+        if "0955:" not in line_lower and "nvidia" not in line_lower:
+            continue
+        parts = line.split("ID ")
+        if len(parts) <= 1:
+            continue
+        vid_pid = parts[1].split()[0].lower()
+        pid = vid_pid.split(":")[-1]
+        if pid in nvidia_apx_ids:
+            return {
+                "line": line.strip(),
+                "pid": pid,
+                "module_name": _PID_TO_MODULE.get(pid, "Unknown NVIDIA APX"),
+            }
     return None
 
 

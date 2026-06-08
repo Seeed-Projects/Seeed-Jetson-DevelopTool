@@ -22,6 +22,9 @@
   "common.status.local_jetson": "Jetson Local",
   "common.status.remote_connected": "Remote Connected",
   "common.status.no_device": "No Device Connected",
+  "common.status.recovery": "Recovery Mode",
+  "common.status.ssh": "SSH Connected",
+  "common.status.serial": "Serial Connected",
   "common.search_placeholder": "Search...",
   "common.no_data": "No data"
 }

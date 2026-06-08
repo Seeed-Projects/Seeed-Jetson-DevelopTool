@@ -62,12 +62,13 @@ class _JetsonGatewayThread(QThread):
     """后台通过 SSH 配置 Jetson 的网关和 DNS。"""
     done = pyqtSignal(bool, str)  # ok, log
 
-    def __init__(self, runner: SSHRunner, gateway: str, lang: str = "zh", lan_iface: str = ""):
+    def __init__(self, runner: SSHRunner, gateway: str, lang: str = "zh", lan_iface: str = "", pc_sudo_pwd: str = ""):
         super().__init__()
         self._runner = runner
         self._gateway = gateway
         self._lang = lang
         self._lan_iface = lan_iface
+        self._pc_sudo_pwd = pc_sudo_pwd
 
     def _msg(self, zh: str, en: str) -> str:
         return zh if self._lang == "zh" else en
@@ -111,8 +112,7 @@ class _JetsonGatewayThread(QThread):
         # 代理只监听 127.0.0.1，需要在 PC 上用 iptables DNAT 转发
         if proxy_host_detected == "127.0.0.1" and sys.platform != "win32":
             from seeed_jetson_develop.modules.remote.net_share import build_proxy_lan_forward_cmd
-            sudo_pwd = getattr(self._runner, "sudo_password", "")
-            fwd_cmd = build_proxy_lan_forward_cmd(sudo_pwd, self._lan_iface, port)
+            fwd_cmd = build_proxy_lan_forward_cmd(self._pc_sudo_pwd, self._lan_iface, port)
             try:
                 import subprocess as _sp
                 r = _sp.run(["bash", "-c", fwd_cmd], capture_output=True, text=True, timeout=15)
@@ -181,6 +181,8 @@ class NetShareDialog(QDialog):
         self._sharing = False
         self._jetson_ip = jetson_ip
         self._lang = get_current_lang(parent)
+        self._proxy_port = 0
+        self._proxy_lan = ""
         self._ip_label: QLabel | None = None
 
         self.setWindowTitle("PC 网络共享")
@@ -529,12 +531,19 @@ class NetShareDialog(QDialog):
             return
 
         self._log.append("\n" + self._format_configuring_gateway_log(lan_ip))
-        self._jetson_thread = _JetsonGatewayThread(runner, lan_ip, self._lang, self._get_lan())
+        self._jetson_thread = _JetsonGatewayThread(runner, lan_ip, self._lang, self._get_lan(), self._get_sudo_pwd())
         self._jetson_thread.done.connect(self._on_jetson_gw_done)
         self._jetson_thread.start()
 
     def _on_jetson_gw_done(self, ok: bool, log: str):
         self._log.append("\n" + log)
+        # 记录代理端口和 LAN 接口，关闭共享时清理 PC 端 iptables 规则
+        if "proxy_forward_set=" in log:
+            import re
+            m = re.search(r"proxy_forward_set=(\d+)", log)
+            if m:
+                self._proxy_port = int(m.group(1))
+                self._proxy_lan = self._get_lan()
 
     def _do_disable(self):
         wan, lan = self._get_wan(), self._get_lan()
@@ -560,6 +569,21 @@ class NetShareDialog(QDialog):
             def _clear():
                 runner.run(build_jetson_clear_proxy_cmd(), timeout=10)
             threading.Thread(target=_clear, daemon=True).start()
+        # 清除 PC 上的代理 iptables 规则
+        if sys.platform != "win32" and self._proxy_port and self._proxy_lan:
+            from seeed_jetson_develop.modules.remote.net_share import build_proxy_lan_forward_clear_cmd
+            sudo_pwd = self._get_sudo_pwd()
+            if sudo_pwd:
+                try:
+                    import subprocess as _sp
+                    clear_cmd = build_proxy_lan_forward_clear_cmd(sudo_pwd, self._proxy_lan, self._proxy_port)
+                    r = _sp.run(["bash", "-c", clear_cmd], capture_output=True, text=True, timeout=10)
+                    if r.returncode == 0:
+                        self._log.append("\n" + self._tr("ℹ 已清除 PC 代理转发规则"))
+                except Exception:
+                    pass
+            self._proxy_port = 0
+            self._proxy_lan = ""
 
     def closeEvent(self, event):
         if self._sharing:

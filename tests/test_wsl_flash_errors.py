@@ -14,6 +14,7 @@ from seeed_jetson_develop.wsl_flash import (
     _wsl_status_summary,
     ensure_usbipd_ready,
 )
+from seeed_jetson_develop.wsl_flash import _looks_like_nfs_mount_failure, _parse_sc_state
 
 
 def test_detects_nfs_mount_failure_message():
@@ -663,3 +664,10 @@ def test_flash_emits_failure_diagnostics_before_reraising(monkeypatch, tmp_path)
     assert called[0] == "boom"
     assert "stop-monitor" in called
     assert "stop-attach" in called
+def test_parse_sc_service_state():
+    text = """
+SERVICE_NAME: ShellHWDetection
+        TYPE               : 20  WIN32_SHARE_PROCESS
+        STATE              : 4  RUNNING
+"""
+    assert _parse_sc_state(text) == "RUNNING"
