@@ -107,7 +107,7 @@
           "id": "with_sdk",
           "name": "含 CUDA / TensorRT / SDK",
           "name_en": "With CUDA / TensorRT / SDK",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQD3C_OY1cAaS52seIbqLKwYAfe3LwY3zo1AK5jbFVen1dI?e=ODiO2i&download=1",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCjY_1H06ecRpyN7DgONxLeATAaICilx6kLSdm1vdWxd1U?e=kBmgWS",
           "filename": "ota_payload_package_j301_with_sdk.tar.gz",
           "sha256": ""
         },
@@ -123,29 +123,6 @@
       "supported_products": ["reComputer J3010", "reComputer J3011"],
       "product_keys": ["j3010s", "j3010mini", "j3011s", "j3011mini", "j3010classic", "j3011classic", "j3010industrial", "j3011industrial", "j3010reserver", "j3011reserver"],
       "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reComputer J301 series."
-    },
-    {
-      "id": "jp513-to-jp62-orin-nano-devkit",
-      "name": "JetPack 5.1.3 → JetPack 6.2",
-      "source_jetpack": "5.1.3",
-      "source_l4t": "35.5.0",
-      "target_jetpack": "6.2",
-      "target_l4t": "36.4.3",
-      "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/l4t/r36_release_v4.3/release/ota_tools_r36.4.3_aarch64.tbz2",
-      "ota_tools_filename": "ota_tools_r36.4.3_aarch64.tbz2",
-      "payload_options": [
-        {
-          "id": "with_sdk",
-          "name": "含 CUDA / TensorRT / SDK",
-          "name_en": "With CUDA / TensorRT / SDK",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBjSJHQUSNdQ76zOR1TH3HCAQqbf8cITdJQ-ntMlDQKe_4?e=bKKNyp",
-          "filename": "ota_payload_package_orin_nano_devkit_with_sdk.tar.gz",
-          "sha256": ""
-        }
-      ],
-      "supported_products": ["NVIDIA Jetson Orin Nano Developer Kit (Super)"],
-      "product_keys": ["orin-nano-devkit-super"],
-      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for NVIDIA Jetson Orin Nano Developer Kit. Only full SDK package is available."
     }
   ],
   "ota_tools_base_url": "https://developer.nvidia.com/downloads/embedded/l4t",
