@@ -68,6 +68,7 @@ def _l4t_to_jetpack(l4t: str) -> str | None:
         "36.4.3": "6.2", "36.4": "6.2",
         "36.3.0": "6.0", "36.3": "6.0",
         "36.2.0": "6.0 DP", "36.2": "6.0 DP",
+        "39.2": "7.2", "39.2.0": "7.2",
     }
     return mapping.get(l4t) or mapping.get(l4t.rsplit(".", 1)[0] if "." in l4t else l4t)
 

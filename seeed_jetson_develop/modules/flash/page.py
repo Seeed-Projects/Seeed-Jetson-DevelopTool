@@ -28,8 +28,19 @@ from seeed_jetson_develop.flash import (
 )
 from seeed_jetson_develop.gui.flash_animation import FlashAnimationWidget
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding
+from seeed_jetson_develop.modules.flash.update_source_dialog import UpdateSourceDialog
 from seeed_jetson_develop.gui.i18n import get_language, t
-from seeed_jetson_develop.data_update import load_json_data
+from seeed_jetson_develop.data_update import (
+    load_json_data,
+    compare_bsp_data,
+    apply_selected_updates,
+    _download_remote_bsp_data,
+    _is_valid_bsp_data,
+    LOCAL_BSP_DATA_NAME,
+    _cache_path,
+    _package_path,
+    _atomic_write_json,
+)
 from seeed_jetson_develop.resources import resolve_runtime_path
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_BLUE, C_CARD_LIGHT, C_GREEN, C_ORANGE, C_RED,
@@ -75,6 +86,7 @@ def _page_header(title: str, subtitle: str) -> tuple[QWidget, QLabel, QLabel]:
 # Fallback mapping for L4T versions whose filenames don't embed the JetPack version.
 _L4T_TO_JETPACK_FALLBACK = {
     "39.2": "7.2",
+    "39.2.0": "7.2",
 }
 
 
@@ -143,6 +155,10 @@ def _product_display_name(product: str) -> str:
     if compact == "orin-nano-devkit-super":
         return "Orin Nano Dev Kit Super"
 
+    m = re.fullmatch(r"agx-orin-devkit-(\d+)g", compact)
+    if m:
+        return f"NVIDIA Jetson AGX Orin Developer Kit {m.group(1)}GB"
+
     return f"reComputer {raw}"
 
 
@@ -156,6 +172,7 @@ _PRODUCT_MODULE_PREFIXES = [
     ("j2012", "Xavier NX 16GB"),
     ("j501", "AGX Orin"),
     ("orin-nano-devkit-super", "Orin Nano 8GB"),
+    ("agx-orin-devkit", "AGX Orin"),
 ]
 
 
@@ -493,6 +510,9 @@ def build_page() -> QWidget:
     )
     flash_docs_row.addWidget(flash_hardware_btn)
     flash_docs_row.addStretch()
+
+    update_src_btn = make_button("Update BSP", small=True)
+    flash_docs_row.addWidget(update_src_btn)
     dev_lay.addLayout(flash_docs_row)
     left_col.addWidget(dev_card)
 
@@ -1180,6 +1200,99 @@ def build_page() -> QWidget:
         product = _current_flash_product_key()
         l4t = flash_l4t_combo.currentText()
         _set_next_enabled(bool(product and l4t))
+
+    def _update_download_source():
+        """Fetch remote BSP metadata, show comparison dialog, and apply selected updates."""
+        update_src_btn.setEnabled(False)
+        update_src_btn.setText("Fetching...")
+
+        def _do_fetch():
+            try:
+                remote_data = _download_remote_bsp_data(timeout=(5, 15))
+                if not _is_valid_bsp_data(remote_data):
+                    raise ValueError("remote BSP metadata has an unexpected schema")
+                current_data = load_json_data(LOCAL_BSP_DATA_NAME, [])
+                diffs = compare_bsp_data(current_data, remote_data)
+                return diffs, remote_data, None
+            except Exception as exc:
+                return None, None, str(exc)
+
+        def _on_fetch_done(result):
+            diffs, remote_data, error = result
+            update_src_btn.setEnabled(True)
+            update_src_btn.setText("Update BSP")
+            if error:
+                from seeed_jetson_develop.gui.theme import show_error_message
+                show_error_message(
+                    page,
+                    "Error",
+                    f"Failed to fetch remote data: {error}",
+                )
+                return
+
+            # Filter out identical entries
+            visible_diffs = [d for d in diffs if d["status"] != "identical"]
+            if not visible_diffs:
+                from seeed_jetson_develop.gui.theme import show_info_message
+                show_info_message(
+                    page,
+                    "Notice",
+                    "No changes found. Local data is up to date.",
+                )
+                return
+
+            dlg = UpdateSourceDialog(diffs, parent=page.window())
+            if dlg.exec_() != QDialog.Accepted:
+                return
+
+            selected_keys = dlg.selected_keys()
+            if not selected_keys:
+                return
+
+            try:
+                current_data = load_json_data(LOCAL_BSP_DATA_NAME, [])
+                merged = apply_selected_updates(current_data, remote_data, selected_keys)
+                _atomic_write_json(_cache_path(LOCAL_BSP_DATA_NAME), merged)
+                try:
+                    _atomic_write_json(_package_path(LOCAL_BSP_DATA_NAME), merged)
+                except Exception:
+                    pass
+
+                # Reload page data
+                nonlocal l4t_data, products, product_images
+                l4t_data, products, product_images = _load_flash_data()
+
+                # Refresh product combo
+                prev_product = flash_product_combo.currentData()
+                flash_product_combo.clear()
+                for product_key in sorted(products.keys(), key=_product_display_name_with_module):
+                    flash_product_combo.addItem(_product_display_name_with_module(product_key), product_key)
+                # Try to restore previous selection
+                if prev_product:
+                    idx = flash_product_combo.findData(prev_product)
+                    if idx >= 0:
+                        flash_product_combo.setCurrentIndex(idx)
+
+                from seeed_jetson_develop.gui.theme import show_info_message
+                show_info_message(
+                    page,
+                    "Notice",
+                    f"Applied {len(selected_keys)} update(s).",
+                )
+            except Exception as exc:
+                from seeed_jetson_develop.gui.theme import show_error_message
+                show_error_message(
+                    page,
+                    "Error",
+                    f"Failed to apply updates: {exc}",
+                )
+
+        def _thread_wrapper():
+            result = _do_fetch()
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(0, lambda: _on_fetch_done(result))
+
+        threading.Thread(target=_thread_wrapper, daemon=True).start()
 
     def _clear_firmware_cache():
         product = _current_flash_product_key()
@@ -1934,6 +2047,7 @@ def build_page() -> QWidget:
     flash_l4t_combo.currentTextChanged.connect(lambda l4t: _update_jetpack_display(l4t))
     flash_l4t_combo.currentTextChanged.connect(lambda _: _update_cache_label())
     flash_l4t_combo.currentTextChanged.connect(lambda _: _validate_device_selection())
+    update_src_btn.clicked.connect(_update_download_source)
 
     # Initial state.
     page.retranslate_ui(get_language())

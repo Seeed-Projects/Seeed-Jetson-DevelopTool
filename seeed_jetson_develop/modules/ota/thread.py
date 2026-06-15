@@ -115,13 +115,25 @@ class OTAThread(QThread):
     def _on_download_progress(self, current: int, total: int):
         self.download_progress.emit(current, total)
         if total > 0:
-            pct = int(current / total * 30)  # download = 0-30%
+            pct = int(current / total * 25)  # payload download = 0-25%
             self._emit_progress(pct)
             # log every ~5% or every 50 MB to avoid flooding
             step = max(1, total // 20)
             if current % step < 65536 or current == total:
                 self._emit_log(
-                    f"[download] {_human_size(current)} / {_human_size(total)} "
+                    f"[download payload] {_human_size(current)} / {_human_size(total)} "
+                    f"({current/total*100:.1f}%)"
+                )
+
+    def _on_tools_download_progress(self, current: int, total: int):
+        self.download_progress.emit(current, total)
+        if total > 0:
+            pct = int(current / total * 10) + 25  # tools download = 25-35%
+            self._emit_progress(pct)
+            step = max(1, total // 10)
+            if current % step < 65536 or current == total:
+                self._emit_log(
+                    f"[download tools] {_human_size(current)} / {_human_size(total)} "
                     f"({current/total*100:.1f}%)"
                 )
 
@@ -146,7 +158,7 @@ class OTAThread(QThread):
         def _on_progress(sent: int, total: int):
             if self._should_cancel():
                 raise InterruptedError("Cancelled")
-            pct = int(sent / total * 20) + 30  # upload = 30-50%
+            pct = int(sent / total * 20) + 35  # upload = 35-55%
             self._emit_progress(pct)
             step = max(1, total // 10)
             if sent % step < 65536 or sent == total:
@@ -194,9 +206,25 @@ class OTAThread(QThread):
         else:
             self._emit_log(f"[info] using cached payload: {local_payload}")
 
-        self._emit_progress(30)
+        self._emit_progress(25)
 
-        # ── 2. Prepare Jetson workspace ──
+        # ── 2. Download OTA tools to PC cache ──
+        tools_url = ota_path.get("ota_tools_url", "")
+        tools_fn = ota_path.get("ota_tools_filename", "ota_tools.tbz2")
+        local_tools = _CACHE_DIR / tools_fn
+        if not local_tools.exists():
+            self._emit_log(f"[step] downloading OTA tools to PC cache ({tools_fn})...")
+            local_tools = _download_file(
+                tools_url, local_tools,
+                self._on_tools_download_progress,
+                self._emit_log,
+                self._should_cancel,
+            )
+        else:
+            self._emit_log(f"[info] using cached OTA tools: {local_tools}")
+        self._emit_progress(35)
+
+        # ── 3. Prepare Jetson workspace ──
         self._emit_log("[step] preparing Jetson workspace...")
         ws = "$HOME/ota_ws"
         rc, out = self._ssh_run(f"mkdir -p {ws}", timeout=10)
@@ -212,27 +240,26 @@ class OTAThread(QThread):
         )
         if rc != 0:
             self._emit_log(f"[warn] dependency install may have issues: {out}")
-        self._emit_progress(35)
-
-        # Download OTA tools on Jetson
-        tools_url = ota_path.get("ota_tools_url", "")
-        tools_fn = ota_path.get("ota_tools_filename", "ota_tools.tbz2")
-        self._emit_log(f"[step] downloading OTA tools ({tools_fn})...")
-        rc, out = self._ssh_run(
-            f"cd {ws} && wget -q '{tools_url}' -O {tools_fn} && tar xf {tools_fn}",
-            timeout=300,
-        )
-        if rc != 0:
-            raise RuntimeError(f"failed to download/extract OTA tools: {out}")
         self._emit_progress(40)
 
-        # ── 3. Upload payload via SFTP ──
+        # ── 4. Upload payload + OTA tools via SFTP ──
         remote_payload = f"/home/{self._runner.username}/ota_ws/{filename}"
+        remote_tools = f"/home/{self._runner.username}/ota_ws/{tools_fn}"
         self.stage.emit("upload")
+        self._sftp_put(local_tools, remote_tools)
         self._sftp_put(local_payload, remote_payload)
-        self._emit_progress(50)
 
-        # ── 4. Backup list ──
+        # Extract OTA tools on Jetson
+        self._emit_log("[step] extracting OTA tools on Jetson...")
+        rc, out = self._ssh_run(
+            f"cd {ws} && tar xf {tools_fn}",
+            timeout=120,
+        )
+        if rc != 0:
+            raise RuntimeError(f"failed to extract OTA tools: {out}")
+        self._emit_progress(55)
+
+        # ── 5. Backup list ──
         if self._backup_files:
             self._emit_log("[step] writing backup file list...")
             backup_path = f"/home/{self._runner.username}/ota_ws/ota_backup_files_list.txt"
@@ -249,9 +276,9 @@ class OTAThread(QThread):
                     f"cp {backup_path} {ws}/Linux_for_Tegra/tools/ota_tools/version_upgrade/",
                     timeout=10,
                 )
-        self._emit_progress(55)
+        self._emit_progress(60)
 
-        # ── 5. Preserve data ──
+        # ── 6. Preserve data ──
         self.stage.emit("prepare")
         self._emit_log("[step] preserving data...")
         rc, out = self._ssh_run(
@@ -260,9 +287,9 @@ class OTAThread(QThread):
         )
         if rc != 0:
             self._emit_log(f"[warn] preserve data script returned rc={rc}: {out}")
-        self._emit_progress(60)
+        self._emit_progress(65)
 
-        # ── 6. Start OTA ──
+        # ── 7. Start OTA ──
         self.stage.emit("execute")
         self._emit_log("[step] starting OTA...")
         self._emit_progress(65)

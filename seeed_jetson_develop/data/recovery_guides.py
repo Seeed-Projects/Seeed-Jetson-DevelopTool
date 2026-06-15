@@ -260,6 +260,33 @@ GUIDES = {
         "note":    None,
         "note_en": None,
     },
+
+    # ── NVIDIA Jetson AGX Orin Developer Kit ───────────────────────────────────
+    "agx-orin-devkit": {
+        "title":    "NVIDIA Jetson AGX Orin Developer Kit — 进入 Recovery 模式",
+        "title_en": "NVIDIA Jetson AGX Orin Developer Kit — Enter Recovery Mode",
+        "cable":    "USB Type-C 数据线（随开发套件附带）",
+        "cable_en": "USB Type-C cable (bundled with devkit)",
+        "steps": [
+            "将 USB Type-C 线连接至 AGX Orin 的 USB-C 端口（J40，靠近 40-pin header），另一端连接 Ubuntu 主机。",
+            "按住 Force Recovery 按钮（载板上标记为 2/S3 的中间按钮）并保持。",
+            "若设备已开机，按下并松开 Reset 按钮（3/S2）；若未开机，连接电源适配器。",
+            "松开 Force Recovery 按钮。",
+            "在主机终端执行 lsusb，确认设备已进入 Recovery 模式。",
+        ],
+        "steps_en": [
+            "Connect the USB Type-C cable to the USB-C port (J40) next to the 40-pin header on the AGX Orin devkit, and the other end to your Ubuntu host.",
+            "Press and hold the Force Recovery button (the middle button marked as 2/S3 on the carrier board).",
+            "If the board is powered on, press and release the Reset button (3/S2); if powered off, connect the power adapter.",
+            "Release the Force Recovery button.",
+            "Run lsusb on the host to confirm the device is in Recovery mode.",
+        ],
+        "usb_ids": AGX_IDS,
+        "image_url":   "https://developer.download.nvidia.com/embedded/images/jetsonAgxOrin/getting_started/jaodk_highlight_02.png",
+        "local_image": "seeed_jetson_develop/assets/recovery/agx_orin_devkit_recovery.png",
+        "note":    None,
+        "note_en": None,
+    },
 }
 
 # product key -> guide key 映射
@@ -294,6 +321,9 @@ PRODUCT_GUIDE_MAP = {
     # j501 robotics
     "j501-agx-orin-64g": "j501-agx",
     "j501-agx-orin-32g": "j501-agx",
+    # agx orin official devkit
+    "agx-orin-devkit-64g": "agx-orin-devkit",
+    "agx-orin-devkit-32g": "agx-orin-devkit",
 }
 
 

@@ -218,5 +218,50 @@
         "local_image": "seeed_jetson_develop/assets/recovery/industrial_rec_2.png"
       }
     ]
+  },
+  "agx-orin-devkit": {
+    "name": "NVIDIA Jetson AGX Orin Developer Kit",
+    "products": ["agx-orin-devkit-64g", "agx-orin-devkit-32g"],
+    "requirements": [
+      "Ubuntu host PC",
+      "NVIDIA Jetson AGX Orin Developer Kit",
+      "USB Type-C cable (bundled with devkit)"
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "description": "Connect the USB Type-C cable to the USB-C port next to the 40-pin header (J40) on the AGX Orin devkit, and the other end to your host PC"
+      },
+      {
+        "step": 2,
+        "description": "Press and hold the Force Recovery button (the middle button, marked as 2/S3 on the carrier board)"
+      },
+      {
+        "step": 3,
+        "description": "If the board is powered on, press and release the Reset button (3/S2) while holding Force Recovery; if powered off, connect the power adapter while holding Force Recovery"
+      },
+      {
+        "step": 4,
+        "description": "Release the Force Recovery button"
+      }
+    ],
+    "verification": {
+      "command": "lsusb",
+      "ids": {
+        "Jetson AGX Orin": "0955:7023"
+      }
+    },
+    "images": [
+      {
+        "url": "https://developer.download.nvidia.com/embedded/images/jetsonAgxOrin/getting_started/jaodk_carrier_board_top_wire-in-black.png",
+        "description": "AGX Orin DevKit carrier board top view with button locations",
+        "local_image": "seeed_jetson_develop/assets/recovery/agx_orin_devkit_top.png"
+      },
+      {
+        "url": "https://developer.download.nvidia.com/embedded/images/jetsonAgxOrin/getting_started/jaodk_highlight_02.png",
+        "description": "Force Recovery button location",
+        "local_image": "seeed_jetson_develop/assets/recovery/agx_orin_devkit_recovery.png"
+      }
+    ]
   }
 }

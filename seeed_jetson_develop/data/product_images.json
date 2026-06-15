@@ -229,5 +229,19 @@
     "wiki": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/",
     "getting_started": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/",
     "hardware_interfaces": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/"
+  },
+  "agx-orin-devkit-64g": {
+    "name": "NVIDIA Jetson AGX Orin Developer Kit 64GB",
+    "local_image": "assets/devices/agx_orin_devkit.png",
+    "wiki": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/",
+    "getting_started": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/",
+    "hardware_interfaces": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/"
+  },
+  "agx-orin-devkit-32g": {
+    "name": "NVIDIA Jetson AGX Orin Developer Kit 32GB",
+    "local_image": "assets/devices/agx_orin_devkit.png",
+    "wiki": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/",
+    "getting_started": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/",
+    "hardware_interfaces": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/"
   }
 }

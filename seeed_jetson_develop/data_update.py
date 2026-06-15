@@ -192,6 +192,111 @@ def _merge_bsp_data(local_data: Any, remote_data: Any) -> Any:
     return merged
 
 
+_COMPARISON_FIELDS = ("mainlink", "mirrorlink", "filename", "foldername", "sha256")
+
+
+def compare_bsp_data(local_data: Any, remote_data: Any) -> List[Dict[str, Any]]:
+    """Compare local and remote BSP data and return structured differences.
+
+    Each diff entry contains:
+      - key: (product, l4t) tuple
+      - status: "new" | "modified" | "identical" | "local_only"
+      - fields_changed: list of field names that differ (only for "modified")
+      - local_item: the local dict (or None)
+      - remote_item: the remote dict (or None)
+    """
+    local_data = _clean_bsp_data(local_data)
+    remote_data = _clean_bsp_data(remote_data)
+
+    local_index = {
+        (str(item.get("product", "")), str(item.get("l4t", ""))): item
+        for item in local_data
+    }
+    remote_index = {
+        (str(item.get("product", "")), str(item.get("l4t", ""))): item
+        for item in remote_data
+    }
+
+    all_keys = sorted(set(local_index.keys()) | set(remote_index.keys()))
+    diffs: List[Dict[str, Any]] = []
+
+    for key in all_keys:
+        local_item = local_index.get(key)
+        remote_item = remote_index.get(key)
+
+        if local_item is None:
+            diffs.append({
+                "key": key,
+                "status": "new",
+                "fields_changed": [],
+                "local_item": None,
+                "remote_item": remote_item,
+            })
+        elif remote_item is None:
+            diffs.append({
+                "key": key,
+                "status": "local_only",
+                "fields_changed": [],
+                "local_item": local_item,
+                "remote_item": None,
+            })
+        else:
+            changed = []
+            for field in _COMPARISON_FIELDS:
+                if local_item.get(field) != remote_item.get(field):
+                    changed.append(field)
+            if changed:
+                diffs.append({
+                    "key": key,
+                    "status": "modified",
+                    "fields_changed": changed,
+                    "local_item": local_item,
+                    "remote_item": remote_item,
+                })
+            else:
+                diffs.append({
+                    "key": key,
+                    "status": "identical",
+                    "fields_changed": [],
+                    "local_item": local_item,
+                    "remote_item": remote_item,
+                })
+    return diffs
+
+
+def apply_selected_updates(
+    local_data: Any,
+    remote_data: Any,
+    selected_keys: Iterable[tuple[str, str]],
+) -> Any:
+    """Apply remote updates only for selected keys, keep everything else local."""
+    local_data = _clean_bsp_data(local_data)
+    remote_data = _clean_bsp_data(remote_data)
+    selected_set = set(selected_keys)
+
+    merged = [dict(item) for item in local_data]
+    index = {
+        (str(item.get("product", "")), str(item.get("l4t", ""))): idx
+        for idx, item in enumerate(merged)
+    }
+
+    remote_index = {
+        (str(item.get("product", "")), str(item.get("l4t", ""))): item
+        for item in remote_data
+    }
+
+    for key in selected_set:
+        remote_item = remote_index.get(key)
+        if remote_item is None:
+            continue
+        if key in index:
+            merged[index[key]] = dict(remote_item)
+        else:
+            index[key] = len(merged)
+            merged.append(dict(remote_item))
+    return merged
+
+
 def update_bsp_links_from_github(timeout=(2, 5)) -> bool:
     """Refresh BSP download metadata from the wiki repo.
 

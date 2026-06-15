@@ -867,5 +867,41 @@
     "filename": "mfi_recomputer-industrial-orin-nx-8g-j201-6.2-36.4.3-2025-06-23.tar.gz",
     "foldername": "mfi_recomputer-industrial-orin-nx-8g-6.2-36.4.3",
     "sha256": "530f68c2a0bfda15b1e8211acb3905e55f28d041bb531dcfa278e7f9bbd4118e"
+  },
+  {
+    "product": "agx-orin-devkit-64g",
+    "l4t": "36.5.0",
+    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBGLAbtol-5Tabv8UHZ115dAdrFnpPWzEqPx9iEhKlzr3M?e=0kb05W&download=1",
+    "mirrorlink": "",
+    "filename": "mfi_seeed-agx-orin-64g-6.2.2-36.5.0-2026-06-01.tar.gz",
+    "foldername": "mfi_seeed-agx-orin-devkit",
+    "sha256": ""
+  },
+  {
+    "product": "agx-orin-devkit-64g",
+    "l4t": "39.2.0",
+    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQD3QSP_afcgRri0FoRzMO60ATuf5Ne8sam1Uqawjk14mqM?e=d2oaJM&download=1",
+    "mirrorlink": "",
+    "filename": "mfi_jetson-agx-orin-devkit-super-39.2.0.tar.gz",
+    "foldername": "mfi_jetson-agx-orin-devkit-super",
+    "sha256": ""
+  },
+  {
+    "product": "agx-orin-devkit-32g",
+    "l4t": "36.5.0",
+    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQB38PmJccA9QIwcmEPXLMm-AUzEW_7Ym6j_WAptK-rieE4?e=YVtOfQ&download=1",
+    "mirrorlink": "",
+    "filename": "mfi_seeed-agx-orin-32g-6.2.2-36.5.0-2026-05-29.tar.gz",
+    "foldername": "mfi_seeed-agx-orin-devkit",
+    "sha256": ""
+  },
+  {
+    "product": "agx-orin-devkit-32g",
+    "l4t": "39.2.0",
+    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQD3QSP_afcgRri0FoRzMO60ATuf5Ne8sam1Uqawjk14mqM?e=d2oaJM&download=1",
+    "mirrorlink": "",
+    "filename": "mfi_jetson-agx-orin-devkit-super-39.2.0.tar.gz",
+    "foldername": "mfi_jetson-agx-orin-devkit-super",
+    "sha256": ""
   }
 ]

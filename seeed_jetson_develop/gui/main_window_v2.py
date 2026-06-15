@@ -33,6 +33,7 @@ from ..core.events import bus
 from ..resources import resolve_runtime_path
 from .ai_chat import FloatingAIAssistant, build_ai_system_prompt
 from .app_icon import apply_app_icon
+from .. import __version__
 from ..data_update import load_json_data, update_bsp_links_from_github
 from .i18n import get_language, set_language as _save_language, t
 from .runtime_i18n import apply_language
@@ -204,9 +205,11 @@ class MainWindowV2(QMainWindow):
         self._remote_connected = False
         apply_app_icon(self)
 
-        refreshed = update_bsp_links_from_github(timeout=(1, 2))
-        if not refreshed:
-            self._start_bsp_data_refresh()
+        # BSP data updates are now manual via Flash page "Update Download Source" button.
+        # Keep the refresh helper available for future use but do not auto-run on startup.
+        # refreshed = update_bsp_links_from_github(timeout=(1, 2))
+        # if not refreshed:
+        #     self._start_bsp_data_refresh()
 
         bus.device_connected.connect(self._on_remote_connected)
         bus.device_disconnected.connect(self._on_remote_disconnected)
@@ -686,7 +689,7 @@ class MainWindowV2(QMainWindow):
         guide_btn.clicked.connect(self._show_onboarding)
         lay.addWidget(guide_btn)
 
-        ver = make_label("v0.2.0-dev", 9, C_TEXT3)
+        ver = make_label(f"v{__version__}", 9, C_TEXT3)
         ver.setContentsMargins(pt(20), 0, 0, pt(12))
         lay.addWidget(ver)
 
