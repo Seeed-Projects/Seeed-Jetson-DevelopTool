@@ -13,6 +13,10 @@ def _launch_gui() -> int:
     os.environ.setdefault("QT_ACCESSIBILITY", "0")
     os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.fonts=false")
 
+    from seeed_jetson_develop.dependency_check import ensure_dependencies
+
+    ensure_dependencies()
+
     from seeed_jetson_develop.gui.main_window_v2 import main as gui_main
 
     gui_main()

@@ -59,6 +59,10 @@ os.environ["NO_AT_BRIDGE"]    = "1"
 os.environ["QT_ACCESSIBILITY"] = "0"
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.fonts=false")
 
+# ── 依赖自动检测/安装（Python 包 + 系统 apt 包）────────────────────────────
+from seeed_jetson_develop.dependency_check import ensure_dependencies
+ensure_dependencies()
+
 # ── X display 健康检测 + 自动 Xvfb fallback（仅 Linux）─────────────────────
 def _ensure_display():
     if sys.platform == "win32":
