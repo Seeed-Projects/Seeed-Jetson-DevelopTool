@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import logging
+import shutil
+import subprocess
 import threading
+import time
 from pathlib import Path
 
 import requests
@@ -13,6 +16,7 @@ from seeed_jetson_develop.core.runner import SSHRunner
 log = logging.getLogger("seeed.ota")
 _CACHE_DIR = Path.home() / ".cache" / "seeed-jetson" / "ota"
 _CHUNK_SIZE = 65536
+_PARALLEL_DOWNLOAD_MIN_BYTES = 100 * 1024 * 1024  # use aria2c for files >100MB
 
 
 def _human_size(size_bytes: int) -> str:
@@ -40,6 +44,78 @@ def _ensure_sharepoint_download(url: str) -> str:
         new_query = urlencode(qs, doseq=True)
         return urlunparse(parsed._replace(query=new_query))
     return url
+
+
+def _download_with_aria2c(
+    url: str,
+    dest: Path,
+    on_progress,
+    on_log,
+    should_cancel,
+) -> Path | None:
+    """Try to download with aria2c (multi-connection) and return dest on success."""
+    if not shutil.which("aria2c"):
+        return None
+
+    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    part = dest.with_suffix(dest.suffix + ".part")
+    on_log("[info] using aria2c for multi-connection download")
+
+    cmd = [
+        "aria2c",
+        "--continue=true",
+        "--max-connection-per-server=16",
+        "--split=16",
+        "--min-split-size=1M",
+        "--file-allocation=none",
+        "--summary-interval=0",
+        "--console-log-level=warn",
+        "--download-result=hide",
+        "--dir", str(part.parent),
+        "--out", part.name,
+        url,
+    ]
+
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+
+    last_size = 0
+    try:
+        while proc.poll() is None:
+            if should_cancel():
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                raise InterruptedError("Cancelled by user")
+
+            if part.exists():
+                current = part.stat().st_size
+                if current != last_size:
+                    on_progress(current, 0)  # total unknown with aria2c progress parsing
+                    last_size = current
+            time.sleep(0.5)
+
+        proc.wait()
+        if proc.returncode == 0 and part.exists():
+            part.replace(dest)
+            on_log(f"[ok] saved to {dest} ({_human_size(dest.stat().st_size)})")
+            return dest
+        else:
+            out = proc.stdout.read() if proc.stdout else ""
+            on_log(f"[warn] aria2c failed (rc={proc.returncode}): {out[:500]}")
+            return None
+    except InterruptedError:
+        raise
+    except Exception as e:
+        on_log(f"[warn] aria2c error: {e}")
+        return None
 
 
 def _download_file(url: str, dest: Path, on_progress, on_log, should_cancel) -> Path:
@@ -74,6 +150,17 @@ def _download_file(url: str, dest: Path, on_progress, on_log, should_cancel) -> 
         # Server doesn't support resume; restart
         part.unlink(missing_ok=True)
         start_offset = 0
+
+    # For large files, try aria2c first for multi-connection acceleration.
+    if total > _PARALLEL_DOWNLOAD_MIN_BYTES:
+        r.close()
+        aria_dest = _download_with_aria2c(url, dest, on_progress, on_log, should_cancel)
+        if aria_dest is not None:
+            return aria_dest
+        on_log("[info] falling back to single-threaded download")
+        # Re-open request for fallback
+        r = requests.get(url, headers=headers, stream=True, timeout=30, allow_redirects=True)
+        r.raise_for_status()
 
     mode = "ab" if r.status_code == 206 and start_offset else "wb"
     written = start_offset
