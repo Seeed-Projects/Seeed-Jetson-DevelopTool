@@ -1,6 +1,7 @@
 """OTA execution thread — download payload + transfer + run OTA on Jetson."""
 from __future__ import annotations
 
+import hashlib
 import logging
 import shutil
 import subprocess
@@ -119,8 +120,42 @@ def _download_with_aria2c(
         return None
 
 
-def _download_file(url: str, dest: Path, on_progress, on_log, should_cancel) -> Path:
-    """Download url to dest with resume support. Returns final Path."""
+def _sha256_file(path: Path) -> str:
+    """Return lower-case hex SHA-256 of a file."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest().lower()
+
+
+def _verify_sha256(path: Path, expected: str | None, on_log) -> bool:
+    """Verify file sha256. Returns True if verified or skipped; raises on mismatch."""
+    if not expected:
+        on_log(f"[info] sha256 not configured, skipping verification for {path.name}")
+        return True
+    expected = expected.strip().lower()
+    if not expected:
+        return True
+    on_log(f"[info] verifying sha256 for {path.name}...")
+    actual = _sha256_file(path)
+    if actual != expected:
+        raise RuntimeError(
+            f"sha256 mismatch for {path.name}: expected {expected}, got {actual}"
+        )
+    on_log(f"[ok] sha256 verified for {path.name}")
+    return True
+
+
+def _download_file(
+    url: str,
+    dest: Path,
+    on_progress,
+    on_log,
+    should_cancel,
+    expected_sha256: str | None = None,
+) -> Path:
+    """Download url to dest with resume support and optional sha256 verification."""
     url = _ensure_sharepoint_download(url)
     _CACHE_DIR.mkdir(parents=True, exist_ok=True)
     part = dest.with_suffix(dest.suffix + ".part")
@@ -177,6 +212,7 @@ def _download_file(url: str, dest: Path, on_progress, on_log, should_cancel) -> 
 
     part.replace(dest)
     on_log(f"[ok] saved to {dest} ({_human_size(dest.stat().st_size)})")
+    _verify_sha256(dest, expected_sha256, on_log)
     return dest
 
 
@@ -301,6 +337,15 @@ class OTAThread(QThread):
 
         # ── 1. Download payload to PC cache ──
         self.stage.emit("download")
+        payload_sha256 = payload.get("sha256", "")
+        if local_payload.exists():
+            try:
+                _verify_sha256(local_payload, payload_sha256, self._emit_log)
+                self._emit_log(f"[info] using cached payload: {local_payload}")
+            except RuntimeError as e:
+                self._emit_log(f"[warn] {e}")
+                self._emit_log("[info] removing invalid cached payload and re-downloading...")
+                local_payload.unlink(missing_ok=True)
         if not local_payload.exists():
             self._emit_log("[step] downloading OTA payload...")
             local_payload = _download_file(
@@ -308,16 +353,24 @@ class OTAThread(QThread):
                 self._on_download_progress,
                 self._emit_log,
                 self._should_cancel,
+                expected_sha256=payload_sha256,
             )
-        else:
-            self._emit_log(f"[info] using cached payload: {local_payload}")
 
         self._emit_progress(25)
 
         # ── 2. Download OTA tools to PC cache ──
         tools_url = ota_path.get("ota_tools_url", "")
         tools_fn = ota_path.get("ota_tools_filename", "ota_tools.tbz2")
+        tools_sha256 = ota_path.get("ota_tools_sha256", "")
         local_tools = _CACHE_DIR / tools_fn
+        if local_tools.exists():
+            try:
+                _verify_sha256(local_tools, tools_sha256, self._emit_log)
+                self._emit_log(f"[info] using cached OTA tools: {local_tools}")
+            except RuntimeError as e:
+                self._emit_log(f"[warn] {e}")
+                self._emit_log("[info] removing invalid cached tools and re-downloading...")
+                local_tools.unlink(missing_ok=True)
         if not local_tools.exists():
             self._emit_log(f"[step] downloading OTA tools to PC cache ({tools_fn})...")
             local_tools = _download_file(
@@ -325,9 +378,8 @@ class OTAThread(QThread):
                 self._on_tools_download_progress,
                 self._emit_log,
                 self._should_cancel,
+                expected_sha256=tools_sha256,
             )
-        else:
-            self._emit_log(f"[info] using cached OTA tools: {local_tools}")
         self._emit_progress(35)
 
         # ── 3. Prepare Jetson workspace ──
@@ -409,10 +461,16 @@ class OTAThread(QThread):
         # nv_ota_start.sh triggers a reboot; SSH may drop before a clean exit.
         if rc != 0:
             lower = out.lower()
-            if "reboot" in lower or "ota" in lower or "upgrade" in lower:
+            error_indicators = [
+                "error", "fail", "no such file", "permission denied",
+                "not found", "cannot", "unable", "invalid",
+            ]
+            has_error = any(p in lower for p in error_indicators)
+            has_ota_sign = "reboot" in lower or "ota" in lower or "upgrade" in lower
+            if has_ota_sign and not has_error:
                 self._emit_log(f"[info] nv_ota_start.sh returned rc={rc} (likely due to reboot)")
             else:
-                raise RuntimeError(f"nv_ota_start.sh failed (rc={rc})")
+                raise RuntimeError(f"nv_ota_start.sh failed (rc={rc}): {out[:500]}")
 
         self._emit_progress(90)
         self._emit_log("[ok] OTA script executed. Device will reboot automatically.")

@@ -40,7 +40,8 @@
         "j4012classic",
         "j4011classic"
       ],
-      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reComputer J401 Classic / Mini / Super."
+      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reComputer J401 Classic / Mini / Super.",
+      "ota_tools_sha256": ""
     },
     {
       "id": "jp513-to-jp62-j401-industrial",
@@ -77,7 +78,8 @@
         "j4012industrial",
         "j4011industrial"
       ],
-      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reComputer J401 Industrial."
+      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reComputer J401 Industrial.",
+      "ota_tools_sha256": ""
     },
     {
       "id": "jp513-to-jp62-j401-reserver",
@@ -114,7 +116,8 @@
         "j4012reserver",
         "j4011reserver"
       ],
-      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reServer J401. Only no-SDK package is available."
+      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reServer J401. Only no-SDK package is available.",
+      "ota_tools_sha256": ""
     },
     {
       "id": "jp513-to-jp62-j301",
@@ -159,7 +162,8 @@
         "j3010reserver",
         "j3011reserver"
       ],
-      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reComputer J301 series."
+      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reComputer J301 series.",
+      "ota_tools_sha256": ""
     },
     {
       "id": "jp513-to-jp62-orin-nano-devkit",
@@ -186,7 +190,8 @@
       "product_keys": [
         "orin-nano-devkit-super"
       ],
-      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for NVIDIA Jetson Orin Nano Developer Kit. Only full SDK package is available."
+      "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for NVIDIA Jetson Orin Nano Developer Kit. Only full SDK package is available.",
+      "ota_tools_sha256": ""
     },
     {
       "id": "jp62-to-jp72-orin-nano-devkit",
@@ -213,7 +218,8 @@
       "product_keys": [
         "orin-nano-devkit-super"
       ],
-      "description": "OTA upgrade from JetPack 6.2 to JetPack 7.2 for NVIDIA Jetson Orin Nano Developer Kit. Only full SDK package is available."
+      "description": "OTA upgrade from JetPack 6.2 to JetPack 7.2 for NVIDIA Jetson Orin Nano Developer Kit. Only full SDK package is available.",
+      "ota_tools_sha256": ""
     },
     {
       "id": "jp62-to-jp72-agx-orin-devkit",
@@ -242,7 +248,8 @@
         "agx-orin-devkit-32g",
         "agx-orin-devkit-64g"
       ],
-      "description": "OTA upgrade from JetPack 6.2 to JetPack 7.2 for NVIDIA Jetson AGX Orin Developer Kit. Only full SDK package is available."
+      "description": "OTA upgrade from JetPack 6.2 to JetPack 7.2 for NVIDIA Jetson AGX Orin Developer Kit. Only full SDK package is available.",
+      "ota_tools_sha256": ""
     }
   ],
   "ota_tools_base_url": "https://developer.nvidia.com/downloads/embedded/l4t",

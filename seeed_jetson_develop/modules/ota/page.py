@@ -347,7 +347,7 @@ def build_page() -> QWidget:
     # Device image + info row
     dev_info_row = QHBoxLayout()
     dev_img = QLabel()
-    dev_img.setFixedSize(pt(180), pt(120))
+    dev_img.setFixedSize(pt(160), pt(100))
     dev_img.setScaledContents(True)
     dev_img.setStyleSheet(f"background:{C_CARD_LIGHT}; border-radius:8px;")
     dev_info_col = QVBoxLayout()
@@ -360,14 +360,11 @@ def build_page() -> QWidget:
     dev_info_col.addWidget(dev_name_lbl)
     dev_info_col.addWidget(dev_versions_lbl)
     dev_info_col.addWidget(dev_ota_hint)
-    dev_info_col.addStretch()
     dev_info_row.addWidget(dev_img)
     dev_info_row.addLayout(dev_info_col, 1)
     device_lay.addLayout(dev_info_row)
 
-    device_lay.addStretch()
     s0_lay.addWidget(device_card)
-    s0_lay.addStretch()
 
     s0_nav = QHBoxLayout()
     s0_nav.addStretch()
@@ -399,7 +396,6 @@ def build_page() -> QWidget:
     conn_btn = _btn(_at("ota.connect.go_remote"), primary=True)
     conn_btn.setVisible(False)
     conn_lay.addWidget(conn_btn, alignment=Qt.AlignLeft)
-    conn_lay.addStretch()
     s1_lay.addWidget(conn_card)
 
     detect_card = _card(12)
@@ -417,7 +413,6 @@ def build_page() -> QWidget:
     dev_jp_lbl = _lbl(_at("ota.device.jetpack") + ": --", 12, C_TEXT2)
     for w in (dev_ip_lbl, dev_model_lbl, dev_l4t_lbl, dev_jp_lbl):
         detect_grid.addWidget(w)
-    detect_grid.addStretch()
     detect_lay.addLayout(detect_grid)
 
     match_lbl = _lbl("", 12, C_ORANGE)
@@ -430,9 +425,7 @@ def build_page() -> QWidget:
 
     detect_btn = _btn(_at("ota.device.detect"), primary=True)
     detect_lay.addWidget(detect_btn, alignment=Qt.AlignLeft)
-    detect_lay.addStretch()
     s1_lay.addWidget(detect_card)
-    s1_lay.addStretch()
 
     s1_nav = QHBoxLayout()
     s1_prev = _btn(_at("ota.nav.prev"), primary=False)
@@ -491,7 +484,6 @@ def build_page() -> QWidget:
     dl_btn = _btn(_at("ota.download.btn"), primary=True)
     dl_btn.setVisible(False)
     dl_lay.addWidget(dl_btn, alignment=Qt.AlignLeft)
-    dl_lay.addStretch()
     s2_lay.addWidget(download_card)
 
     # ── Cache management card ──
@@ -510,7 +502,6 @@ def build_page() -> QWidget:
 
     cache_clear_btn = _btn(_at("ota.cache.clear_btn"), primary=False)
     cache_lay.addWidget(cache_clear_btn, alignment=Qt.AlignLeft)
-    cache_lay.addStretch()
     s2_lay.addWidget(cache_card)
 
     def _update_cache_labels():
@@ -586,7 +577,6 @@ def build_page() -> QWidget:
     note_lay.addWidget(note_text, 1)
     pre_lay.addWidget(note_card)
 
-    pre_lay.addStretch()
     s2_lay.addWidget(precheck_card)
 
     s2_nav = QHBoxLayout()
@@ -649,7 +639,6 @@ def build_page() -> QWidget:
     done_lay.addWidget(done_note)
     exec_lay.addWidget(done_widget)
 
-    exec_lay.addStretch()
     s3_lay.addWidget(exec_card)
 
     s3_nav = QHBoxLayout()
