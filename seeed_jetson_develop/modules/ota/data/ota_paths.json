@@ -14,7 +14,7 @@
           "id": "with_sdk",
           "name": "含 CUDA / TensorRT / SDK",
           "name_en": "With CUDA / TensorRT / SDK",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCjY_1H06ecRpyN7DgONxLeATAaICilx6kLSdm1vdWxd1U?e=kBmgWS",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCjY_1H06ecRpyN7DgONxLeATAaICilx6kLSdm1vdWxd1U?e=kBmgWS&download=1",
           "filename": "ota_payload_package_j401_with_sdk.tar.gz",
           "sha256": ""
         },
@@ -27,8 +27,19 @@
           "sha256": ""
         }
       ],
-      "supported_products": ["reComputer J4012", "reComputer J401", "reComputer mini J4012"],
-      "product_keys": ["j4012s", "j4012mini", "j4011s", "j4011mini", "j4012classic", "j4011classic"],
+      "supported_products": [
+        "reComputer J4012",
+        "reComputer J401",
+        "reComputer mini J4012"
+      ],
+      "product_keys": [
+        "j4012s",
+        "j4012mini",
+        "j4011s",
+        "j4011mini",
+        "j4012classic",
+        "j4011classic"
+      ],
       "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reComputer J401 Classic / Mini / Super."
     },
     {
@@ -45,7 +56,7 @@
           "id": "with_sdk",
           "name": "含 CUDA / TensorRT / SDK",
           "name_en": "With CUDA / TensorRT / SDK",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBHumdIdy4bRYZ4SVw85BXNAVlOLlKX3CdfINXPKJlDeEk?e=Z4AVCX",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBHumdIdy4bRYZ4SVw85BXNAVlOLlKX3CdfINXPKJlDeEk?e=Z4AVCX&download=1",
           "filename": "ota_payload_package_j401_industrial_with_sdk.tar.gz",
           "sha256": ""
         },
@@ -53,13 +64,19 @@
           "id": "without_sdk",
           "name": "不含 NVIDIA SDK（仅系统）",
           "name_en": "Without NVIDIA SDK (system only)",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQC1cwAhknjjRLGyVc_Ze7QOAY0phhdpYaP36DTFRuiMCFw?e=mIZqsY",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQC1cwAhknjjRLGyVc_Ze7QOAY0phhdpYaP36DTFRuiMCFw?e=mIZqsY&download=1",
           "filename": "ota_payload_package_j401_industrial.tar.gz",
           "sha256": ""
         }
       ],
-      "supported_products": ["reComputer J4011 Industrial", "reComputer J4012 Industrial"],
-      "product_keys": ["j4012industrial", "j4011industrial"],
+      "supported_products": [
+        "reComputer J4011 Industrial",
+        "reComputer J4012 Industrial"
+      ],
+      "product_keys": [
+        "j4012industrial",
+        "j4011industrial"
+      ],
       "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reComputer J401 Industrial."
     },
     {
@@ -76,7 +93,7 @@
           "id": "with_sdk",
           "name": "含 CUDA / TensorRT / SDK",
           "name_en": "With CUDA / TensorRT / SDK",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQAXoIq68yvER6hILd6Wd6MoAXT6psMXpTnEZ1naOr7IutM?e=YQvmoE",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQAXoIq68yvER6hILd6Wd6MoAXT6psMXpTnEZ1naOr7IutM?e=YQvmoE&download=1",
           "filename": "ota_payload_package_j401_reserver_with_sdk.tar.gz",
           "sha256": ""
         },
@@ -84,13 +101,19 @@
           "id": "without_sdk",
           "name": "不含 NVIDIA SDK（仅系统）",
           "name_en": "Without NVIDIA SDK (system only)",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBhfhZjS7orSLpp2ZS_CmhcAQd12P2BOkouZu1cuzbXo_I?e=gD79pM",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBhfhZjS7orSLpp2ZS_CmhcAQd12P2BOkouZu1cuzbXo_I?e=gD79pM&download=1",
           "filename": "ota_payload_package_j401_reserver.tar.gz",
           "sha256": ""
         }
       ],
-      "supported_products": ["reServer J4011", "reServer J4012"],
-      "product_keys": ["j4012reserver", "j4011reserver"],
+      "supported_products": [
+        "reServer J4011",
+        "reServer J4012"
+      ],
+      "product_keys": [
+        "j4012reserver",
+        "j4011reserver"
+      ],
       "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reServer J401. Only no-SDK package is available."
     },
     {
@@ -107,7 +130,7 @@
           "id": "with_sdk",
           "name": "含 CUDA / TensorRT / SDK",
           "name_en": "With CUDA / TensorRT / SDK",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCjY_1H06ecRpyN7DgONxLeATAaICilx6kLSdm1vdWxd1U?e=kBmgWS",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCjY_1H06ecRpyN7DgONxLeATAaICilx6kLSdm1vdWxd1U?e=kBmgWS&download=1",
           "filename": "ota_payload_package_j301_with_sdk.tar.gz",
           "sha256": ""
         },
@@ -120,8 +143,22 @@
           "sha256": ""
         }
       ],
-      "supported_products": ["reComputer J3010", "reComputer J3011"],
-      "product_keys": ["j3010s", "j3010mini", "j3011s", "j3011mini", "j3010classic", "j3011classic", "j3010industrial", "j3011industrial", "j3010reserver", "j3011reserver"],
+      "supported_products": [
+        "reComputer J3010",
+        "reComputer J3011"
+      ],
+      "product_keys": [
+        "j3010s",
+        "j3010mini",
+        "j3011s",
+        "j3011mini",
+        "j3010classic",
+        "j3011classic",
+        "j3010industrial",
+        "j3011industrial",
+        "j3010reserver",
+        "j3011reserver"
+      ],
       "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for reComputer J301 series."
     },
     {
@@ -138,13 +175,17 @@
           "id": "with_sdk",
           "name": "含 CUDA / TensorRT / SDK",
           "name_en": "With CUDA / TensorRT / SDK",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBjSJHQUSNdQ76zOR1TH3HCAQqbf8cITdJQ-ntMlDQKe_4?e=bKKNyp",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBjSJHQUSNdQ76zOR1TH3HCAQqbf8cITdJQ-ntMlDQKe_4?e=bKKNyp&download=1",
           "filename": "ota_payload_package_orin_nano_devkit_with_sdk.tar.gz",
           "sha256": ""
         }
       ],
-      "supported_products": ["NVIDIA Jetson Orin Nano Developer Kit (Super)"],
-      "product_keys": ["orin-nano-devkit-super"],
+      "supported_products": [
+        "NVIDIA Jetson Orin Nano Developer Kit (Super)"
+      ],
+      "product_keys": [
+        "orin-nano-devkit-super"
+      ],
       "description": "OTA upgrade from JetPack 5.1.3 to JetPack 6.2 for NVIDIA Jetson Orin Nano Developer Kit. Only full SDK package is available."
     },
     {
@@ -166,8 +207,12 @@
           "sha256": ""
         }
       ],
-      "supported_products": ["NVIDIA Jetson Orin Nano Developer Kit (Super)"],
-      "product_keys": ["orin-nano-devkit-super"],
+      "supported_products": [
+        "NVIDIA Jetson Orin Nano Developer Kit (Super)"
+      ],
+      "product_keys": [
+        "orin-nano-devkit-super"
+      ],
       "description": "OTA upgrade from JetPack 6.2 to JetPack 7.2 for NVIDIA Jetson Orin Nano Developer Kit. Only full SDK package is available."
     },
     {
@@ -189,8 +234,14 @@
           "sha256": ""
         }
       ],
-      "supported_products": ["NVIDIA Jetson AGX Orin Developer Kit 32GB", "NVIDIA Jetson AGX Orin Developer Kit 64GB"],
-      "product_keys": ["agx-orin-devkit-32g", "agx-orin-devkit-64g"],
+      "supported_products": [
+        "NVIDIA Jetson AGX Orin Developer Kit 32GB",
+        "NVIDIA Jetson AGX Orin Developer Kit 64GB"
+      ],
+      "product_keys": [
+        "agx-orin-devkit-32g",
+        "agx-orin-devkit-64g"
+      ],
       "description": "OTA upgrade from JetPack 6.2 to JetPack 7.2 for NVIDIA Jetson AGX Orin Developer Kit. Only full SDK package is available."
     }
   ],

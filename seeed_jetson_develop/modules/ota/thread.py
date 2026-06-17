@@ -25,8 +25,26 @@ def _human_size(size_bytes: int) -> str:
     return f"{size_bytes} B"
 
 
+def _ensure_sharepoint_download(url: str) -> str:
+    """Ensure SharePoint 'download=1' query parameter is present."""
+    try:
+        from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+    except ImportError:
+        return url
+    parsed = urlparse(url)
+    if "sharepoint.com" not in parsed.netloc.lower():
+        return url
+    qs = parse_qs(parsed.query)
+    if "download" not in qs:
+        qs["download"] = ["1"]
+        new_query = urlencode(qs, doseq=True)
+        return urlunparse(parsed._replace(query=new_query))
+    return url
+
+
 def _download_file(url: str, dest: Path, on_progress, on_log, should_cancel) -> Path:
     """Download url to dest with resume support. Returns final Path."""
+    url = _ensure_sharepoint_download(url)
     _CACHE_DIR.mkdir(parents=True, exist_ok=True)
     part = dest.with_suffix(dest.suffix + ".part")
     headers = {}
