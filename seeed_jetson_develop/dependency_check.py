@@ -74,20 +74,32 @@ def _get_project_python_requirements() -> list[str]:
     return _CORE_PYTHON_PACKAGES
 
 
-def _python_package_importable(name: str) -> bool:
-    """Check whether a Python package can be imported."""
-    module_name = name.lower().replace("-", "_").split(".")[0]
+def _python_package_installed(name: str) -> bool:
+    """Check whether a Python distribution package is installed by its pip name."""
     try:
-        __import__(module_name)
+        from importlib.metadata import version, PackageNotFoundError
+    except ImportError:  # pragma: no cover
+        try:
+            from importlib_metadata import version, PackageNotFoundError  # type: ignore
+        except ImportError:
+            # Fallback: try importing the module name as-is.
+            try:
+                __import__(name)
+                return True
+            except ImportError:
+                return False
+
+    try:
+        version(name)
         return True
-    except ImportError:
+    except PackageNotFoundError:
         return False
 
 
 def check_python_packages(packages: list[str] | None = None) -> list[str]:
-    """Return the subset of *packages* that are not importable."""
+    """Return the subset of *packages* that are not installed."""
     packages = packages or _get_project_python_requirements()
-    return [p for p in packages if not _python_package_importable(p)]
+    return [p for p in packages if not _python_package_installed(p)]
 
 
 def install_python_packages(packages: list[str]) -> bool:
