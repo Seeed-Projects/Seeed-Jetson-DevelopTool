@@ -6,6 +6,7 @@ can run before PyQt5 is loaded and fix the environment when needed.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -102,10 +103,21 @@ def check_python_packages(packages: list[str] | None = None) -> list[str]:
     return [p for p in packages if not _python_package_installed(p)]
 
 
+def _is_frozen() -> bool:
+    """Return True when running inside a PyInstaller / frozen executable."""
+    return getattr(sys, "frozen", False) is True
+
+
 def install_python_packages(packages: list[str]) -> bool:
     """Install the given Python packages with pip and return success."""
     if not packages:
         return True
+    if _is_frozen():
+        print(
+            "[seeed-jetson-developer] 检测到当前为打包后的可执行文件，"
+            "无法自动安装 Python 包。"
+        )
+        return False
     print(f"[seeed-jetson-developer] 正在安装缺失的 Python 包: {', '.join(packages)}")
     cmd = [sys.executable, "-m", "pip", "install", *packages]
     try:
@@ -180,13 +192,27 @@ def install_system_packages(packages: list[str]) -> bool:
 
 def ensure_dependencies(
     auto_install_python: bool = True,
-    auto_install_system: bool = True,
+    auto_install_system: bool = False,
 ) -> None:
     """Check and optionally install dependencies before importing PyQt5.
+
+    System dependencies are *not* installed by default because that requires
+    ``sudo`` and would surprise users who installed from pip.  Set
+    ``auto_install_system=True`` or the environment variable
+    ``SEEED_AUTO_INSTALL_SYSTEM=1`` to opt-in.
 
     Raises SystemExit if required dependencies are missing and cannot be
     installed automatically.
     """
+    if os.environ.get("SEEED_SKIP_DEPS_CHECK", "").lower() in {"1", "true", "yes"}:
+        return
+
+    if os.environ.get("SEEED_AUTO_INSTALL_SYSTEM", "").lower() in {"1", "true", "yes"}:
+        auto_install_system = True
+
+    if _is_frozen():
+        auto_install_python = False
+
     missing_py = check_python_packages()
     if missing_py:
         if auto_install_python:
@@ -196,7 +222,7 @@ def ensure_dependencies(
             still_missing = check_python_packages(missing_py)
             if still_missing:
                 print(
-                    "[seeed-jetson-developer] 以下包仍无法导入: "
+                    "[seeed-jetson-developer] 以下包仍未安装: "
                     f"{', '.join(still_missing)}"
                 )
                 sys.exit(1)
