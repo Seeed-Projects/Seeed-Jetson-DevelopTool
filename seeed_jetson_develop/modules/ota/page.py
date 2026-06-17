@@ -46,6 +46,10 @@ def _at(key: str, **kwargs) -> str:
 
 
 def _human_bytes(n: int) -> str:
+    """Return a human-readable byte string; handle negative values gracefully."""
+    n = int(n)
+    if n < 0:
+        return f"{_human_bytes(-n)} (invalid)"
     if n >= 1 << 30:
         return f"{n / (1 << 30):.2f} GB"
     if n >= 1 << 20:
@@ -53,6 +57,16 @@ def _human_bytes(n: int) -> str:
     if n >= 1 << 10:
         return f"{n / (1 << 10):.2f} KB"
     return f"{n} B"
+
+
+def _format_eta(seconds: int) -> str:
+    """Format seconds into a concise ETA string."""
+    seconds = max(0, int(seconds))
+    if seconds < 60:
+        return f"{seconds}s"
+    if seconds < 3600:
+        return f"{seconds // 60}m {seconds % 60}s"
+    return f"{seconds // 3600}h {(seconds % 3600) // 60}m"
 
 
 def _load_ota_data() -> dict:
@@ -694,21 +708,54 @@ def build_page() -> QWidget:
     def _on_ota_progress(pct: int):
         progress.setValue(pct)
 
-    _last_dl_log_ts = [0]
+    _last_dl_log_ts = [0.0]
+    _dl_start_ts = [0.0]
+    _dl_start_bytes = [0]
+    _dl_last_ts = [0.0]
+    _dl_last_bytes = [0]
 
     def _on_ota_download_progress(current: int, total: int):
         import time
+        now = time.time()
+        current = max(0, int(current))
+        total = max(0, int(total))
+
+        if _dl_start_ts[0] == 0.0:
+            _dl_start_ts[0] = now
+            _dl_start_bytes[0] = current
+            _dl_last_ts[0] = now
+            _dl_last_bytes[0] = current
+
+        delta_time = now - _dl_last_ts[0]
+        delta_bytes = current - _dl_last_bytes[0]
+        speed = int(delta_bytes / delta_time) if delta_time > 0 else 0
+
+        if delta_time >= 1.0:
+            _dl_last_ts[0] = now
+            _dl_last_bytes[0] = current
+
         if total > 0:
-            pct = int(current / total * 30)
+            pct = int(current / total * 100)
             progress.setValue(pct)
-            dl_info = f"{_human_bytes(current)} / {_human_bytes(total)}"
+            dl_info = f"{_human_bytes(current)} / {_human_bytes(total)} ({pct}%)"
+            if speed > 0 and current < total:
+                eta = (total - current) / speed
+                dl_info += f"  {_human_bytes(speed)}/s  ETA: {_format_eta(int(eta))}"
             exec_status.setText(_at("ota.execute.downloading", info=dl_info))
-            now = time.time()
             if now - _last_dl_log_ts[0] >= 2 or current == total:
                 _last_dl_log_ts[0] = now
-                _log_append(f"[download] {_human_bytes(current)} / {_human_bytes(total)} ({current/total*100:.1f}%)")
+                _log_append(
+                    f"[download] {_human_bytes(current)} / {_human_bytes(total)} "
+                    f"({pct}%) {_human_bytes(speed)}/s"
+                )
         else:
-            exec_status.setText(_at("ota.execute.downloading", info=f"{_human_bytes(current)}"))
+            dl_info = f"{_human_bytes(current)}"
+            if speed > 0:
+                dl_info += f"  {_human_bytes(speed)}/s"
+            exec_status.setText(_at("ota.execute.downloading", info=dl_info))
+            if now - _last_dl_log_ts[0] >= 2:
+                _last_dl_log_ts[0] = now
+                _log_append(f"[download] {_human_bytes(current)} {_human_bytes(speed)}/s")
 
     def _on_ota_stage(stage_name: str):
         stage_map = {
@@ -779,6 +826,12 @@ def build_page() -> QWidget:
         done_widget.setVisible(False)
         exec_log.clear()
         progress.setValue(0)
+        # Reset download progress tracking state for a fresh run.
+        _dl_start_ts[0] = 0.0
+        _dl_start_bytes[0] = 0
+        _dl_last_ts[0] = 0.0
+        _dl_last_bytes[0] = 0
+        _last_dl_log_ts[0] = 0.0
         exec_status.setText(_at("ota.execute.running"))
         exec_status.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(12)}px;")
         _log_append(_at("ota.execute.started"))

@@ -49,6 +49,7 @@ def _ensure_sharepoint_download(url: str) -> str:
 def _download_with_aria2c(
     url: str,
     dest: Path,
+    total: int,
     on_progress,
     on_log,
     should_cancel,
@@ -98,7 +99,7 @@ def _download_with_aria2c(
             if part.exists():
                 current = part.stat().st_size
                 if current != last_size:
-                    on_progress(current, 0)  # total unknown with aria2c progress parsing
+                    on_progress(current, total)
                     last_size = current
             time.sleep(0.5)
 
@@ -154,7 +155,7 @@ def _download_file(url: str, dest: Path, on_progress, on_log, should_cancel) -> 
     # For large files, try aria2c first for multi-connection acceleration.
     if total > _PARALLEL_DOWNLOAD_MIN_BYTES:
         r.close()
-        aria_dest = _download_with_aria2c(url, dest, on_progress, on_log, should_cancel)
+        aria_dest = _download_with_aria2c(url, dest, total, on_progress, on_log, should_cancel)
         if aria_dest is not None:
             return aria_dest
         on_log("[info] falling back to single-threaded download")
@@ -184,7 +185,7 @@ class OTAThread(QThread):
 
     log = pyqtSignal(str)
     progress = pyqtSignal(int)       # 0-100 overall
-    download_progress = pyqtSignal(int, int)  # current_bytes, total_bytes
+    download_progress = pyqtSignal("long long", "long long")  # current_bytes, total_bytes
     stage = pyqtSignal(str)          # "download" | "upload" | "prepare" | "execute"
     done = pyqtSignal(bool, str)     # success, message
 
