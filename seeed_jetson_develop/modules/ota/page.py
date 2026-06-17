@@ -76,6 +76,44 @@ def _load_ota_data() -> dict:
         return {"ota_paths": [], "notes": {}}
 
 
+def _get_cache_size() -> int:
+    """Return total size of the OTA cache directory in bytes."""
+    total = 0
+    if not _CACHE_DIR.exists():
+        return 0
+    for path in _CACHE_DIR.rglob("*"):
+        try:
+            if path.is_file():
+                total += path.stat().st_size
+        except Exception:
+            pass
+    return total
+
+
+def _clear_cache_dir() -> tuple[bool, int, str]:
+    """Clear the OTA cache directory. Returns (success, bytes_freed, error_message)."""
+    freed = 0
+    if not _CACHE_DIR.exists():
+        return True, 0, ""
+    errors = []
+    for path in list(_CACHE_DIR.rglob("*")):
+        try:
+            if path.is_file():
+                freed += path.stat().st_size
+                path.unlink()
+            elif path.is_dir():
+                path.rmdir()
+        except Exception as e:
+            errors.append(f"{path.name}: {e}")
+    try:
+        _CACHE_DIR.rmdir()
+    except Exception:
+        pass
+    if errors:
+        return False, freed, "; ".join(errors)
+    return True, freed, ""
+
+
 def _l4t_to_jetpack(l4t: str) -> str | None:
     mapping = {
         "35.5.0": "5.1.3", "35.5": "5.1.3",
@@ -455,6 +493,58 @@ def build_page() -> QWidget:
     dl_lay.addWidget(dl_btn, alignment=Qt.AlignLeft)
     dl_lay.addStretch()
     s2_lay.addWidget(download_card)
+
+    # ── Cache management card ──
+    cache_card = _card(12)
+    cache_lay = QVBoxLayout(cache_card)
+    cache_lay.setSpacing(pt(12))
+
+    cache_title = _lbl(_at("ota.cache.title"), 14, C_TEXT, bold=True)
+    cache_lay.addWidget(cache_title)
+
+    cache_path_lbl = _lbl(_at("ota.cache.location", path=str(_CACHE_DIR)), 11, C_TEXT3, wrap=True)
+    cache_lay.addWidget(cache_path_lbl)
+
+    cache_size_lbl = _lbl(_at("ota.cache.size", size=_human_bytes(_get_cache_size())), 12, C_TEXT2)
+    cache_lay.addWidget(cache_size_lbl)
+
+    cache_clear_btn = _btn(_at("ota.cache.clear_btn"), primary=False)
+    cache_lay.addWidget(cache_clear_btn, alignment=Qt.AlignLeft)
+    cache_lay.addStretch()
+    s2_lay.addWidget(cache_card)
+
+    def _update_cache_labels():
+        cache_title.setText(_at("ota.cache.title"))
+        cache_path_lbl.setText(_at("ota.cache.location", path=str(_CACHE_DIR)))
+        cache_size_lbl.setText(_at("ota.cache.size", size=_human_bytes(_get_cache_size())))
+        cache_clear_btn.setText(_at("ota.cache.clear_btn"))
+
+    def _on_clear_cache():
+        reply = QMessageBox.question(
+            page,
+            _at("common.notice"),
+            _at("ota.cache.clear_confirm"),
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if reply != QMessageBox.Yes:
+            return
+        ok, freed, err = _clear_cache_dir()
+        _update_cache_labels()
+        if ok:
+            _show_info_message(
+                page,
+                _at("common.notice"),
+                _at("ota.cache.clear_success", size=_human_bytes(freed)),
+            )
+        else:
+            _show_error_message(
+                page,
+                _at("common.notice"),
+                _at("ota.cache.clear_error", error=err),
+            )
+
+    cache_clear_btn.clicked.connect(_on_clear_cache)
 
     precheck_card = _card(12)
     pre_lay = QVBoxLayout(precheck_card)
@@ -927,6 +1017,7 @@ def build_page() -> QWidget:
         else:
             _state["selected_path"] = None
             dl_status.setText(_at("ota.download.no_path"))
+        _update_cache_labels()
         _goto_step(2)
 
     s1_next.clicked.connect(_enter_step2)
@@ -954,6 +1045,7 @@ def build_page() -> QWidget:
         conn_title.setText(t("ota.connect.title", lang=lang))
         detect_title.setText(t("ota.connect.detect_title", lang=lang))
         dl_title.setText(t("ota.download.title", lang=lang))
+        _update_cache_labels()
         pre_title.setText(t("ota.precheck.title", lang=lang))
         exec_title.setText(t("ota.execute.title", lang=lang))
 
