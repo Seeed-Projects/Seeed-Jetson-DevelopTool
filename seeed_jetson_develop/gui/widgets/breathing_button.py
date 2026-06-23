@@ -7,9 +7,9 @@ BreathingButton — 带呼吸光晕效果的按钮
 """
 import math
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QFont, QRadialGradient, QPen
-from PyQt5.QtWidgets import QPushButton
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QColor, QPainter, QFont, QRadialGradient, QPen
+from qtpy.QtWidgets import QPushButton
 
 from seeed_jetson_develop.gui.theme import pt
 

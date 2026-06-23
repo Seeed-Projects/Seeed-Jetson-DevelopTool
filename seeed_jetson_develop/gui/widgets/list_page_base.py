@@ -5,8 +5,8 @@
 """
 from __future__ import annotations
 
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
-from PyQt5.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, QRect
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame
+from qtpy.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, QRect
 from seeed_jetson_develop.gui.widgets.page_base import PageBase
 from seeed_jetson_develop.gui.theme import (
     C_TEXT, C_TEXT3, pt as _pt, make_label as _lbl,
@@ -110,8 +110,8 @@ class ListPageBase(PageBase):
 
     def _build_filter_row(self) -> QWidget:
         """构建筛选行（标签页 + 搜索框）"""
-        from PyQt5.QtWidgets import QScrollArea
-        from PyQt5.QtCore import Qt
+        from qtpy.QtWidgets import QScrollArea
+        from qtpy.QtCore import Qt
 
         container = QWidget()
         container_lay = QHBoxLayout(container)

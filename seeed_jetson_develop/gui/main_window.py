@@ -2,13 +2,13 @@
 import sys
 import json
 from pathlib import Path
-from PyQt5.QtWidgets import (
+from qtpy.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
     QLabel, QPushButton, QComboBox, QProgressBar,
     QTextEdit, QGroupBox, QTabWidget, QMessageBox,
     QCheckBox, QFrame, QScrollArea
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from qtpy.QtCore import Qt, QThread, Signal
 from .. import __version__
 from .styles import MAIN_STYLE, SEEED_GREEN, SEEED_BLUE
 from ..data_update import load_json_data
@@ -17,8 +17,8 @@ from ..flash import JetsonFlasher
 
 class FlashThread(QThread):
     """刷写线程"""
-    progress = pyqtSignal(str)
-    finished = pyqtSignal(bool, str)
+    progress = Signal(str)
+    finished = Signal(bool, str)
     
     def __init__(self, product, l4t_version, skip_verify=False):
         super().__init__()
@@ -120,7 +120,7 @@ class MainWindow(QMainWindow):
         
         title = QLabel("🚀 Seeed Jetson Flash Tool")
         title.setStyleSheet("color: white; font-size: 28px; font-weight: bold;")
-        from PyQt5.QtGui import QFont
+        from qtpy.QtGui import QFont
         f = QFont("Noto Color Emoji")
         f.setPointSize(28)
         title.setFont(f)
@@ -260,7 +260,7 @@ class MainWindow(QMainWindow):
         logo_label = QLabel("🌱")
         logo_label.setStyleSheet("font-size: 72px;")
         logo_label.setAlignment(Qt.AlignCenter)
-        from PyQt5.QtGui import QFont
+        from qtpy.QtGui import QFont
         f = QFont("Noto Color Emoji")
         f.setPointSize(72)
         logo_label.setFont(f)
@@ -440,14 +440,14 @@ class MainWindow(QMainWindow):
     
     def open_url(self, url):
         """打开 URL"""
-        from PyQt5.QtGui import QDesktopServices
-        from PyQt5.QtCore import QUrl
+        from qtpy.QtGui import QDesktopServices
+        from qtpy.QtCore import QUrl
         QDesktopServices.openUrl(QUrl(url))
 
 
 def main():
     """主函数"""
-    from PyQt5.QtWidgets import QApplication
+    from qtpy.QtWidgets import QApplication
     from .app_icon import apply_app_icon
     
     app = QApplication(sys.argv)

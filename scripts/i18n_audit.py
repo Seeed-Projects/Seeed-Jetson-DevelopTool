@@ -319,7 +319,7 @@ def _ai_translate_batch(
     payload = {k: v for k, v in batch}
     user_msg = (
         f"Translate the following UI strings from {src_lang} to {tgt_lang}. "
-        "These are short labels/messages from a PyQt5 desktop app for Jetson development. "
+        "These are short labels/messages from a qtpy desktop app for Jetson development. "
         "Keep emoji/punctuation/leading symbols (✓ ● ▶ → 📓 etc.) intact. "
         "Keep technical terms (SSH, Jetson, L4T, JetPack, CUDA, USB, GPIO, etc.) unchanged. "
         "Preserve any leading/trailing whitespace, newlines, and partial-sentence fragments verbatim "

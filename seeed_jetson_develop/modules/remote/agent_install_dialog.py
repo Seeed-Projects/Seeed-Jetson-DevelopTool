@@ -1,8 +1,8 @@
 """AI agent install dialog for Jetson."""
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal
+from qtpy.QtWidgets import (
     QCheckBox, QDialog, QHBoxLayout,
     QSizePolicy, QTextEdit, QVBoxLayout,
 )
@@ -53,8 +53,8 @@ CHECK_NODE_CMD = "node --version 2>/dev/null"
 # Background threads
 
 class _SshCmdThread(QThread):
-    line_out  = pyqtSignal(str)
-    finished_ = pyqtSignal(int, str)
+    line_out  = Signal(str)
+    finished_ = Signal(int, str)
 
     def __init__(self, runner: SSHRunner, commands: list[tuple[str, int]]):
         super().__init__()
@@ -78,7 +78,7 @@ class _SshCmdThread(QThread):
 
 class _DetectThread(QThread):
     """Check Node.js and agent install status."""
-    result = pyqtSignal(dict)  # {node: bool, agents: {id: bool}}
+    result = Signal(dict)  # {node: bool, agents: {id: bool}}
 
     def __init__(self, runner: SSHRunner):
         super().__init__()
@@ -212,7 +212,7 @@ class AgentInstallDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)

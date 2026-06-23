@@ -13,11 +13,12 @@ import re
 import sys
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal, QTimer
+from qtpy.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
     QLabel, QPushButton, QTextEdit, QScrollArea, QProgressBar,
     QMessageBox, QFrame, QSizePolicy, QButtonGroup, QRadioButton,
+    QDialog, QLineEdit, QCheckBox,
 )
 
 from seeed_jetson_develop.core.runner import get_runner, SSHRunner
@@ -32,7 +33,7 @@ from seeed_jetson_develop.gui.theme import (
     show_error_message as _show_error_message,
     show_info_message as _show_info_message,
     show_warning_message as _show_warning_message,
-    ShinyProgressBar,
+    ShinyProgressBar, input_qss,
 )
 from seeed_jetson_develop.data_update import load_json_data
 
@@ -74,6 +75,74 @@ def _load_ota_data() -> dict:
         return json.loads(_OTA_PATHS_FILE.read_text(encoding="utf-8"))
     except Exception:
         return {"ota_paths": [], "notes": {}}
+
+
+class _SudoPasswordDialog(QDialog):
+    """Prompt for the sudo password before running OTA commands."""
+
+    def __init__(self, parent=None, message: str = ""):
+        super().__init__(parent)
+        self.setWindowTitle(_at("ota.sudo.title"))
+        self.setModal(True)
+        self.setMinimumWidth(pt(420))
+        self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(24, 22, 24, 20)
+        lay.setSpacing(16)
+
+        msg = _lbl(message or _at("ota.sudo.prompt"), 12, C_TEXT2, wrap=True)
+        lay.addWidget(msg)
+
+        self._pwd_input = QLineEdit()
+        self._pwd_input.setEchoMode(QLineEdit.Password)
+        self._pwd_input.setPlaceholderText(_at("ota.sudo.placeholder"))
+        self._pwd_input.setStyleSheet(input_qss(radius=8, font_size=12))
+        self._pwd_input.setFixedHeight(pt(40))
+        lay.addWidget(self._pwd_input)
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        ok_btn = _btn(_at("ota.sudo.btn.ok"), primary=True)
+        cancel_btn = _btn(_at("ota.sudo.btn.cancel"), primary=False)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(ok_btn)
+        lay.addLayout(btn_row)
+
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn.clicked.connect(self.reject)
+
+    def password(self) -> str:
+        return self._pwd_input.text()
+
+
+class _SudoVerifyThread(QThread):
+    """Verify sudo password by running a no-op sudo command on the Jetson."""
+
+    result = Signal(bool, str)
+
+    def __init__(self, runner: SSHRunner):
+        super().__init__()
+        self._runner = runner
+
+    def run(self):
+        # Use the same sudo-injection wrapper as OTAThread.
+        cmd = (
+            "_S() { printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S -p '' \"$@\" 2>&1; return $?; }; "
+            "_S true"
+        )
+        try:
+            rc, out = self._runner.run(cmd, timeout=15)
+            self.result.emit(rc == 0, out)
+        except Exception as e:
+            self.result.emit(False, str(e))
+
+
+def _prompt_sudo_password(parent, message: str = "") -> str | None:
+    """Show the sudo password dialog and return the entered password, or None if cancelled."""
+    dlg = _SudoPasswordDialog(parent, message)
+    if dlg.exec_() == QDialog.Accepted:
+        return dlg.password()
+    return None
 
 
 def _get_cache_size() -> int:
@@ -185,6 +254,52 @@ def _load_product_data(ota_paths: list[dict]):
         products[p] = sorted(set(l4ts))
 
     return products, product_images
+
+
+def _normalize_l4t(l4t: str) -> str:
+    """Normalize L4T strings returned by Jetson release files."""
+    return (l4t or "").strip().lstrip("Rr")
+
+
+def _l4t_matches(current_l4t: str, source_l4t: str) -> bool:
+    """Return True when the detected L4T belongs to an OTA path source."""
+    current = _normalize_l4t(current_l4t)
+    source = _normalize_l4t(source_l4t)
+    if not current or not source:
+        return False
+    return (
+        current == source
+        or current.startswith(f"{source}.")
+        or source.startswith(f"{current}.")
+    )
+
+
+def _path_display_name(path: dict) -> str:
+    """Build a unique, readable label for an OTA path."""
+    name = path.get("name") or path.get("id") or "OTA"
+    source_l4t = path.get("source_l4t") or "?"
+    target_l4t = path.get("target_l4t") or "?"
+    return f"{name} (L4T {source_l4t} -> {target_l4t})"
+
+
+def _paths_for_product(ota_paths: list[dict], product_key: str) -> list[dict]:
+    return [p for p in ota_paths if product_key in p.get("product_keys", [])]
+
+
+def _find_path_by_id(ota_paths: list[dict], path_id: str | None) -> dict | None:
+    if not path_id:
+        return None
+    for path in ota_paths:
+        if path.get("id") == path_id:
+            return path
+    return None
+
+
+def _find_matching_path(ota_paths: list[dict], product_key: str, current_l4t: str) -> dict | None:
+    for path in _paths_for_product(ota_paths, product_key):
+        if _l4t_matches(current_l4t, path.get("source_l4t", "")):
+            return path
+    return None
 
 
 # ── Page builder ─────────────────────────────────────────────────────────────
@@ -423,6 +538,16 @@ def build_page() -> QWidget:
     path_match_lbl.setWordWrap(True)
     detect_lay.addWidget(path_match_lbl)
 
+    manual_path_title = _lbl(_at("ota.manual.title"), 13, C_TEXT, bold=True)
+    detect_lay.addWidget(manual_path_title)
+
+    path_combo = DropdownButton(max_popup_height=pt(260))
+    path_combo.setFixedHeight(pt(40))
+    detect_lay.addWidget(path_combo)
+
+    manual_path_hint = _lbl(_at("ota.manual.hint"), 11, C_TEXT3, wrap=True)
+    detect_lay.addWidget(manual_path_hint)
+
     detect_btn = _btn(_at("ota.device.detect"), primary=True)
     detect_lay.addWidget(detect_btn, alignment=Qt.AlignLeft)
     s1_lay.addWidget(detect_card)
@@ -543,6 +668,20 @@ def build_page() -> QWidget:
 
     pre_title = _lbl(_at("ota.precheck.title"), 14, C_TEXT, bold=True)
     pre_lay.addWidget(pre_title)
+
+    reupload_cb = QCheckBox(_at("ota.precheck.reupload"))
+    reupload_cb.setStyleSheet(f"color:{C_TEXT2}; font-size:{pt(12)}px;")
+    reupload_cb.setChecked(False)
+    reupload_hint = _lbl(_at("ota.precheck.reupload_hint"), 10, C_TEXT3, wrap=True)
+    pre_lay.addWidget(reupload_cb)
+    pre_lay.addWidget(reupload_hint)
+
+    skip_board_cb = QCheckBox(_at("ota.precheck.skip_board"))
+    skip_board_cb.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(12)}px;")
+    skip_board_cb.setChecked(False)
+    skip_board_hint = _lbl(_at("ota.precheck.skip_board_hint"), 10, C_TEXT3, wrap=True)
+    pre_lay.addWidget(skip_board_cb)
+    pre_lay.addWidget(skip_board_hint)
 
     backup_title = _lbl(_at("ota.precheck.backup_title"), 13, C_TEXT, bold=True)
     pre_lay.addWidget(backup_title)
@@ -670,16 +809,81 @@ def build_page() -> QWidget:
         if idx == 3:
             s3_prev.setEnabled(True)
 
+    def _path_from_combo() -> dict | None:
+        return _find_path_by_id(ota_paths, path_combo.currentData())
+
+    def _set_path_combo_to(path: dict | None):
+        target_id = path.get("id") if path else None
+        previous_block = path_combo.blockSignals(True)
+        try:
+            target_idx = 0
+            for idx in range(path_combo.count()):
+                if path_combo.itemData(idx) == target_id:
+                    target_idx = idx
+                    break
+            path_combo.setCurrentIndex(target_idx)
+        finally:
+            path_combo.blockSignals(previous_block)
+
+    def _refresh_path_combo(preselect: dict | None = None):
+        available_paths = _paths_for_product(ota_paths, _state.get("selected_product", ""))
+        previous_block = path_combo.blockSignals(True)
+        try:
+            path_combo.clear()
+            path_combo.addItem(_at("ota.manual.placeholder"), None)
+            for path in available_paths:
+                path_combo.addItem(_path_display_name(path), path.get("id"))
+            path_combo.setEnabled(bool(available_paths))
+            if preselect:
+                _set_path_combo_to(preselect)
+            else:
+                path_combo.setCurrentIndex(0)
+        finally:
+            path_combo.blockSignals(previous_block)
+
+    def _set_selected_path(path: dict | None, mode: str = "manual"):
+        _state["selected_path"] = path
+        if not path:
+            s1_next.setEnabled(False)
+            match_lbl.setText(_at("ota.manual.no_selection"))
+            match_lbl.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(12)}px;")
+            path_match_lbl.setText("")
+            return
+
+        s1_next.setEnabled(True)
+        name = _path_display_name(path)
+        current_l4t = _state.get("current_l4t", "")
+        if mode == "auto" or (current_l4t and _l4t_matches(current_l4t, path.get("source_l4t", ""))):
+            match_lbl.setText(_at("ota.connect.match_ok"))
+            match_lbl.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(12)}px;")
+            path_match_lbl.setText(_at("ota.connect.path_matched", name=name))
+            return
+
+        if current_l4t:
+            match_lbl.setText(
+                _at(
+                    "ota.manual.mismatch",
+                    current=current_l4t,
+                    source=path.get("source_l4t", ""),
+                )
+            )
+        else:
+            match_lbl.setText(_at("ota.manual.unverified"))
+        match_lbl.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(12)}px;")
+        path_match_lbl.setText(_at("ota.manual.selected", name=name))
+
     def _on_product_changed(text: str):
         pk = product_combo.currentData()
         if not pk:
             return
         _state["selected_product"] = pk
+        _state["selected_path"] = None
+        s1_next.setEnabled(False)
         # Update image
         img_data = product_images.get(pk, {})
         img_path = img_data.get("local_image", "")
         if img_path:
-            from PyQt5.QtGui import QPixmap
+            from qtpy.QtGui import QPixmap
             pix = QPixmap(str(Path(__file__).resolve().parents[3] / img_path))
             if not pix.isNull():
                 dev_img.setPixmap(pix.scaled(dev_img.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
@@ -688,14 +892,16 @@ def build_page() -> QWidget:
         versions = products.get(pk, [])
         dev_versions_lbl.setText(_at("ota.device.versions", count=len(versions)))
         # Find matching OTA paths
-        matched = [p for p in ota_paths if pk in p.get("product_keys", [])]
+        matched = _paths_for_product(ota_paths, pk)
         if matched:
-            names = ", ".join(p["name"] for p in matched)
+            names = ", ".join(_path_display_name(p) for p in matched)
             dev_ota_hint.setText(_at("ota.device.ota_available", paths=names))
             dev_ota_hint.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(12)}px;")
         else:
             dev_ota_hint.setText("")
             dev_ota_hint.setStyleSheet("")
+        _refresh_path_combo()
+        _set_selected_path(None)
 
     def _update_conn_status():
         runner = get_runner()
@@ -731,7 +937,7 @@ def build_page() -> QWidget:
             return l4t, model
 
         class _DetectThread(QThread):
-            result = pyqtSignal(str, str)
+            result = Signal(str, str)
 
             def run(self):
                 l4t, model = _do_detect()
@@ -752,25 +958,20 @@ def build_page() -> QWidget:
             dev_model_lbl.setText(_at("ota.device.model") + f": {model or '--'}")
             # Match OTA path
             pk = _state.get("selected_product", "")
-            matched = None
-            for p in ota_paths:
-                if pk in p.get("product_keys", []):
-                    src_l4t = p.get("source_l4t", "")
-                    if l4t == src_l4t or l4t.startswith(src_l4t):
-                        matched = p
-                        break
+            matched = _find_matching_path(ota_paths, pk, l4t)
             if matched:
-                _state["selected_path"] = matched
-                match_lbl.setText(_at("ota.connect.match_ok"))
-                match_lbl.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(12)}px;")
-                path_match_lbl.setText(_at("ota.connect.path_matched", name=matched.get("name", "")))
-                s1_next.setEnabled(True)
+                _set_path_combo_to(matched)
+                _set_selected_path(matched, mode="auto")
             else:
-                _state["selected_path"] = None
-                match_lbl.setText(_at("ota.connect.match_fail", current=l4t))
-                match_lbl.setStyleSheet(f"color:{C_RED}; font-size:{pt(12)}px;")
-                path_match_lbl.setText(_at("ota.connect.path_unavailable"))
-                s1_next.setEnabled(False)
+                manual_path = _path_from_combo()
+                if manual_path:
+                    _set_selected_path(manual_path, mode="manual")
+                else:
+                    _state["selected_path"] = None
+                    match_lbl.setText(_at("ota.connect.match_fail", current=l4t))
+                    match_lbl.setStyleSheet(f"color:{C_RED}; font-size:{pt(12)}px;")
+                    path_match_lbl.setText(_at("ota.connect.path_unavailable"))
+                    s1_next.setEnabled(False)
 
         t.result.connect(_on_detect_done)
         t.start()
@@ -864,18 +1065,13 @@ def build_page() -> QWidget:
             exec_status.setStyleSheet(f"color:{C_RED}; font-size:{pt(12)}px;")
             _log_append(_at("ota.execute.error", msg=msg))
 
-    def _start_ota():
-        runner = get_runner()
-        if not isinstance(runner, SSHRunner):
-            _show_warning_message(page, _at("common.notice"), _at("ota.connect.no_ssh"))
-            return
-        pk = _state.get("selected_product", "")
-        path = _find_path_for_product(pk)
+    def _collect_ota_inputs() -> tuple[dict, dict, list[str]] | None:
+        """Collect and validate OTA inputs. Returns (path, payload, backup_files) or None."""
+        path = _state.get("selected_path") or _path_from_combo()
         if not path:
             _show_warning_message(page, _at("common.notice"), _at("ota.connect.no_path"))
-            return
+            return None
 
-        # Find selected payload option
         selected_payload = None
         for btn in payload_group.buttons():
             if btn.isChecked():
@@ -887,17 +1083,20 @@ def build_page() -> QWidget:
                 break
         if not selected_payload:
             _show_warning_message(page, _at("common.notice"), _at("ota.download.no_variant"))
-            return
+            return None
         if not selected_payload.get("url"):
             _show_warning_message(page, _at("common.notice"), _at("ota.download.url_missing"))
-            return
+            return None
 
         backup_files = [
             line.strip()
             for line in backup_edit.toPlainText().splitlines()
             if line.strip()
         ]
+        return path, selected_payload, backup_files
 
+    def _launch_ota_thread(runner, path, selected_payload, backup_files, force_reupload: bool = False):
+        """Start the actual OTA background thread."""
         s3_prev.setEnabled(False)
         s3_cancel.setVisible(True)
         s3_cancel.setEnabled(True)
@@ -916,7 +1115,11 @@ def build_page() -> QWidget:
         _log_append(_at("ota.execute.started"))
 
         from seeed_jetson_develop.modules.ota.thread import OTAThread
-        t = OTAThread(runner, path, selected_payload, backup_files)
+        t = OTAThread(
+            runner, path, selected_payload, backup_files,
+            force_reupload=force_reupload,
+            skip_board_check=skip_board_cb.isChecked(),
+        )
         t.log.connect(_on_ota_log)
         t.progress.connect(_on_ota_progress)
         t.download_progress.connect(_on_ota_download_progress)
@@ -924,6 +1127,57 @@ def build_page() -> QWidget:
         t.done.connect(_on_ota_done)
         _state["thread"] = t
         t.start()
+
+    def _start_ota():
+        runner = get_runner()
+        if not isinstance(runner, SSHRunner):
+            _show_warning_message(page, _at("common.notice"), _at("ota.connect.no_ssh"))
+            return
+
+        inputs = _collect_ota_inputs()
+        if inputs is None:
+            return
+        path, selected_payload, backup_files = inputs
+
+        # ── sudo password check & verification ──
+        # If no sudo password is configured (or it is wrong), ask the user right here
+        # on the OTA page instead of forcing them back to the Remote page.
+        def _do_verify_sudo():
+            nonlocal runner
+            if not runner.sudo_password:
+                pwd = _prompt_sudo_password(page)
+                if pwd is None:
+                    # User cancelled
+                    return
+                runner.sudo_password = pwd
+                # Also update the global runner so subsequent operations use the same password.
+                from seeed_jetson_develop.core.runner import set_runner
+                set_runner(runner)
+
+            _log_append(_at("ota.execute.sudo_verifying"))
+            verify_thread = _SudoVerifyThread(runner)
+            _state["verify_thread"] = verify_thread
+            # Clean up the thread reference once it finishes to avoid leaks.
+            verify_thread.finished.connect(lambda: _state.pop("verify_thread", None))
+
+            def _on_verify_done(ok: bool, err: str):
+                _state.pop("verify_thread", None)
+                if ok:
+                    _log_append(_at("ota.execute.sudo_verified"))
+                    _launch_ota_thread(runner, path, selected_payload, backup_files, force_reupload=reupload_cb.isChecked())
+                else:
+                    runner.sudo_password = ""
+                    _show_error_message(
+                        page,
+                        _at("common.notice"),
+                        _at("ota.sudo.verify_failed"),
+                    )
+                    _do_verify_sudo()
+
+            verify_thread.result.connect(_on_verify_done)
+            verify_thread.start()
+
+        _do_verify_sudo()
 
     def _cancel_ota():
         t = _state.get("thread")
@@ -936,20 +1190,13 @@ def build_page() -> QWidget:
 
     # Wire signals
     product_combo.currentTextChanged.connect(_on_product_changed)
+    path_combo.currentTextChanged.connect(lambda _text: _set_selected_path(_path_from_combo(), mode="manual"))
 
     s0_next.clicked.connect(lambda: _goto_step(1))
     s1_prev.clicked.connect(lambda: _goto_step(0))
-    def _find_path_for_product(pk: str) -> dict | None:
-        """Look up the OTA path for a given product key by re-reading config."""
-        ota_data = _load_ota_data()
-        for p in ota_data.get("ota_paths", []):
-            if pk in p.get("product_keys", []):
-                return p
-        return None
 
     def _enter_step2():
-        pk = _state.get("selected_product", "")
-        path = _find_path_for_product(pk)
+        path = _state.get("selected_path") or _path_from_combo()
         # fully clear layout + button group
         while payload_group_lay.count():
             item = payload_group_lay.takeAt(0)
@@ -1033,6 +1280,10 @@ def build_page() -> QWidget:
         device_title.setText(t("ota.device.title", lang=lang))
         conn_title.setText(t("ota.connect.title", lang=lang))
         detect_title.setText(t("ota.connect.detect_title", lang=lang))
+        manual_path_title.setText(t("ota.manual.title", lang=lang))
+        manual_path_hint.setText(t("ota.manual.hint", lang=lang))
+        _refresh_path_combo(_state.get("selected_path"))
+        _set_selected_path(_state.get("selected_path"), mode="manual" if _state.get("selected_path") else "clear")
         dl_title.setText(t("ota.download.title", lang=lang))
         _update_cache_labels()
         pre_title.setText(t("ota.precheck.title", lang=lang))

@@ -199,15 +199,15 @@
       "source_jetpack": "6.2",
       "source_l4t": "36.4.3",
       "target_jetpack": "7.2",
-      "target_l4t": "39.2",
-      "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/l4t/r39_release_v2.0/release/ota_tools_r39.2.0_aarch64.tbz2",
-      "ota_tools_filename": "ota_tools_r39.2.0_aarch64.tbz2",
+      "target_l4t": "39.2.0",
+      "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.0/release/ota_tools_R39.2.0_aarch64.tbz2",
+      "ota_tools_filename": "ota_tools_R39.2.0_aarch64.tbz2",
       "payload_options": [
         {
           "id": "with_sdk",
           "name": "含 CUDA / TensorRT / SDK",
           "name_en": "With CUDA / TensorRT / SDK",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDs_RGPU49TQbFyu7wtkYpdAcJwVcHhxDwKNU9YbUlDatY?e=ZkRaX5&download=1",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDHQcQZB0dYS5WzzQ-9vhE0AbXdsvLU0FEl7dVbq2c9tqc?e=eYrSKT&download=1",
           "filename": "ota_payload_package_orin_nano_devkit_jp72_with_sdk.tar.gz",
           "sha256": ""
         }
@@ -228,8 +228,8 @@
       "source_l4t": "36.4.3",
       "target_jetpack": "7.2",
       "target_l4t": "39.2.0",
-      "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/l4t/r39_release_v2.0/release/ota_tools_r39.2.0_aarch64.tbz2",
-      "ota_tools_filename": "ota_tools_r39.2.0_aarch64.tbz2",
+      "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.0/release/ota_tools_R39.2.0_aarch64.tbz2",
+      "ota_tools_filename": "ota_tools_R39.2.0_aarch64.tbz2",
       "payload_options": [
         {
           "id": "with_sdk",

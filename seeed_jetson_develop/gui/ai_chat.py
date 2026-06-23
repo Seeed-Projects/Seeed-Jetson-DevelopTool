@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 import re
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QObject, QEvent, QPoint, QRect
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal, QTimer, QObject, QEvent, QPoint, QRect
+from qtpy.QtWidgets import (
     QWidget,
     QFrame,
     QLabel,
@@ -124,11 +124,11 @@ def _get_base_url() -> str:
 # ── AI 线程（支持 tool_use 循环） ─────────────────────────────────────────────
 
 class _AiToolThread(QThread):
-    token       = pyqtSignal(str)       # text token (simulated streaming)
-    tool_call   = pyqtSignal(str, str)  # command, reason
-    tool_result = pyqtSignal(str, str)  # command, output
-    done        = pyqtSignal()
-    error       = pyqtSignal(str)
+    token       = Signal(str)       # text token (simulated streaming)
+    tool_call   = Signal(str, str)  # command, reason
+    tool_result = Signal(str, str)  # command, output
+    done        = Signal()
+    error       = Signal(str)
 
     def __init__(self, messages: list, system: str, api_key: str,
                  base_url: str = "", runner=None, lang: str = "en"):
@@ -270,7 +270,7 @@ class _ToolCallBubble(QFrame):
         hdr.setSpacing(6)
         icon = QLabel("⚡")
         icon.setStyleSheet(f"color:{C_ORANGE}; font-size:{_pt(10)}pt; background:transparent;")
-        from PyQt5.QtGui import QFont
+        from qtpy.QtGui import QFont
         f = QFont("Noto Color Emoji")
         f.setPointSize(_pt(10))
         icon.setFont(f)

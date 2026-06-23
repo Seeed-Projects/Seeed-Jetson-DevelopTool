@@ -10,9 +10,9 @@ from dataclasses import dataclass
 from typing import Callable, Optional
 import uuid
 
-from PyQt5.QtCore import Qt, QObject, pyqtSignal, QTimer
-from PyQt5.QtGui import QColor, QPainter, QPen
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
+from qtpy.QtCore import Qt, QObject, Signal, QTimer
+from qtpy.QtGui import QColor, QPainter, QPen
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
 
 from seeed_jetson_develop.gui.theme import (
     C_BG_DEEP, C_CARD, C_CARD_LIGHT, C_GREEN, C_BLUE, C_ORANGE, C_RED,
@@ -39,9 +39,9 @@ class TaskHandle:
 
 
 class _TaskRegistry(QObject):
-    task_added   = pyqtSignal(object)
-    task_updated = pyqtSignal(str)
-    task_removed = pyqtSignal(str)
+    task_added   = Signal(object)
+    task_updated = Signal(str)
+    task_removed = Signal(str)
 
     def __init__(self):
         super().__init__()

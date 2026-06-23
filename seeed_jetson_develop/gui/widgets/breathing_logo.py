@@ -7,9 +7,9 @@ BreathingLogo — 呼吸发光 Logo
 """
 import math
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QFont, QRadialGradient, QLinearGradient
-from PyQt5.QtWidgets import QWidget
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QColor, QPainter, QFont, QRadialGradient, QLinearGradient
+from qtpy.QtWidgets import QWidget
 
 from seeed_jetson_develop.gui.theme import C_GREEN, C_TEXT2, pt
 

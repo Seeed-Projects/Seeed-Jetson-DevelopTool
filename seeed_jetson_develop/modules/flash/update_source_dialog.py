@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
 )

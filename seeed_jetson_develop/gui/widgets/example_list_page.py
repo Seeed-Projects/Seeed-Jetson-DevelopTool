@@ -2,7 +2,7 @@
 
 演示如何使用 ListPageBase 创建一个简单的列表页面。
 """
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QLabel
 from seeed_jetson_develop.gui.widgets.list_page_base import ListPageBase
 from seeed_jetson_develop.gui.theme import make_list_card, make_label as _lbl, C_TEXT, pt as _pt
 

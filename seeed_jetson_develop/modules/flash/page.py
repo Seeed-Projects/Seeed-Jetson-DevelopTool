@@ -9,9 +9,9 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap, QTextCursor, QDesktopServices, QTextOption
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QPixmap, QTextCursor, QDesktopServices, QTextOption
+from qtpy.QtWidgets import (
     QApplication, QBoxLayout, QCheckBox, QComboBox, QDialog,
     QDialogButtonBox, QFileDialog, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMessageBox, QProgressBar, QPushButton, QAbstractScrollArea, QScrollArea,
@@ -195,7 +195,7 @@ def _product_display_name_with_module(product: str) -> str:
 
 
 def _open_url(url: str):
-    from PyQt5.QtCore import QUrl
+    from qtpy.QtCore import QUrl
     QDesktopServices.openUrl(QUrl(url))
 
 
@@ -1289,7 +1289,7 @@ def build_page() -> QWidget:
 
         def _thread_wrapper():
             result = _do_fetch()
-            from PyQt5.QtCore import QTimer
+            from qtpy.QtCore import QTimer
             QTimer.singleShot(0, lambda: _on_fetch_done(result))
 
         threading.Thread(target=_thread_wrapper, daemon=True).start()

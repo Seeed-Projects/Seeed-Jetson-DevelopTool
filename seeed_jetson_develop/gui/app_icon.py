@@ -1,8 +1,8 @@
 """Application icon helpers."""
 from __future__ import annotations
 
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QApplication, QWidget
+from qtpy.QtGui import QIcon
+from qtpy.QtWidgets import QApplication, QWidget
 
 from ..resources import resolve_runtime_path
 

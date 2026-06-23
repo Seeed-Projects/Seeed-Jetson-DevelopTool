@@ -7,9 +7,9 @@ RippleButton — 带点击涟漪反馈的按钮
 
 不涉及 QGraphicsEffect / Layout 操作，100% 安全。
 """
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter
-from PyQt5.QtWidgets import QPushButton
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QColor, QPainter
+from qtpy.QtWidgets import QPushButton
 
 
 class RippleButton(QPushButton):

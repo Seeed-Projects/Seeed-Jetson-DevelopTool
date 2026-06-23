@@ -630,9 +630,9 @@ def python_version(command):
         major, minor = int(parts[0]), int(parts[1])
     except ValueError:
         return None
-    # Require 3.9-3.12: PyQt5 wheels don't cover 3.13 yet, and <3.9 misses
-    # typing features the project uses.
-    if major == 3 and 9 <= minor <= 12:
+    # Require 3.9-3.13: PyQt6 has cp38-abi3 wheels up to Python 3.13,
+    # and <3.9 misses typing features the project uses.
+    if major == 3 and 9 <= minor <= 13:
         return (major, minor)
     return None
 
@@ -653,15 +653,14 @@ def python_has_tkinter(command):
 def _candidate_python_commands():
     """All reasonable ways to invoke Python on a Windows user's machine.
 
-    Order matters: try 3.11 first (what we auto-install and what PyQt5 is
-    best tested against), then adjacent supported minors. 3.13 is omitted
-    because PyQt5 has no official wheels for it yet.
+    Order matters: try 3.11 first (what we auto-install and what PyQt6/
+    qtpy is best tested against), then adjacent supported minors.
     """
     commands = []
     # Prefer py launcher with explicit versions (PEP 514).
-    for tag in ("-3.11", "-3.12", "-3.10", "-3.9"):
+    for tag in ("-3.11", "-3.12", "-3.13", "-3.10", "-3.9"):
         commands.append(["py", tag])
-    # Generic fallbacks — will be rejected by python_version() if outside 3.9-3.12.
+    # Generic fallbacks — will be rejected by python_version() if outside 3.9-3.13.
     commands.append(["py", "-3"])
     commands.append(["python"])
     commands.append(["python3"])
@@ -669,10 +668,12 @@ def _candidate_python_commands():
     roots = [
         os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python311"),
         os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python312"),
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python313"),
         os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python310"),
         os.path.expandvars(r"%LOCALAPPDATA%\Programs\Python\Python39"),
-        r"C:\Python311", r"C:\Python312", r"C:\Python310", r"C:\Python39",
+        r"C:\Python311", r"C:\Python312", r"C:\Python313", r"C:\Python310", r"C:\Python39",
         r"C:\Program Files\Python311", r"C:\Program Files\Python312",
+        r"C:\Program Files\Python313",
         r"C:\Program Files\Python310", r"C:\Program Files\Python39",
     ]
     for root in roots:

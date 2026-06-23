@@ -6,9 +6,9 @@
 """
 import math
 
-from PyQt5.QtCore import Qt, QTimer, QRectF, QPointF
-from PyQt5.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
-from PyQt5.QtWidgets import QWidget
+from qtpy.QtCore import Qt, QTimer, QRectF, QPointF
+from qtpy.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
+from qtpy.QtWidgets import QWidget
 
 
 class FlashAnimationWidget(QWidget):

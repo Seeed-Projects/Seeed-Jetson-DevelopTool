@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 import shutil
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal
+from qtpy.QtWidgets import (
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -113,8 +113,8 @@ def _show_need_connection_dialog(parent: QWidget, tool_name: str):
 
 
 class _ScanThread(QThread):
-    found = pyqtSignal(list)
-    progress = pyqtSignal(int, int)
+    found = Signal(list)
+    progress = Signal(int, int)
 
     def __init__(self, subnet: str | None = None):
         super().__init__()
@@ -126,7 +126,7 @@ class _ScanThread(QThread):
 
 
 class _SSHCheckThread(QThread):
-    result = pyqtSignal(bool, str)
+    result = Signal(bool, str)
 
     def __init__(self, host: str, username: str, password: str):
         super().__init__()
@@ -158,7 +158,7 @@ class _SSHCheckThread(QThread):
 
 
 class _ApiKeyDialog(QDialog):
-    key_saved = pyqtSignal()
+    key_saved = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -270,15 +270,15 @@ class _ApiKeyDialog(QDialog):
     def _update_toggle_icon(self, checked: bool):
         emoji = "🙈" if checked else "👁"
         self._toggle_btn.setText(emoji)
-        from PyQt5.QtGui import QFont
+        from qtpy.QtGui import QFont
         ef = QFont("Noto Color Emoji")
         ef.setPointSize(_pt(12))
         self._toggle_btn.setFont(ef)
 
 
 class _SshCmdThread(QThread):
-    line_out = pyqtSignal(str)
-    finished_ = pyqtSignal(int, str)
+    line_out = Signal(str)
+    finished_ = Signal(int, str)
 
     def __init__(self, runner, commands):
         super().__init__()
@@ -336,7 +336,7 @@ class _VscodeWebDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -432,7 +432,7 @@ class _JupyterLaunchDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -479,7 +479,7 @@ class _JupyterLaunchDialog(QDialog):
 
 
 class _ApiTestThread(QThread):
-    result = pyqtSignal(bool, str)
+    result = Signal(bool, str)
 
     def __init__(self, api_key, base_url):
         super().__init__()
@@ -526,7 +526,7 @@ class _VscodeSSHDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -684,7 +684,7 @@ def build_page() -> QWidget:
         data["remote_last_subnet"] = subnet_input.text().strip()
         _cfg.save(data)
 
-    for w in (ip_input, user_input, pass_input, subnet_input):
+    for w in (ip_input, user_input, pass_input, sudo_input, subnet_input):
         w.editingFinished.connect(_save_conn)
 
     scan_holder = [None]

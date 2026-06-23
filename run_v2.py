@@ -42,7 +42,7 @@ def _excepthook(exc_type, exc_value, exc_tb):
     msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     log.critical("未捕获异常:\n%s", msg)
     try:
-        from PyQt5.QtWidgets import QApplication, QMessageBox
+        from qtpy.QtWidgets import QApplication, QMessageBox
         if QApplication.instance():
             QMessageBox.critical(None, "程序错误",
                 f"发生未捕获异常，详情已写入:\n{_log_file}\n\n{msg[-800:]}")
@@ -258,8 +258,8 @@ def _ensure_mesa_dri():
 _ensure_display()
 _ensure_mesa_dri()
 
-from PyQt5.QtCore import Qt, QtMsgType, qInstallMessageHandler
-from PyQt5.QtWidgets import QApplication
+from qtpy.QtCore import Qt, QtMsgType, qInstallMessageHandler
+from qtpy.QtWidgets import QApplication
 
 def _qt_message_handler(msg_type, context, message):
     if msg_type == QtMsgType.QtWarningMsg and "DirectWrite: CreateFontFaceFromHDC() failed" in message:

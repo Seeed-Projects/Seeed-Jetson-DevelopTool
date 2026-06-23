@@ -5,9 +5,9 @@ AnimatedCheckBox — 带动画勾号的复选框
 原理：QTimer 驱动 check_progress → paintEvent 根据进度绘制部分勾号。
 不涉及 QGraphicsEffect / Layout，100% 安全。
 """
-from PyQt5.QtCore import Qt, QTimer, QRect
-from PyQt5.QtGui import QColor, QPainter, QPen, QFontMetrics
-from PyQt5.QtWidgets import QCheckBox
+from qtpy.QtCore import Qt, QTimer, QRect
+from qtpy.QtGui import QColor, QPainter, QPen, QFontMetrics
+from qtpy.QtWidgets import QCheckBox
 
 
 class AnimatedCheckBox(QCheckBox):

@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import sys
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal
+from qtpy.QtWidgets import (
     QDialog, QHBoxLayout, QLabel,
     QLineEdit, QMessageBox, QSizePolicy, QTextEdit, QVBoxLayout,
 )
@@ -31,7 +31,7 @@ from seeed_jetson_develop.core.runner import SSHRunner, get_runner
 
 class _RefreshThread(QThread):
     """后台枚举网卡，避免 PowerShell 启动时阻塞 UI。"""
-    done = pyqtSignal(list, object)  # ifaces, wan_default (str|None)
+    done = Signal(list, object)  # ifaces, wan_default (str|None)
 
     def run(self):
         ifaces = list_interfaces()
@@ -41,7 +41,7 @@ class _RefreshThread(QThread):
 
 class _NatThread(QThread):
     """后台执行 NAT 开启/关闭。"""
-    done = pyqtSignal(bool, str)  # ok, log
+    done = Signal(bool, str)  # ok, log
 
     def __init__(self, action: str, wan: str, lan: str, sudo_pwd: str):
         super().__init__()
@@ -60,7 +60,7 @@ class _NatThread(QThread):
 
 class _JetsonGatewayThread(QThread):
     """后台通过 SSH 配置 Jetson 的网关和 DNS。"""
-    done = pyqtSignal(bool, str)  # ok, log
+    done = Signal(bool, str)  # ok, log
 
     def __init__(self, runner: SSHRunner, gateway: str, lang: str = "zh", lan_iface: str = "", pc_sudo_pwd: str = ""):
         super().__init__()
@@ -351,7 +351,7 @@ class NetShareDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)

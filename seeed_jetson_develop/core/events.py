@@ -1,31 +1,31 @@
 """全局事件总线 — 模块间通信，避免直接 import 耦合"""
-from PyQt5.QtCore import QObject, pyqtSignal
+from qtpy.QtCore import QObject, Signal
 
 
 class EventBus(QObject):
     # devices 模块
-    device_connected    = pyqtSignal(dict)   # payload: {ip, name, model}
-    device_disconnected = pyqtSignal(str)    # payload: ip
-    diagnostics_done    = pyqtSignal(dict)   # payload: {item: status}
+    device_connected    = Signal(dict)   # payload: {ip, name, model}
+    device_disconnected = Signal(str)    # payload: ip
+    diagnostics_done    = Signal(dict)   # payload: {item: status}
 
     # flash 模块
-    flash_started       = pyqtSignal(str, str)  # product, l4t
-    flash_completed     = pyqtSignal(bool, str)  # success, message
+    flash_started       = Signal(str, str)  # product, l4t
+    flash_completed     = Signal(bool, str)  # success, message
 
     # skills 模块
-    skill_run_requested = pyqtSignal(str)    # skill_id
-    skill_completed     = pyqtSignal(str, bool, str)  # skill_id, success, log
+    skill_run_requested = Signal(str)    # skill_id
+    skill_completed     = Signal(str, bool, str)  # skill_id, success, log
 
     # apps 模块
-    app_install_requested = pyqtSignal(str)  # app_id
-    app_installed         = pyqtSignal(str, bool)  # app_id, success
+    app_install_requested = Signal(str)  # app_id
+    app_installed         = Signal(str, bool)  # app_id, success
 
     # 导航
-    navigate_to         = pyqtSignal(int)    # page index
+    navigate_to         = Signal(int)    # page index
 
     # 状态栏
-    status_busy         = pyqtSignal(str)    # message
-    status_idle         = pyqtSignal(str)    # message
+    status_busy         = Signal(str)    # message
+    status_idle         = Signal(str)    # message
 
 
 # 全局单例，所有模块 from seeed_jetson_develop.core import bus

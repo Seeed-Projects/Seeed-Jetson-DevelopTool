@@ -7,9 +7,9 @@ ScanLineOverlay — 页面切换扫描线过场动画
 原理：QTimer(16ms) → update() → paintEvent 根据 progress 绘制光带位置。
 不涉及 QGraphicsEffect / Layout 操作，100% 安全。
 """
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QLinearGradient, QPen
-from PyQt5.QtWidgets import QWidget
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QColor, QPainter, QLinearGradient, QPen
+from qtpy.QtWidgets import QWidget
 
 
 class ScanLineOverlay(QWidget):

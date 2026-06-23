@@ -4,8 +4,8 @@ GlowSeparator — 微光分割线
 用渐变 QLabel 代替生硬的纯色分割线，营造更有层次感的光效。
 纯样式表实现，100% 安全。
 """
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QLabel
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QLabel
 
 from seeed_jetson_develop.gui.theme import C_GREEN, pt
 

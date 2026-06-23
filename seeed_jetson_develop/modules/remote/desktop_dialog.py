@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal
+from qtpy.QtWidgets import (
     QComboBox,
     QDialog,
     QHBoxLayout,
@@ -42,8 +42,8 @@ def _tt(key: str, **kwargs) -> str:
 
 
 class _SshCmdThread(QThread):
-    line_out = pyqtSignal(str)
-    finished_ = pyqtSignal(int, str)
+    line_out = Signal(str)
+    finished_ = Signal(int, str)
 
     def __init__(self, runner: SSHRunner, commands: list[tuple[str, int]]):
         super().__init__()
@@ -63,7 +63,7 @@ class _SshCmdThread(QThread):
 
 
 class _StatusThread(QThread):
-    result = pyqtSignal(dict)
+    result = Signal(dict)
 
     def __init__(self, runner: SSHRunner):
         super().__init__()
@@ -236,7 +236,7 @@ class DesktopRemoteDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)

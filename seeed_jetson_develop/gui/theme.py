@@ -11,9 +11,9 @@ from __future__ import annotations
 import sys
 from dataclasses import dataclass
 
-from PyQt5.QtCore import Qt, QRect, QPoint, QPointF, QTimer
-from PyQt5.QtGui import QColor, QFont, QFontDatabase, QLinearGradient, QPainter, QPen
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QRect, QPoint, QPointF, QTimer
+from qtpy.QtGui import QColor, QFont, QFontDatabase, QLinearGradient, QPainter, QPen
+from qtpy.QtWidgets import (
     QApplication, QDialog, QFrame, QGraphicsDropShadowEffect,
     QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QScrollArea, QWidget, QVBoxLayout,
 )
@@ -102,7 +102,10 @@ def pt(px: int) -> int:
 
 
 def pick_font_family(candidates: tuple[str, ...], fallback: str = "Sans Serif") -> str:
-    families = set(QFontDatabase().families())
+    try:
+        families = set(QFontDatabase.families())
+    except TypeError:
+        families = set(QFontDatabase().families())
     for family in candidates:
         if family in families:
             return family
@@ -625,7 +628,7 @@ class ShinyProgressBar(QProgressBar):
 
 def make_input_field(placeholder: str = "", multiline: bool = False) -> "QWidget":
     """创建统一样式的输入框（单行 FocusRippleLineEdit 或多行 QTextEdit）"""
-    from PyQt5.QtWidgets import QTextEdit
+    from qtpy.QtWidgets import QTextEdit
     if multiline:
         w = QTextEdit()
         w.setPlaceholderText(placeholder)
@@ -1372,14 +1375,14 @@ def ask_question_message(
 
 # ── 自定义下拉选择器（替代 QComboBox，解决 Linux 下 popup 无法限高的问题）────────
 
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QListWidget, QListWidgetItem
+from qtpy.QtCore import Signal
+from qtpy.QtWidgets import QListWidget, QListWidgetItem
 
 
 class DropdownButton(QWidget):
     """点击后在按钮正下方弹出固定高度的列表，带滚动条，跨平台一致。"""
 
-    currentTextChanged = pyqtSignal(str)
+    currentTextChanged = Signal(str)
 
     def __init__(self, parent=None, max_popup_height: int = 300):
         super().__init__(parent)
@@ -1541,7 +1544,7 @@ class DropdownButton(QWidget):
         self._popup.show()
         self._popup.raise_()
 
-        from PyQt5.QtCore import QPropertyAnimation, QEasingCurve
+        from qtpy.QtCore import QPropertyAnimation, QEasingCurve
         anim = QPropertyAnimation(self._popup, b"pos")
         anim.setDuration(180)
         anim.setStartValue(start_pos)

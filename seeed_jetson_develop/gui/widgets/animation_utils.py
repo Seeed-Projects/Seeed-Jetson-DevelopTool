@@ -5,9 +5,9 @@
 """
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, pyqtProperty
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, Property
+from qtpy.QtGui import QColor
+from qtpy.QtWidgets import (
     QWidget, QGraphicsOpacityEffect, QVBoxLayout, QHBoxLayout,
     QGridLayout, QLayout,
 )
@@ -133,7 +133,7 @@ def apply_shake(widget: QWidget, duration_ms: int = 350, distance: int = 6):
 # ── 颜色过渡动画（用于自定义绘制 widget）────────────────────────────────────────
 
 class _ColorProperty:
-    """辅助类：通过 pyqtProperty 实现 QColor 动画"""
+    """辅助类：通过 Property 实现 QColor 动画"""
     def __init__(self, widget, initial_color: str):
         self._widget = widget
         self._color = QColor(initial_color)
@@ -149,9 +149,9 @@ class _ColorProperty:
 def create_color_animator(widget: QWidget, property_name: str, initial_color: str):
     """
     为 widget 创建一个可动画化的颜色属性。
-    返回 (pyqtProperty, animator_obj)，可用于 QPropertyAnimation。
+    返回 (Property, animator_obj)，可用于 QPropertyAnimation。
     """
     prop = _ColorProperty(widget, initial_color)
-    pyqt_prop = pyqtProperty(QColor, prop.get, prop.set)
+    pyqt_prop = Property(QColor, prop.get, prop.set)
     setattr(widget.__class__, property_name, pyqt_prop)
     return prop

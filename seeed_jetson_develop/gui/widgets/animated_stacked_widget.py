@@ -4,14 +4,14 @@ AnimatedStackedWidget — 带动画过渡效果的 QStackedWidget
 安全设计：不使用 QGraphicsOpacityEffect（可能导致页面透明问题），
 仅使用 QPropertyAnimation 操作 geometry 实现滑入效果。
 """
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, pyqtSignal
-from PyQt5.QtWidgets import QStackedWidget
+from qtpy.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, Signal
+from qtpy.QtWidgets import QStackedWidget
 
 
 class AnimatedStackedWidget(QStackedWidget):
     """带动画过渡的堆叠窗口部件。使用 geometry 滑入效果，无 opacity effect。"""
 
-    animation_finished = pyqtSignal(int)
+    animation_finished = Signal(int)
 
     def __init__(self, parent=None, duration: int = 220):
         super().__init__(parent)
