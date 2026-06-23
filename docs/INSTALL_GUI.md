@@ -6,8 +6,8 @@
 # 1. 进入项目目录
 cd seeed-jetson-flash
 
-# 2. 安装 PyQt5
-pip install PyQt5
+# 2. 安装 Qt 绑定（通过 qtpy + PyQt6）
+pip install qtpy PyQt6
 
 # 3. 重新安装项目（包含 GUI 依赖）
 pip install -e .
@@ -60,11 +60,11 @@ pip uninstall seeed-jetson-flash
 pip install -e .
 ```
 
-### 问题 2: 提示 "无法启动 GUI，请安装 PyQt5"
+### 问题 2: 提示 "无法启动 GUI，请安装 PyQt6 / qtpy"
 
 **解决方案**:
 ```bash
-pip install PyQt5
+pip install qtpy PyQt6
 ```
 
 ### 问题 3: Linux 下 GUI 无法显示
@@ -92,14 +92,14 @@ source venv-jetson/bin/activate  # Linux/Mac
 venv-jetson\Scripts\activate  # Windows
 
 # 安装
-pip install PyQt5
+pip install qtpy PyQt6
 pip install -e .
 ```
 
 ## 系统要求
 
-- Python 3.6+
-- PyQt5 5.15.0+
+- Python 3.8+
+- qtpy 2.3.0+ / PyQt6 6.4.0+
 - Linux / macOS / Windows
 - 显示器（GUI 模式）
 

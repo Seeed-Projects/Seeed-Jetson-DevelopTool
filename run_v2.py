@@ -279,8 +279,11 @@ def _qt_message_handler(msg_type, context, message):
 qInstallMessageHandler(_qt_message_handler)
 
 # 高 DPI 支持（必须在 QApplication 创建之前设置）
-QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+# PyQt6 已默认启用高 DPI 缩放，且不再提供这两个 attribute
+if hasattr(Qt, "AA_EnableHighDpiScaling"):
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+if hasattr(Qt, "AA_UseHighDpiPixmaps"):
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 log.debug("DISPLAY=%s LD_PRELOAD=%s LIBGL_DRIVERS_PATH=%s",
           os.environ.get("DISPLAY"), os.environ.get("LD_PRELOAD"), os.environ.get("LIBGL_DRIVERS_PATH"))

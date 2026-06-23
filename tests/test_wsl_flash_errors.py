@@ -4,7 +4,14 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+_ensure_wsl_skip = pytest.mark.skipif(
+    sys.platform != "win32",
+    reason="WSL _ensure_wsl tests require Windows wsl.exe",
+)
 
 from seeed_jetson_develop.wsl_flash import (
     _decode_output,
@@ -207,6 +214,7 @@ def test_wait_for_wsl_ready_recovers_after_restart(monkeypatch, tmp_path):
     assert attempts["count"] == 2
 
 
+@_ensure_wsl_skip
 def test_ensure_wsl_retries_after_first_run_recovery(monkeypatch, tmp_path):
     manager = WslFlashManager(
         product="p",
@@ -231,6 +239,7 @@ def test_ensure_wsl_retries_after_first_run_recovery(monkeypatch, tmp_path):
     assert wait_calls == [180, 90]
 
 
+@_ensure_wsl_skip
 def test_ensure_wsl_reuses_generic_ubuntu_when_version_matches(monkeypatch, tmp_path):
     manager = WslFlashManager(
         product="p",
@@ -302,6 +311,7 @@ def test_match_existing_distro_accepts_generic_ubuntu_when_any_preferred_version
     assert manager._match_existing_distro({"Ubuntu"}) == "Ubuntu"
 
 
+@_ensure_wsl_skip
 def test_ensure_wsl_does_not_reuse_generic_ubuntu_when_version_mismatches(monkeypatch, tmp_path):
     manager = WslFlashManager(
         product="p",
@@ -353,6 +363,7 @@ def test_wsl_status_summary_reports_timeouts(monkeypatch):
     assert "distros: timeout after 20s" in summary
 
 
+@_ensure_wsl_skip
 def test_ensure_wsl_raises_with_install_diag_when_registration_never_appears(monkeypatch, tmp_path):
     manager = WslFlashManager(
         product="p",
@@ -447,6 +458,7 @@ def test_usbipd_install_waits_for_executable_visibility(monkeypatch):
     assert state["calls"] >= 3
 
 
+@_ensure_wsl_skip
 def test_ensure_wsl_surfaces_virtualization_prereq_hint(monkeypatch, tmp_path):
     manager = WslFlashManager(
         product="p",
@@ -492,6 +504,7 @@ def test_ensure_wsl_surfaces_virtualization_prereq_hint(monkeypatch, tmp_path):
     assert any("WSL2 prerequisites look incomplete" in line for line in logs)
 
 
+@_ensure_wsl_skip
 def test_ensure_wsl_updates_legacy_wsl_cli_help_output(monkeypatch, tmp_path):
     manager = WslFlashManager(
         product="p",
@@ -536,6 +549,7 @@ def test_ensure_wsl_updates_legacy_wsl_cli_help_output(monkeypatch, tmp_path):
     assert ("C:\\Windows\\System32\\wsl.exe", ("--install", "--web-download", "--no-distribution")) in calls
 
 
+@_ensure_wsl_skip
 def test_ensure_wsl_falls_back_to_offline_distro_install(monkeypatch, tmp_path):
     manager = WslFlashManager(
         product="p",
@@ -601,6 +615,7 @@ def test_web_download_help_output_falls_back_to_offline_distro(monkeypatch, tmp_
     assert any("does not support --web-download" in line for line in logs)
 
 
+@_ensure_wsl_skip
 def test_ensure_wsl_tries_rootfs_and_appx_fallbacks(monkeypatch, tmp_path):
     manager = WslFlashManager(
         product="p",

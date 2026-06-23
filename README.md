@@ -27,13 +27,13 @@ The current command-line entry point launches the GUI. Product selection, flashi
 ## Requirements
 
 - Python 3.8 or newer.
-- A graphical desktop environment for the PyQt5 GUI.
+- A graphical desktop environment for the PyQt6 GUI (via qtpy).
 - Ubuntu 20.04 / 22.04 / 24.04 is recommended for firmware flashing.
 - Windows is supported for the GUI and includes WSL2 + usbipd assisted flashing, but native Ubuntu is still the most reliable flashing host.
 - SSH access to the Jetson is required for remote development, app installation, skills installation, diagnostics over network, and OTA.
 - Internet access is required when downloading BSP packages, apps, skills dependencies, OTA payloads, or refreshing BSP metadata.
 
-Python dependencies are declared in `pyproject.toml` and include PyQt5, paramiko, requests, pyserial, pyte, rich, tqdm, click, and anthropic.
+Python dependencies are declared in `pyproject.toml` and include qtpy + PyQt6, paramiko, requests, pyserial, pyte, rich, tqdm, click, and anthropic.
 
 ## Install
 
@@ -222,7 +222,7 @@ Project layout:
 
 ```text
 seeed_jetson_develop/
-  gui/                 PyQt5 main window, theme, i18n, widgets
+  gui/                 Qt main window, theme, i18n, widgets (via qtpy + PyQt6)
   modules/flash/       Flash page and flash thread
   modules/remote/      SSH, serial init, VNC/noVNC, network sharing
   modules/devices/     Diagnostics and PyTorch install support
