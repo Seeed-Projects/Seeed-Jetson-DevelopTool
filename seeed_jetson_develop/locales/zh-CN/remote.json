@@ -299,5 +299,15 @@
   "remote.jetson_net_config.applying": "配置中...",
   "remote.jetson_net_config.apply_log": "\n[配置] {iface} -> {ip_cidr}{gw_part}\n",
   "remote.jetson_net_config.apply_maybe_failed": "配置可能失败，请查看日志。",
-  "remote.jetson_net_config.apply_done": "配置完成，设备 IP：{ip}"
+  "remote.jetson_net_config.apply_done": "配置完成，设备 IP：{ip}",
+  "remote.transfer.title": "文件传输",
+  "remote.transfer.drop_hint": "将 PC 文件拖拽到此处，或点击下方按钮选择文件",
+  "remote.transfer.target_path": "目标路径",
+  "remote.transfer.target_placeholder": "/home/seeed/",
+  "remote.transfer.select_files": "选择文件",
+  "remote.transfer.status.ready": "● 已就绪",
+  "remote.transfer.status.uploading": "● 上传中...",
+  "remote.transfer.status.done": "● 上传完成",
+  "remote.transfer.status.failed": "● 上传失败",
+  "remote.transfer.status.no_connection": "● 未连接"
 }

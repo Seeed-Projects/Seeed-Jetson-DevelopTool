@@ -298,5 +298,15 @@
   "remote.jetson_net_config.applying": "Applying...",
   "remote.jetson_net_config.apply_log": "\n[apply] {iface} -> {ip_cidr}{gw_part}\n",
   "remote.jetson_net_config.apply_maybe_failed": "Configuration may have failed. Check logs.",
-  "remote.jetson_net_config.apply_done": "Configuration completed. Device IP: {ip}"
+  "remote.jetson_net_config.apply_done": "Configuration completed. Device IP: {ip}",
+  "remote.transfer.title": "File Transfer",
+  "remote.transfer.drop_hint": "Drag files from PC here, or click the button below to select files",
+  "remote.transfer.target_path": "Target Path",
+  "remote.transfer.target_placeholder": "/home/seeed/",
+  "remote.transfer.select_files": "Select Files",
+  "remote.transfer.status.ready": "● Ready",
+  "remote.transfer.status.uploading": "● Uploading...",
+  "remote.transfer.status.done": "● Upload complete",
+  "remote.transfer.status.failed": "● Upload failed",
+  "remote.transfer.status.no_connection": "● Not connected"
 }
