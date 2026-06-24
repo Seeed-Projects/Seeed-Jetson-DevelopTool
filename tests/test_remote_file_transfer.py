@@ -10,6 +10,7 @@ import pytest
 
 from qtpy.QtCore import QCoreApplication, QEventLoop, QTimer
 
+from seeed_jetson_develop.modules.remote.file_download_thread import FileDownloadThread
 from seeed_jetson_develop.modules.remote.file_transfer_thread import FileTransferThread
 
 
@@ -26,6 +27,7 @@ class _FakeSFTP:
         self.existing_dirs: set[str] = set(existing_dirs or ())
         self.put_calls: list[tuple[str, str]] = []
         self.mkdir_calls: list[str] = []
+        self.get_calls: list[tuple[str, str]] = []
         self.closed = False
 
     def mkdir(self, path: str) -> None:
@@ -40,6 +42,16 @@ class _FakeSFTP:
         if callback:
             callback(0, size)
             callback(size, size)
+
+    def get(self, remote: str, local: str, callback: Any = None) -> None:
+        self.get_calls.append((remote, local))
+        if callback:
+            callback(0, 100)
+            callback(100, 100)
+
+    def stat(self, path: str) -> Any:
+        # By default all remote paths exist; override via _raise_stat for missing files.
+        return MagicMock()
 
     def close(self) -> None:
         self.closed = True
@@ -63,7 +75,7 @@ def _make_runner(sftp: _FakeSFTP) -> MagicMock:
     return runner
 
 
-def _wait_for_thread(thread: FileTransferThread, timeout_ms: int = 5000) -> None:
+def _wait_for_thread(thread: FileTransferThread | FileDownloadThread, timeout_ms: int = 5000) -> None:
     loop = QEventLoop()
     thread.finished.connect(loop.quit)
     QTimer.singleShot(timeout_ms, loop.quit)
@@ -198,3 +210,80 @@ def test_open_sftp_failure_emits_done(qapp: QCoreApplication) -> None:
 
     assert done_results == [(False, "ssh unreachable")]
     assert any("ssh unreachable" in log for log in logs)
+
+
+def test_download_single_file(tmp_path: Path, qapp: QCoreApplication) -> None:
+    local_dir = tmp_path / "downloads"
+    sftp = _FakeSFTP()
+    thread = FileDownloadThread(_make_runner(sftp), ["/home/seeed/log.txt"], local_dir)
+
+    done_results: list[tuple[bool, str]] = []
+    logs: list[str] = []
+    thread.log.connect(logs.append)
+    thread.done.connect(lambda ok, msg: done_results.append((ok, msg)))
+
+    _wait_for_thread(thread)
+
+    assert sftp.get_calls == [("/home/seeed/log.txt", str(local_dir / "log.txt"))]
+    assert local_dir.exists()
+    assert done_results == [(True, "download completed")]
+    assert sftp.closed
+
+
+def test_download_skip_missing_remote_file(tmp_path: Path, qapp: QCoreApplication) -> None:
+    local_dir = tmp_path / "downloads"
+
+    class _MissingStatSFTP(_FakeSFTP):
+        def stat(self, path: str) -> Any:
+            if "missing" in path:
+                raise FileNotFoundError(path)
+            return MagicMock()
+
+    sftp = _MissingStatSFTP()
+    thread = FileDownloadThread(
+        _make_runner(sftp),
+        ["/home/seeed/missing.txt", "/home/seeed/exists.txt"],
+        local_dir,
+    )
+
+    file_done: list[tuple[str, bool]] = []
+    done_results: list[tuple[bool, str]] = []
+    thread.file_done.connect(lambda path, ok: file_done.append((path, ok)))
+    thread.done.connect(lambda ok, msg: done_results.append((ok, msg)))
+
+    _wait_for_thread(thread)
+
+    assert len(sftp.get_calls) == 1
+    assert sftp.get_calls[0][0] == "/home/seeed/exists.txt"
+    assert any("missing.txt" in path and ok is False for path, ok in file_done)
+    assert done_results == [(True, "download completed")]
+
+
+def test_download_local_dir_created(tmp_path: Path, qapp: QCoreApplication) -> None:
+    local_dir = tmp_path / "nested" / "save" / "here"
+    assert not local_dir.exists()
+
+    sftp = _FakeSFTP()
+    thread = FileDownloadThread(_make_runner(sftp), ["/tmp/data.bin"], local_dir)
+
+    done_results: list[tuple[bool, str]] = []
+    thread.done.connect(lambda ok, msg: done_results.append((ok, msg)))
+
+    _wait_for_thread(thread)
+
+    assert local_dir.exists()
+    assert done_results == [(True, "download completed")]
+
+
+def test_download_sftp_failure_emits_done(qapp: QCoreApplication) -> None:
+    runner = MagicMock()
+    runner.open_sftp.side_effect = RuntimeError("connection lost")
+
+    thread = FileDownloadThread(runner, ["/home/seeed/a.txt"], Path("/tmp/out"))
+
+    done_results: list[tuple[bool, str]] = []
+    thread.done.connect(lambda ok, msg: done_results.append((ok, msg)))
+
+    _wait_for_thread(thread)
+
+    assert done_results == [(False, "connection lost")]

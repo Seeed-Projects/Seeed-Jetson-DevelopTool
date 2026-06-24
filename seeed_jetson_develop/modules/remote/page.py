@@ -63,7 +63,9 @@ from seeed_jetson_develop.modules.remote.jetson_init import (
     open_jetson_init_dialog,
     open_jetson_net_config_dialog,
 )
+from seeed_jetson_develop.modules.remote.file_download_thread import FileDownloadThread
 from seeed_jetson_develop.modules.remote.file_transfer_thread import FileTransferThread
+from seeed_jetson_develop.modules.remote.remote_file_select_dialog import RemoteFileSelectDialog
 from seeed_jetson_develop.modules.remote.net_share_dialog import open_net_share_dialog
 
 
@@ -790,6 +792,10 @@ def build_page() -> QWidget:
     select_btn.setEnabled(False)
     transfer_lay.addWidget(select_btn)
 
+    download_btn = _btn(_tt("remote.transfer.download_files"), small=True)
+    download_btn.setEnabled(False)
+    transfer_lay.addWidget(download_btn)
+
     progress_bar = QProgressBar()
     progress_bar.setRange(0, 100)
     progress_bar.setValue(0)
@@ -826,11 +832,13 @@ def build_page() -> QWidget:
             transfer_status.setStyleSheet(f"color:{C_GREEN}; font-size:{_pt(11)}px; background:transparent; font-weight:700;")
             drop_zone.setEnabled(True)
             select_btn.setEnabled(True)
+            download_btn.setEnabled(True)
         else:
             transfer_status.setText(_tt("remote.transfer.status.no_connection"))
             transfer_status.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px; background:transparent;")
             drop_zone.setEnabled(False)
             select_btn.setEnabled(False)
+            download_btn.setEnabled(False)
 
     def _start_file_upload(local_files: list[str]) -> None:
         runner = get_runner()
@@ -865,8 +873,45 @@ def build_page() -> QWidget:
         if files:
             _start_file_upload(files)
 
+    def _start_file_download() -> None:
+        runner = get_runner()
+        if not isinstance(runner, SSHRunner):
+            _show_need_connection_dialog(page, _tt("remote.transfer.title"))
+            return
+
+        dlg = RemoteFileSelectDialog(runner, parent=page)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+
+        remote_files = dlg.selected_paths()
+        local_dir = dlg.local_dir()
+        if not remote_files or local_dir is None:
+            return
+
+        progress_bar.setValue(0)
+        transfer_log.clear()
+        transfer_status.setText(_tt("remote.transfer.status.downloading"))
+        transfer_status.setStyleSheet(f"color:{C_ORANGE}; font-size:{_pt(11)}px; background:transparent; font-weight:700;")
+        drop_zone.setEnabled(False)
+        select_btn.setEnabled(False)
+        download_btn.setEnabled(False)
+
+        thread = FileDownloadThread(runner, remote_files, local_dir)
+        thread.log.connect(_append_transfer_log)
+        thread.progress.connect(progress_bar.setValue)
+        thread.done.connect(lambda ok, msg: (
+            _set_transfer_connected(True),
+            transfer_status.setText(_tt("remote.transfer.status.done") if ok else _tt("remote.transfer.status.failed")),
+            transfer_status.setStyleSheet(
+                f"color:{C_GREEN if ok else C_RED}; font-size:{_pt(11)}px; background:transparent; font-weight:700;"
+            ),
+        ))
+        thread.start()
+        transfer_thread_holder[0] = thread
+
     drop_zone.files_dropped.connect(_start_file_upload)
     select_btn.clicked.connect(_open_file_dialog)
+    download_btn.clicked.connect(_start_file_download)
 
     scan_holder = [None]
     ssh_holder = [None]
@@ -1170,6 +1215,7 @@ def build_page() -> QWidget:
     page.i18n.bind_text(target_label, "remote.transfer.target_path")
     page.i18n.bind_placeholder(target_input, "remote.transfer.target_placeholder")
     page.i18n.bind_text(select_btn, "remote.transfer.select_files")
+    page.i18n.bind_text(download_btn, "remote.transfer.download_files")
     page.i18n.bind_callable(
         lambda: drop_zone.set_text(_tt("remote.transfer.title"), _tt("remote.transfer.drop_hint"))
     )
