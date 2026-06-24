@@ -68,3 +68,7 @@ seeed_jetson_develop = [
     "modules/skills/data/*.json",
     "skills/**/*",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:launch_testing"

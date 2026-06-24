@@ -168,7 +168,7 @@ stack.addWidget(devices_page())
 各模块开发者的任务是把对应的 `_build_xxx_page()` 方法迁移到各自的 `modules/xxx/page.py`。
 
 ### 技术栈
-- PyQt5，无边框窗口（`FramelessWindowHint`），自定义标题栏可拖动
+- qtpy + PyQt6，无边框窗口（`FramelessWindowHint`），自定义标题栏可拖动
 - 深色主题，Seeed 绿（`#8DC21F`）+ 深蓝配色
 - 6 页 `QStackedWidget` + 左侧 `SidebarButton` 导航
 
@@ -228,7 +228,7 @@ python3 run_gui.py
 ## 依赖
 
 ```
-PyQt5
+qtpy + PyQt6
 requests
 python-docx  # 仅用于读取 PRD，运行时不需要
 ```

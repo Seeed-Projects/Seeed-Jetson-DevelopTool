@@ -42,6 +42,16 @@ def test_orin_nano_jp513_still_detects_jp62_path() -> None:
     assert path["target_jetpack"] == "6.2"
 
 
+def test_agx_orin_jp62_detects_jp72_path() -> None:
+    path = _find_matching_path(_load_paths(), "agx-orin-devkit-64g", "36.4.3")
+
+    assert path is not None
+    assert path["id"] == "jp62-to-jp72-agx-orin-devkit"
+    assert path["target_jetpack"] == "7.2"
+    assert path["target_l4t"] == "39.2.0"
+    assert "ota_tools_R39.2.0" in path["ota_tools_url"]
+
+
 def test_orin_nano_path_labels_disambiguate_source_and_target_l4t() -> None:
     labels = [
         _path_display_name(path)

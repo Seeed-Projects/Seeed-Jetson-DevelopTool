@@ -3,7 +3,7 @@
 ## 安装
 
 ```bash
-pip install PyQt5
+pip install qtpy PyQt6
 pip install -e .
 ```
 

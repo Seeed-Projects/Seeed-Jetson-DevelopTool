@@ -18,9 +18,10 @@ python -m py_compile seeed_jetson_develop/gui/main_window_v2.py
 python -c "
 import sys, os
 os.environ['NO_AT_BRIDGE']='1'; os.environ['QT_ACCESSIBILITY']='0'
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication
-QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QApplication
+if hasattr(Qt, 'AA_EnableHighDpiScaling'):
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
 app = QApplication(sys.argv)
 from seeed_jetson_develop.gui.main_window_v2 import MainWindowV2
 w = MainWindowV2(); print('OK')

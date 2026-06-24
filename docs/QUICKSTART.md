@@ -7,7 +7,7 @@
 cd seeed-jetson-flash
 
 # 2. 安装依赖（包括 GUI）
-pip install PyQt5
+pip install qtpy PyQt6
 
 # 3. 安装项目
 pip install -e .
@@ -48,9 +48,9 @@ seeed-jetson-flash flash -p j4012mini -l 36.3.0
 
 ### GUI 无法启动
 
-1. **检查 PyQt5**:
+1. **检查 qtpy / PyQt6**:
    ```bash
-   python -c "import PyQt5; print('PyQt5 OK')"
+   python -c "import qtpy, PyQt6; print('Qt OK')"
    ```
 
 2. **重新安装**:
