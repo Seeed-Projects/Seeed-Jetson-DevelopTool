@@ -80,6 +80,7 @@ class RemoteFileSelectDialog(QDialog):
             f"QListWidget::item:selected {{ background:{C_GREEN}; color:{C_BG}; }}"
         )
         layout.addWidget(self._list, 1)
+        self._list.itemDoubleClicked.connect(self._on_item_double_clicked)
 
         # Selection actions
         action_row = QHBoxLayout()
@@ -131,9 +132,11 @@ class RemoteFileSelectDialog(QDialog):
                 item = QListWidgetItem()
                 item.setText(f"{'📁 ' if is_dir else '📄 '}{name}")
                 item.setData(Qt.UserRole, name)
+                item.setData(Qt.UserRole + 1, is_dir)
                 item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
                 if is_dir:
                     item.setFlags(item.flags() & ~Qt.ItemIsEnabled)
+                    item.setToolTip(_tt("remote.transfer.download_dialog.double_click_enter"))
                     item.setCheckState(Qt.Unchecked)
                     item.setForeground(self.palette().color(self.palette().Disabled, self.palette().Text))
                 else:
@@ -154,6 +157,16 @@ class RemoteFileSelectDialog(QDialog):
                     client.close()
                 except Exception:
                     pass
+
+    def _on_item_double_clicked(self, item: QListWidgetItem) -> None:
+        is_dir = item.data(Qt.UserRole + 1)
+        if not is_dir:
+            return
+        name = item.data(Qt.UserRole)
+        current = self._path_edit.text().strip() or "."
+        new_path = f"{current.rstrip('/')}/{name}"
+        self._path_edit.setText(new_path)
+        self._load_files()
 
     def _select_all(self) -> None:
         for i in range(self._list.count()):

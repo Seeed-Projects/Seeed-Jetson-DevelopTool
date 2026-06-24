@@ -324,5 +324,6 @@
   "remote.transfer.download_dialog.status.ready": "就绪",
   "remote.transfer.download_dialog.status.files": "共 {count} 项",
   "remote.transfer.download_dialog.status.error": "列出文件失败：{err}",
-  "remote.transfer.download_dialog.no_selection": "请至少选择一个文件。"
+  "remote.transfer.download_dialog.no_selection": "请至少选择一个文件。",
+  "remote.transfer.download_dialog.double_click_enter": "双击进入该文件夹"
 }

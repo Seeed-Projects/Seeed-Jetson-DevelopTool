@@ -323,5 +323,6 @@
   "remote.transfer.download_dialog.status.ready": "Ready",
   "remote.transfer.download_dialog.status.files": "{count} items",
   "remote.transfer.download_dialog.status.error": "Failed to list files: {err}",
-  "remote.transfer.download_dialog.no_selection": "Please select at least one file."
+  "remote.transfer.download_dialog.no_selection": "Please select at least one file.",
+  "remote.transfer.download_dialog.double_click_enter": "Double-click to open this folder"
 }
