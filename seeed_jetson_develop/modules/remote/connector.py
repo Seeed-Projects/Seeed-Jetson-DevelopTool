@@ -48,6 +48,28 @@ def _get_local_subnets() -> list[str]:
     return list(dict.fromkeys(subnets))
 
 
+def normalize_subnet_prefix(subnet: str | None) -> str | None:
+    """Normalize a /24 subnet prefix such as `192.168.7.` to `192.168.7`.
+
+    Returns None when the input cannot be interpreted as a three-octet IPv4
+    prefix, allowing callers to fall back to automatic subnet discovery.
+    """
+    text = (subnet or "").strip()
+    if not text:
+        return None
+    text = text.rstrip(".")
+    parts = text.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        octets = [int(part, 10) for part in parts]
+    except ValueError:
+        return None
+    if any(octet < 0 or octet > 255 for octet in octets):
+        return None
+    return ".".join(str(octet) for octet in octets)
+
+
 def scan_local_network(
     subnet: str | None = None,
     *,
@@ -58,7 +80,8 @@ def scan_local_network(
     on_progress: Callable[[int, int], None] | None = None,
 ) -> list[str]:
     """Scan LAN for reachable SSH hosts."""
-    subnets = _get_local_subnets() if subnet is None else [subnet]
+    normalized = normalize_subnet_prefix(subnet)
+    subnets = _get_local_subnets() if normalized is None else [normalized]
     all_hosts: list[str] = []
     for sn in subnets:
         all_hosts += [f"{sn}.{i}" for i in range(1, 255)]
