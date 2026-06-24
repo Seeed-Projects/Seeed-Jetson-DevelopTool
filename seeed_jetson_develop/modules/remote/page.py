@@ -703,10 +703,15 @@ def build_page() -> QWidget:
     def _do_scan():
         if scan_holder[0] and scan_holder[0].isRunning():
             return
+        raw_subnet = subnet_input.text().strip()
+        subnet = connector.normalize_subnet_prefix(raw_subnet)
+        if raw_subnet and subnet:
+            subnet_input.setText(subnet)
+            _save_conn()
         scan_btn.setEnabled(False)
         scan_btn.setText(_tt("remote.conn.btn.scanning"))
         scan_result.setText(_tt("remote.scan.scanning_lan"))
-        t_scan = _ScanThread(subnet_input.text().strip() or None)
+        t_scan = _ScanThread(subnet)
         t_scan.found.connect(_scan_done)
         t_scan.progress.connect(lambda s, total: scan_result.setText(_tt("remote.scan.progress", scanned=s, total=total)))
         t_scan.start()

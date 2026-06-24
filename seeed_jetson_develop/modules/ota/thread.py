@@ -719,7 +719,6 @@ if os.path.exists(board_name_file):
             use_sudo=True,
         )
         self._emit_log(out)
-        # nv_ota_start.sh triggers a reboot; SSH may drop before a clean exit.
         if rc != 0:
             lower = out.lower()
             error_indicators = [
@@ -734,6 +733,19 @@ if os.path.exists(board_name_file):
                 raise RuntimeError(f"nv_ota_start.sh failed (rc={rc}): {out[:500]}")
 
         self._emit_progress(90)
-        self._emit_log("[ok] OTA script executed. Device will reboot automatically.")
+        self._emit_log("[step] rebooting device to enter OTA flow...")
+        rc, out = self._ssh_run(
+            "sync; nohup bash -c 'sleep 2; systemctl reboot || reboot -f' >/dev/null 2>&1 &",
+            timeout=20,
+            use_sudo=True,
+        )
+        if rc != 0:
+            lower = out.lower()
+            if "closed" in lower or "reset" in lower or "reboot" in lower or "shutdown" in lower:
+                self._emit_log(f"[info] reboot command returned rc={rc} (likely because SSH disconnected)")
+            else:
+                raise RuntimeError(f"failed to start reboot after OTA preparation (rc={rc}): {out}")
+
+        self._emit_log("[ok] reboot command sent. Device should enter OTA flow now.")
         self._emit_progress(100)
-        self.done.emit(True, "OTA started successfully. The device will reboot.")
+        self.done.emit(True, "OTA started successfully. Reboot command sent.")
