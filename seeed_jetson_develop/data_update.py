@@ -107,9 +107,31 @@ def get_data_file(name: str) -> Path:
 
 def load_json_data(name: str, default: Any = None) -> Any:
     try:
-        data = _read_json(get_data_file(name))
         if name == LOCAL_BSP_DATA_NAME:
-            return _clean_bsp_data(data)
+            # Merge packaged and cached BSP data so that new bundled records
+            # (e.g. newly added Jetpack 7.2 images) are always visible even when
+            # an older user cache exists. Cached fields still win for records
+            # that exist in both, because the cache may have been refreshed from
+            # the remote wiki more recently than the package was built.
+            package_data: List[Dict[str, Any]] = []
+            cache_data: List[Dict[str, Any]] = []
+            try:
+                package_data = _read_json(_package_path(name))
+            except Exception:
+                pass
+            try:
+                cache_data = _read_json(_cache_path(name))
+            except Exception:
+                pass
+            if not _is_valid_bsp_data(package_data):
+                package_data = []
+            if not _is_valid_bsp_data(cache_data):
+                cache_data = []
+            if not package_data and not cache_data:
+                raise FileNotFoundError(name)
+            return _clean_bsp_data(_merge_bsp_data(package_data, cache_data))
+
+        data = _read_json(get_data_file(name))
         return data
     except Exception:
         if default is not None:
