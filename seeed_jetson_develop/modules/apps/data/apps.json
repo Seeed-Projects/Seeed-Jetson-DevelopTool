@@ -59,6 +59,33 @@
     ]
   },
   {
+    "id": "seeed-device-manager",
+    "example_name": null,
+    "icon": "DM",
+    "name": "Seeed Device Manager",
+    "category": "Device Management",
+    "desc": "Install the Seeed Fleet device management agent for registration, remote access, logs, and device management.",
+    "skill_id": null,
+    "check_cmd": "bash -lc 'systemctl is-active --quiet argus.service || test -x /opt/argus/argus'",
+    "install_params": [
+      {
+        "name": "api_key",
+        "label": "API Key",
+        "placeholder": "sk_...",
+        "required": true,
+        "secret": true,
+        "help_text": "Get your API key from https://seeed-fleet.com/",
+        "help_url": "https://seeed-fleet.com/"
+      }
+    ],
+    "install_cmds": [
+      "curl -fsSL https://appstore.seeed-fleet.com/binaries/614/script/argus-install.sh | bash -s -- --api-key {api_key} --yes"
+    ],
+    "run_cmds": null,
+    "clean_cmds": null,
+    "uninstall_cmds": []
+  },
+  {
     "id": "yolov26-dual-gmsl",
     "example_name": null,
     "icon": "CV",
