@@ -20,6 +20,7 @@ class AppParameterError(ValueError):
 
 
 _PARAM_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_SHELL_WORD_RE = r"(?:'[^']*'|\"[^\"]*\"|[^\s'\"]+)+"
 
 _JX_BOOTSTRAP_CMD = (
     "bash -c 'export PATH=$HOME/.local/bin:$PATH && "
@@ -101,7 +102,7 @@ def mask_app_commands(app: dict, cmds: list[str]) -> list[str]:
             prefix, suffix = template.split(marker, 1)
             quoted_prefix = re.escape(prefix)
             quoted_suffix = re.escape(suffix)
-            pattern = re.compile(quoted_prefix + r"(?:'[^']*'|\"[^\"]*\"|\S*)" + quoted_suffix)
+            pattern = re.compile(quoted_prefix + _SHELL_WORD_RE + quoted_suffix)
             replacement = prefix + "***" + suffix
             masked = [pattern.sub(replacement, cmd) for cmd in masked]
     return masked

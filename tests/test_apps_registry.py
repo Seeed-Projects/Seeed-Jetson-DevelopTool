@@ -74,6 +74,25 @@ class AppRegistryTest(unittest.TestCase):
         self.assertIs(api_key_param["secret"], True)
         self.assertEqual(api_key_param["help_url"], "https://seeed-fleet.com/")
 
+    def test_seeed_device_manager_installs_curl_before_download(self):
+        app = next((item for item in load_apps() if item["id"] == "seeed-device-manager"), None)
+
+        self.assertIsNotNone(app)
+        command = app["install_cmds"][0]
+        self.assertIn("command -v curl", command)
+        self.assertIn("sudo apt-get install -y curl", command)
+        self.assertLess(command.index("command -v curl"), command.index("curl -fsSL"))
+
+    def test_seeed_device_manager_masks_api_key_with_shell_quotes(self):
+        app = next((item for item in load_apps() if item["id"] == "seeed-device-manager"), None)
+
+        self.assertIsNotNone(app)
+        cmds = render_app_commands(app, {"api_key": "sk_test'value"})
+        masked = mask_app_commands(app, cmds)[0]
+        self.assertNotIn("sk_test", masked)
+        self.assertNotIn("value", masked)
+        self.assertTrue(masked.endswith("_ ***"))
+
 
 if __name__ == "__main__":
     unittest.main()

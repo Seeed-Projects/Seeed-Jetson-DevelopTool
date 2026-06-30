@@ -79,7 +79,7 @@
       }
     ],
     "install_cmds": [
-      "curl -fsSL https://appstore.seeed-fleet.com/binaries/614/script/argus-install.sh | bash -s -- --api-key {api_key} --yes"
+      "bash -lc 'set -e; command -v curl >/dev/null 2>&1 || (sudo apt-get update && sudo apt-get install -y curl); curl -fsSL https://appstore.seeed-fleet.com/binaries/614/script/argus-install.sh | bash -s -- --api-key \"$1\" --yes' _ {api_key}"
     ],
     "run_cmds": null,
     "clean_cmds": null,
