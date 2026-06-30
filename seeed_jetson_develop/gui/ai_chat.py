@@ -158,7 +158,17 @@ class _AiToolThread(QThread):
         rejected  = _t_raw("ai_chat.tool.rejected",  lang=self._lang)
         try:
             import anthropic
-            client   = anthropic.Anthropic(api_key=self._api_key, base_url=base_url)
+            import httpx
+            # Disable proxy auto-detection for the AI client. SOCKS proxies in
+            # particular (e.g. socks://127.0.0.1:7890/) are not supported by
+            # httpx/anthropic and cause "Unknown scheme for proxy URL" errors.
+            # trust_env=False prevents httpx from reading HTTP_PROXY/ALL_PROXY.
+            http_client = httpx.Client(trust_env=False)
+            client = anthropic.Anthropic(
+                api_key=self._api_key,
+                base_url=base_url,
+                http_client=http_client,
+            )
             tool_def = _get_tool_def()
             tools    = [tool_def] if self._runner is not None else []
             messages = list(self._messages)

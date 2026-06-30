@@ -55,23 +55,115 @@ def set_language(lang: str):
     save(data)
 
 
+def _claude_code_settings_paths() -> list[Path]:
+    """Return candidate paths for Claude Code settings.json."""
+    paths: list[Path] = []
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            base = Path(appdata) / "Claude"
+            paths.extend([base / "settings.json", base / "claude_desktop_config.json"])
+    else:
+        paths.append(Path.home() / ".claude" / "settings.json")
+        paths.append(Path.home() / "Library" / "Application Support" / "Claude" / "settings.json")
+        paths.append(Path.home() / ".config" / "Claude" / "settings.json")
+    return paths
+
+
+def _load_claude_code_settings() -> dict[str, str]:
+    """Read API key/base URL from local Claude Code / Claude Desktop config."""
+    for path in _claude_code_settings_paths():
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            env = data.get("env", {})
+            return {
+                "api_key": (env.get("ANTHROPIC_AUTH_TOKEN") or env.get("ANTHROPIC_API_KEY") or "").strip(),
+                "base_url": (env.get("ANTHROPIC_BASE_URL") or "").strip(),
+            }
+        except Exception:
+            continue
+    return {"api_key": "", "base_url": ""}
+
+
+def _load_codex_settings() -> dict[str, str]:
+    """Read base URL from local Codex CLI config.toml/config.json."""
+    try:
+        import tomllib
+    except ImportError:
+        try:
+            import tomli as tomllib  # type: ignore
+        except ImportError:
+            tomllib = None
+
+    candidates = [
+        Path.home() / ".codex" / "config.toml",
+        Path.home() / ".codex" / "config.json",
+    ]
+    for path in candidates:
+        try:
+            if path.suffix == ".toml" and tomllib is not None:
+                data = tomllib.loads(path.read_text(encoding="utf-8"))
+            elif path.suffix == ".json":
+                data = json.loads(path.read_text(encoding="utf-8"))
+            else:
+                continue
+            provider = data.get("model_provider", "OpenAI")
+            provider_cfg = data.get("model_providers", {}).get(provider, {})
+            return {
+                "api_key": (os.environ.get("OPENAI_API_KEY") or "").strip(),
+                "base_url": (provider_cfg.get("base_url") or "").strip(),
+                "provider": provider.lower(),
+            }
+        except Exception:
+            continue
+    return {"api_key": "", "base_url": "", "provider": ""}
+
+
 def get_runtime_anthropic_settings() -> dict:
+    """Resolve Anthropic API settings from app config, Claude Code, env, or Codex.
+
+    Priority (highest first):
+      1. Seeed Jetson Tool config file
+      2. Claude Code / Claude Desktop local settings
+      3. Environment variables (ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL)
+      4. Codex CLI local config (OpenAI-compatible fallback)
+      5. Built-in Anthropic defaults
+    """
     data = load()
+    claude_cfg = _load_claude_code_settings()
+    codex_cfg = _load_codex_settings()
 
     config_key = (data.get("anthropic_api_key") or "").strip()
+    claude_key = claude_cfg.get("api_key", "").strip()
     env_key = (os.environ.get("ANTHROPIC_API_KEY") or "").strip()
-    api_key = config_key or env_key
-    api_key_source = "config" if config_key else ("env" if env_key else "none")
+    codex_key = codex_cfg.get("api_key", "").strip()
+
+    if config_key:
+        api_key, api_key_source = config_key, "config"
+    elif claude_key:
+        api_key, api_key_source = claude_key, "claude_code"
+    elif env_key:
+        api_key, api_key_source = env_key, "env"
+    elif codex_key:
+        api_key, api_key_source = codex_key, "codex"
+    else:
+        api_key, api_key_source = "", "none"
 
     config_url = (data.get("anthropic_base_url") or "").strip()
+    claude_url = claude_cfg.get("base_url", "").strip()
     env_url = (os.environ.get("ANTHROPIC_BASE_URL") or "").strip()
-    base_url = config_url or env_url or DEFAULT_ANTHROPIC_BASE_URL
+    codex_url = codex_cfg.get("base_url", "").strip()
+
     if config_url:
-        base_url_source = "config"
+        base_url, base_url_source = config_url, "config"
+    elif claude_url:
+        base_url, base_url_source = claude_url, "claude_code"
     elif env_url:
-        base_url_source = "env"
+        base_url, base_url_source = env_url, "env"
+    elif codex_url:
+        base_url, base_url_source = codex_url, "codex"
     else:
-        base_url_source = "default"
+        base_url, base_url_source = DEFAULT_ANTHROPIC_BASE_URL, "default"
 
     return {
         "api_key": api_key,
