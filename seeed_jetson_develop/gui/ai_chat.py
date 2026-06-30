@@ -18,6 +18,8 @@ from qtpy.QtWidgets import (
 )
 
 from seeed_jetson_develop.core.config import (
+    AI_PROVIDER_ANTHROPIC,
+    AI_PROVIDER_OPENAI,
     DEFAULT_ANTHROPIC_BASE_URL,
     get_runtime_anthropic_settings,
     load as load_config,
@@ -121,6 +123,22 @@ def _get_base_url() -> str:
     return get_runtime_anthropic_settings()["base_url"]
 
 
+def _get_provider() -> str:
+    return get_runtime_anthropic_settings().get("provider", AI_PROVIDER_ANTHROPIC)
+
+
+def _to_openai_tool(tool_def: dict) -> dict:
+    """Convert Anthropic-style tool definition to OpenAI function calling format."""
+    return {
+        "type": "function",
+        "function": {
+            "name": tool_def["name"],
+            "description": tool_def.get("description", ""),
+            "parameters": tool_def.get("input_schema", {"type": "object"}),
+        },
+    }
+
+
 # ── AI 线程（支持 tool_use 循环） ─────────────────────────────────────────────
 
 class _AiToolThread(QThread):
@@ -131,12 +149,14 @@ class _AiToolThread(QThread):
     error       = Signal(str)
 
     def __init__(self, messages: list, system: str, api_key: str,
-                 base_url: str = "", runner=None, lang: str = "en"):
+                 base_url: str = "", provider: str = AI_PROVIDER_ANTHROPIC,
+                 runner=None, lang: str = "en"):
         super().__init__()
         self._messages = messages
         self._system   = system
         self._api_key  = api_key
         self._base_url = base_url
+        self._provider = provider
         self._runner   = runner
         self._cancel   = False
         self._lang     = lang
@@ -152,80 +172,167 @@ class _AiToolThread(QThread):
                 return
             self.token.emit(word if i == len(words) - 1 else word + " ")
 
-    def run(self):
-        base_url = self._base_url or DEFAULT_ANTHROPIC_BASE_URL
+    def _run_anthropic(self, base_url: str):
+        import anthropic
+        import httpx
+        # Disable proxy auto-detection for the AI client. SOCKS proxies in
+        # particular (e.g. socks://127.0.0.1:7890/) are not supported by
+        # httpx/anthropic and cause "Unknown scheme for proxy URL" errors.
+        # trust_env=False prevents httpx from reading HTTP_PROXY/ALL_PROXY.
+        http_client = httpx.Client(trust_env=False)
+        client = anthropic.Anthropic(
+            api_key=self._api_key,
+            base_url=base_url,
+            http_client=http_client,
+        )
+        tool_def = _get_tool_def()
+        tools    = [tool_def] if self._runner is not None else []
+        messages = list(self._messages)
         no_output = _t_raw("ai_chat.tool.no_output", lang=self._lang)
         rejected  = _t_raw("ai_chat.tool.rejected",  lang=self._lang)
-        try:
-            import anthropic
-            import httpx
-            # Disable proxy auto-detection for the AI client. SOCKS proxies in
-            # particular (e.g. socks://127.0.0.1:7890/) are not supported by
-            # httpx/anthropic and cause "Unknown scheme for proxy URL" errors.
-            # trust_env=False prevents httpx from reading HTTP_PROXY/ALL_PROXY.
-            http_client = httpx.Client(trust_env=False)
-            client = anthropic.Anthropic(
-                api_key=self._api_key,
-                base_url=base_url,
-                http_client=http_client,
-            )
-            tool_def = _get_tool_def()
-            tools    = [tool_def] if self._runner is not None else []
-            messages = list(self._messages)
 
-            while True:
+        while True:
+            if self._cancel:
+                return
+
+            resp = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=2048,
+                system=self._system,
+                messages=messages,
+                tools=tools,
+            )
+
+            text_parts: list[str] = []
+            tool_uses: list = []
+            for block in resp.content:
+                if block.type == "text":
+                    text_parts.append(block.text)
+                elif block.type == "tool_use":
+                    tool_uses.append(block)
+
+            full_text = " ".join(text_parts)
+            if full_text:
+                self._emit_text(full_text)
+
+            if resp.stop_reason == "end_turn" or not tool_uses:
+                break
+
+            # ── Execute tool calls ──
+            messages.append({"role": "assistant", "content": resp.content})
+            tool_results = []
+            for tu in tool_uses:
                 if self._cancel:
                     return
+                cmd    = tu.input.get("command", "")
+                reason = tu.input.get("reason", "")
+                self.tool_call.emit(cmd, reason)
 
-                resp = client.messages.create(
-                    model="claude-haiku-4-5-20251001",
-                    max_tokens=2048,
-                    system=self._system,
-                    messages=messages,
-                    tools=tools,
-                )
+                if _is_safe_cmd(cmd) and self._runner is not None:
+                    _, output = self._runner.run(cmd, timeout=300)
+                    if not output:
+                        output = no_output
+                else:
+                    output = rejected
 
-                text_parts: list[str] = []
-                tool_uses: list = []
-                for block in resp.content:
-                    if block.type == "text":
-                        text_parts.append(block.text)
-                    elif block.type == "tool_use":
-                        tool_uses.append(block)
+                self.tool_result.emit(cmd, output)
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tu.id,
+                    "content": output[:4000],
+                })
 
-                full_text = " ".join(text_parts)
-                if full_text:
-                    self._emit_text(full_text)
+            messages.append({"role": "user", "content": tool_results})
 
-                if resp.stop_reason == "end_turn" or not tool_uses:
-                    break
+    def _run_openai(self, base_url: str):
+        import json
+        import openai
+        import httpx
+        # OpenAI SDK expects the base URL to include the /v1 path segment.
+        # Some gateways (e.g. yuzapi.fun) are configured without it in Codex.
+        url = base_url.rstrip("/")
+        if not url.endswith("/v1"):
+            url = url + "/v1"
+        http_client = httpx.Client(trust_env=False)
+        client = openai.OpenAI(
+            api_key=self._api_key,
+            base_url=url,
+            http_client=http_client,
+        )
+        tool_def = _get_tool_def()
+        tools    = [_to_openai_tool(tool_def)] if self._runner is not None else []
+        messages: list[dict] = [{"role": "system", "content": self._system}]
+        messages.extend(list(self._messages))
+        no_output = _t_raw("ai_chat.tool.no_output", lang=self._lang)
+        rejected  = _t_raw("ai_chat.tool.rejected",  lang=self._lang)
 
-                # ── Execute tool calls ──
-                messages.append({"role": "assistant", "content": resp.content})
-                tool_results = []
-                for tu in tool_uses:
-                    if self._cancel:
-                        return
-                    cmd    = tu.input.get("command", "")
-                    reason = tu.input.get("reason", "")
-                    self.tool_call.emit(cmd, reason)
+        while True:
+            if self._cancel:
+                return
 
-                    if _is_safe_cmd(cmd) and self._runner is not None:
-                        _, output = self._runner.run(cmd, timeout=300)
-                        if not output:
-                            output = no_output
-                    else:
-                        output = rejected
+            resp = client.chat.completions.create(
+                model="gpt-5.5",
+                messages=messages,
+                tools=tools or None,
+                max_tokens=2048,
+            )
 
-                    self.tool_result.emit(cmd, output)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tu.id,
-                        "content": output[:4000],
-                    })
+            msg = resp.choices[0].message
+            content = msg.content or ""
+            if content:
+                self._emit_text(content)
 
-                messages.append({"role": "user", "content": tool_results})
+            if not msg.tool_calls:
+                break
 
+            # ── Execute tool calls ──
+            assistant_msg: dict = {"role": "assistant", "content": content or None}
+            assistant_msg["tool_calls"] = [
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+                for tc in msg.tool_calls
+            ]
+            messages.append(assistant_msg)
+
+            for tc in msg.tool_calls:
+                if self._cancel:
+                    return
+                name = tc.function.name
+                try:
+                    args = json.loads(tc.function.arguments)
+                except Exception:
+                    args = {}
+                cmd    = args.get("command", "")
+                reason = args.get("reason", "")
+                self.tool_call.emit(cmd, reason)
+
+                if name == "run_ssh_command" and _is_safe_cmd(cmd) and self._runner is not None:
+                    _, output = self._runner.run(cmd, timeout=300)
+                    if not output:
+                        output = no_output
+                else:
+                    output = rejected
+
+                self.tool_result.emit(cmd, output)
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": output[:4000],
+                })
+
+    def run(self):
+        base_url = self._base_url or DEFAULT_ANTHROPIC_BASE_URL
+        try:
+            if self._provider == AI_PROVIDER_OPENAI:
+                self._run_openai(base_url)
+            else:
+                self._run_anthropic(base_url)
         except Exception as exc:
             self.error.emit(f"{exc}\n[base_url: {base_url}]")
         finally:
@@ -617,6 +724,7 @@ class AIChatPanel(QWidget):
             system=self._system,
             api_key=api_key,
             base_url=_get_base_url(),
+            provider=_get_provider(),
             runner=self._runner,
             lang=get_language(),
         )

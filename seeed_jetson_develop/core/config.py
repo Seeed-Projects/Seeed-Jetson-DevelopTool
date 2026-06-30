@@ -9,6 +9,8 @@ from pathlib import Path
 _CONFIG_PATH = Path.home() / ".config" / "seeed-jetson-tool" / "config.json"
 log = logging.getLogger("seeed.core.config")
 DEFAULT_ANTHROPIC_BASE_URL = "https://api.anthropic.com"
+AI_PROVIDER_ANTHROPIC = "anthropic"
+AI_PROVIDER_OPENAI = "openai"
 DEFAULT_LANGUAGE = "zh-CN"
 LANGUAGE_ALIASES = {
     "zh": "zh-CN",
@@ -86,7 +88,7 @@ def _load_claude_code_settings() -> dict[str, str]:
 
 
 def _load_codex_settings() -> dict[str, str]:
-    """Read base URL from local Codex CLI config.toml/config.json."""
+    """Read API key/base URL/provider from local Codex CLI config.toml/config.json."""
     try:
         import tomllib
     except ImportError:
@@ -109,8 +111,10 @@ def _load_codex_settings() -> dict[str, str]:
                 continue
             provider = data.get("model_provider", "OpenAI")
             provider_cfg = data.get("model_providers", {}).get(provider, {})
+            # Codex stores the API key either inline (when available) or in env/keyring.
+            api_key = (provider_cfg.get("api_key") or os.environ.get("OPENAI_API_KEY") or "").strip()
             return {
-                "api_key": (os.environ.get("OPENAI_API_KEY") or "").strip(),
+                "api_key": api_key,
                 "base_url": (provider_cfg.get("base_url") or "").strip(),
                 "provider": provider.lower(),
             }
@@ -119,8 +123,41 @@ def _load_codex_settings() -> dict[str, str]:
     return {"api_key": "", "base_url": "", "provider": ""}
 
 
+def _detect_ai_provider(base_url: str, api_key: str, codex_cfg: dict) -> str:
+    """Detect whether the configured endpoint is Anthropic or OpenAI-compatible.
+
+    Heuristics (in order):
+      1. If the base URL matches the local Codex config -> OpenAI
+      2. If the base URL matches known Anthropic/Claude proxies -> Anthropic
+      3. If the API key looks like an Anthropic key -> Anthropic
+      4. Default -> Anthropic
+    """
+    codex_url = (codex_cfg.get("base_url") or "").strip().rstrip("/")
+    url = (base_url or "").strip().rstrip("/")
+
+    if codex_url and url == codex_url:
+        return AI_PROVIDER_OPENAI
+
+    anthropic_hosts = {
+        "api.anthropic.com",
+        "cc.580ai.net",
+        "api.zhizengzeng.com",
+    }
+    try:
+        host = url.split("://", 1)[1].split("/", 1)[0].lower()
+        if host in anthropic_hosts:
+            return AI_PROVIDER_ANTHROPIC
+    except Exception:
+        pass
+
+    if api_key.startswith("sk-ant-"):
+        return AI_PROVIDER_ANTHROPIC
+
+    return AI_PROVIDER_ANTHROPIC
+
+
 def get_runtime_anthropic_settings() -> dict:
-    """Resolve Anthropic API settings from app config, Claude Code, env, or Codex.
+    """Resolve AI API settings from app config, Claude Code, env, or Codex.
 
     Priority (highest first):
       1. Seeed Jetson Tool config file
@@ -165,11 +202,14 @@ def get_runtime_anthropic_settings() -> dict:
     else:
         base_url, base_url_source = DEFAULT_ANTHROPIC_BASE_URL, "default"
 
+    provider = _detect_ai_provider(base_url, api_key, codex_cfg)
+
     return {
         "api_key": api_key,
         "api_key_source": api_key_source,
         "base_url": base_url,
         "base_url_source": base_url_source,
+        "provider": provider,
     }
 
 
