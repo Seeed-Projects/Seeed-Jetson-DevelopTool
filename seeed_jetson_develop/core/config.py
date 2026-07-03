@@ -123,29 +123,33 @@ def _load_codex_settings() -> dict[str, str]:
     return {"api_key": "", "base_url": "", "provider": ""}
 
 
-def _detect_ai_provider(base_url: str, api_key: str, codex_cfg: dict) -> str:
+def _detect_ai_provider(base_url: str, api_key: str, codex_cfg: dict,
+                         explicit_provider: str = "") -> str:
     """Detect whether the configured endpoint is Anthropic or OpenAI-compatible.
 
     Heuristics (in order):
-      1. If the base URL matches the local Codex config -> OpenAI
-      2. If the base URL matches known Anthropic/Claude proxies -> Anthropic
-      3. If the API key looks like an Anthropic key -> Anthropic
-      4. Default -> Anthropic
+      1. Explicit `ai_provider` setting in config -> use it
+      2. If the base URL matches the local Codex config -> OpenAI
+      3. If the base URL is the official Anthropic host -> Anthropic
+      4. If the API key looks like an Anthropic key -> Anthropic
+      5. Default -> Anthropic
+
+    Only the official Anthropic host is hard-coded; personal proxies are
+    recognised via the explicit setting or the local Codex config.
     """
+    explicit = (explicit_provider or "").strip().lower()
+    if explicit in (AI_PROVIDER_ANTHROPIC, AI_PROVIDER_OPENAI):
+        return explicit
+
     codex_url = (codex_cfg.get("base_url") or "").strip().rstrip("/")
     url = (base_url or "").strip().rstrip("/")
 
     if codex_url and url == codex_url:
         return AI_PROVIDER_OPENAI
 
-    anthropic_hosts = {
-        "api.anthropic.com",
-        "cc.580ai.net",
-        "api.zhizengzeng.com",
-    }
     try:
         host = url.split("://", 1)[1].split("/", 1)[0].lower()
-        if host in anthropic_hosts:
+        if host == "api.anthropic.com":
             return AI_PROVIDER_ANTHROPIC
     except Exception:
         pass
@@ -202,7 +206,8 @@ def get_runtime_anthropic_settings() -> dict:
     else:
         base_url, base_url_source = DEFAULT_ANTHROPIC_BASE_URL, "default"
 
-    provider = _detect_ai_provider(base_url, api_key, codex_cfg)
+    explicit_provider = (data.get("ai_provider") or "").strip().lower()
+    provider = _detect_ai_provider(base_url, api_key, codex_cfg, explicit_provider)
 
     return {
         "api_key": api_key,
