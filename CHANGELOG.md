@@ -9,6 +9,9 @@
   - 支持在 `~/.config/seeed-jetson-tool/config.json` 中通过 `ai_provider` 字段强制指定 `anthropic` 或 `openai`。
   - OpenAI 端点通过匹配本地 Codex 配置中的 `base_url` 来识别，适配每个人不同的代理地址。
 
+- **9b12c8f** `docs(ai_chat): remove specific gateway name from comment`
+  - 清理代码注释中的具体网关名称，避免误导。
+
 - **adbeccc** `feat(ai): auto-detect Anthropic/OpenAI provider and support Codex endpoints`
   - 自动识别 AI provider：当 `base_url` 与本地 Codex 配置一致时走 OpenAI 协议，否则走 Anthropic 协议。
   - 完整读取 Codex CLI 配置中的 `api_key`（支持 `OPENAI_API_KEY` 环境变量作为 fallback）。
