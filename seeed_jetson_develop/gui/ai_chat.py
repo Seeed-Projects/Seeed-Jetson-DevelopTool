@@ -249,7 +249,7 @@ class _AiToolThread(QThread):
         import openai
         import httpx
         # OpenAI SDK expects the base URL to include the /v1 path segment.
-        # Some gateways (e.g. yuzapi.fun) are configured without it in Codex.
+        # Some user gateways are configured without it in their Codex config.
         url = base_url.rstrip("/")
         if not url.endswith("/v1"):
             url = url + "/v1"
