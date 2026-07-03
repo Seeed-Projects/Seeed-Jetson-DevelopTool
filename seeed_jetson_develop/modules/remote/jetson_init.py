@@ -1113,9 +1113,19 @@ class JetsonNetConfigDialog(QDialog):
         inner = (
             # --- attempt 1: NetworkManager ---
             f"if systemctl is-active --quiet NetworkManager 2>/dev/null; then "
-            f"nmcli con delete {con_name} 2>/dev/null; "
+            # Disconnect any active connection on the interface first and
+            # disable autoconnect on other profiles for this interface so that
+            # JetPack 5's default wired connection does not steal eth1 back.
+            f"nmcli dev disconnect {iface} 2>/dev/null || true; "
+            f"nmcli con delete {con_name} 2>/dev/null || true; "
+            f"nmcli -t -f NAME,DEVICE con show 2>/dev/null | "
+            f"while IFS=: read -r name dev; do "
+            f"[ \"$dev\" = \"{iface}\" ] && [ \"$name\" != \"{con_name}\" ] && "
+            f"nmcli con mod \"$name\" connection.autoconnect no 2>/dev/null || true; "
+            f"done; "
             f"nmcli con add type ethernet ifname {iface} con-name {con_name} "
-            f"ipv4.method manual ipv4.addresses {ip_cidr}{gw_nmcli} && "
+            f"ipv4.method manual ipv4.addresses {ip_cidr}{gw_nmcli} "
+            f"connection.autoconnect yes && "
             f"nmcli con up {con_name}; "
             # --- attempt 2: systemd-networkd ---
             f"elif systemctl is-active --quiet systemd-networkd 2>/dev/null; then "
