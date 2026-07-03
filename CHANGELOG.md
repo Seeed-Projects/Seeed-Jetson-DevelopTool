@@ -32,7 +32,11 @@
   - Flash 页面 L4T 版本下拉框改为按版本号降序排列，默认选中最新 JetPack 7.2。
   - 删除重复的 `j401-robotics-orin-nx/nano-*` 4 条 BSP 记录。
 
-### 远程文件传输
+### 远程与串口网络配置
+
+- **8025ff0** `fix(remote): disable competing NM connections before applying static IP on JetPack 5`
+  - 串口配置静态 IP 前，先断开目标网口、禁用该网口上其他 NetworkManager 连接的自动连接，再添加静态连接。
+  - 解决 JetPack 5 上默认有线连接抢占 `eth1` 导致静态 IP 配置后无法 SSH 的问题。
 
 - **873f0df** `fix(remote): enable folder navigation and selected-row download in dialog`
 - **978253d** `feat(remote): double-click folder to navigate in download dialog`
