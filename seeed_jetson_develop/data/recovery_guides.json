@@ -234,11 +234,11 @@
       },
       {
         "step": 2,
-        "description": "Press and hold the Force Recovery button (the middle button, marked as 2/S3 on the carrier board)"
+        "description": "Press and hold the Force Recovery button (the middle button, marked as button 2 on the carrier board)"
       },
       {
         "step": 3,
-        "description": "If the board is powered on, press and release the Reset button (3/S2) while holding Force Recovery; if powered off, connect the power adapter while holding Force Recovery"
+        "description": "If the board is powered on, press and release the Reset button (button 3) while holding Force Recovery; if powered off, connect the power adapter while holding Force Recovery"
       },
       {
         "step": 4,
