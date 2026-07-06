@@ -24,6 +24,9 @@
 
 ### 刷机与 BSP 数据
 
+- **54410ed** `docs(recovery): replace confusing 2/S3 and 3/S2 labels with button numbers for AGX Orin`
+  - 将 AGX Orin 官方套件的 Recovery 步骤中 `2/S3`、`3/S2` 的标注改为 `2 号按钮`、`3 号按钮`，避免用户看不懂。
+
 - **8a8125e** `feat: add JetPack 7.2 BSP records and fix cache merge`
   - 合并 Wiki 中的 JetPack 7.2 BSP 记录（共 27 条，覆盖 J401/J301/ReServer Industrial 等产品）。
   - 修复 `data_update.py` 缓存与包内数据合并逻辑，避免旧缓存覆盖新 BSP 记录。
