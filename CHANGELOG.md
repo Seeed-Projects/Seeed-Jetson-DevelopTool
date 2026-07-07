@@ -2,6 +2,12 @@
 
 ## 0.1.9.post4（最新）
 
+### OTA 数据
+
+- **80f26e3** `feat(ota): add JP6.1/6.2 → JP7.2 OTA paths for Industrial/Robotics series`
+  - 新增 reComputer Industrial、Robotics J501、Robotics Mini J501、Robotics J401 四个系列的 JetPack 6.1/6.2 → JetPack 7.2 OTA 升级路径。
+  - 均为含 SDK 的 payload，共用 L4T 39.2.0 的 OTA tools。
+
 ### 文档与统计
 
 - **ff0728d** `docs(readme): add dynamic PyPI downloads chart`
