@@ -24,6 +24,9 @@
 
 ### 刷机与 BSP 数据
 
+- **4abcefd** `fix(data): update AGX Orin 64G JP7.2 BSP link`
+  - 将 AGX Orin DevKit 64G / L4T 39.2.0（JetPack 7.2）的 BSP 下载链接替换为正确的 `mfi_seeed-agx-orin-64g-kit.tar.gz`。
+
 - **54410ed** `docs(recovery): replace confusing 2/S3 and 3/S2 labels with button numbers for AGX Orin`
   - 将 AGX Orin 官方套件的 Recovery 步骤中 `2/S3`、`3/S2` 的标注改为 `2 号按钮`、`3 号按钮`，避免用户看不懂。
 

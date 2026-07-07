@@ -880,10 +880,10 @@
   {
     "product": "agx-orin-devkit-64g",
     "l4t": "39.2.0",
-    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQD3QSP_afcgRri0FoRzMO60ATuf5Ne8sam1Uqawjk14mqM?e=d2oaJM&download=1",
+    "mainlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/ai_robotics_szseeedstudio_partner_onmschina_cn/IQBJxRWLxRu-Q7OgIgrJDj6WAfB2zfFkiQ376GBAA3PiTNI?e=47Qe8u&download=1",
     "mirrorlink": "",
-    "filename": "mfi_jetson-agx-orin-devkit-super-39.2.0.tar.gz",
-    "foldername": "mfi_jetson-agx-orin-devkit-super",
+    "filename": "mfi_seeed-agx-orin-64g-kit.tar.gz",
+    "foldername": "mfi_seeed-agx-orin-64g-kit",
     "sha256": ""
   },
   {
