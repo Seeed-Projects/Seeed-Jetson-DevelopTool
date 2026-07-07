@@ -305,7 +305,16 @@ class _InstallThread(QThread):
             display_cmd = self._display_cmds[idx] if idx < len(self._display_cmds) else cmd
             self.log.emit(f"\n$ {display_cmd}")
             _timeout = 7200 if ("Download" in cmd or "wget" in cmd or "aria2c" in cmd or "docker load" in cmd or "apt-get install" in cmd) else 600
-            rc, _ = runner.run(cmd, timeout=_timeout, on_output=lambda l: self.log.emit(l))
+            rc, out = runner.run(
+                cmd,
+                timeout=_timeout,
+                on_output=lambda l: self.log.emit(l),
+                should_cancel=lambda: self._cancel,
+            )
+            if self._cancel or out == "cancelled":
+                self.log.emit("Cancelled")
+                self.done.emit(False)
+                return
             if rc != 0:
                 self.log.emit(f"[failed] rc={rc}")
                 self.log.emit(f"\nCommand failed (rc={rc})")
@@ -800,6 +809,11 @@ class AppsPage(ListPageBase):
         bus.device_connected.connect(lambda _: (self._device_meta.update({"l4t": None}), self._start_check()))
         # Async load: kick off background thread after UI is shown
         QTimer.singleShot(0, self._async_load)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.items_data:
+            QTimer.singleShot(0, self._start_check)
 
     def _async_load(self):
         """Load app data in background thread to avoid blocking UI."""

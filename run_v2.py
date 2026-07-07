@@ -65,8 +65,8 @@ ensure_dependencies()
 
 # ── X display 健康检测 + 自动 Xvfb fallback（仅 Linux）─────────────────────
 def _ensure_display():
-    if sys.platform == "win32":
-        return  # Windows 不需要处理
+    if sys.platform != "linux":
+        return  # Windows/macOS 不需要处理 Linux X11/Xvfb fallback
 
     import socket
     import subprocess
@@ -257,6 +257,10 @@ def _ensure_mesa_dri():
 
 _ensure_display()
 _ensure_mesa_dri()
+
+if os.environ.get("SEEED_BOOTSTRAP_ONLY", "").lower() in {"1", "true", "yes"}:
+    log.info("bootstrap-only: environment checks completed")
+    sys.exit(0)
 
 from PyQt5.QtCore import Qt, QtMsgType, qInstallMessageHandler
 from PyQt5.QtWidgets import QApplication
