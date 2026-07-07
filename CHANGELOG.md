@@ -40,6 +40,9 @@
 
 ### 远程与串口网络配置
 
+- **0fb908d** `style(remote): make Jetson Init network buttons green`
+  - 将 Jetson Initialization 页面的 `Configure Network IP` 和 `Network Share` 按钮也设为主题绿色（primary）。
+
 - **0525259** `feat(remote): recursive folder upload/download over SFTP`
   - 上传线程支持递归上传本地文件夹，保持目录结构并汇总字节总进度。
   - 下载线程支持递归下载远程文件夹，按原目录结构保存到 PC。

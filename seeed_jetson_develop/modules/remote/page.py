@@ -1061,8 +1061,8 @@ def build_page() -> QWidget:
     init_lay.addWidget(init_hint)
     init_port_holder = [""]
     init_terminal_btn = _btn(_tt("remote.init.btn.terminal"), primary=True, small=True)
-    init_net_btn = _btn(_tt("remote.init.btn.net_config"), small=True)
-    init_share_btn = _btn(_tt("remote.init.btn.net_share"), small=True)
+    init_net_btn = _btn(_tt("remote.init.btn.net_config"), primary=True, small=True)
+    init_share_btn = _btn(_tt("remote.init.btn.net_share"), primary=True, small=True)
     init_btn_row = QHBoxLayout()
     init_btn_row.addWidget(init_terminal_btn)
     init_btn_row.addWidget(init_net_btn)
