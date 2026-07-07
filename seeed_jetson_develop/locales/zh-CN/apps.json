@@ -12,6 +12,7 @@
   "apps.category.rag_vector_db": "RAG / 向量数据库",
   "apps.category.robotics_ros1": "机器人 / ROS 1",
   "apps.category.robotics_ros2": "机器人 / ROS 2",
+  "apps.category.device_management": "设备管理",
   "apps.status.installed": "已安装",
   "apps.status.checking": "检测中",
   "apps.status.available": "可安装",

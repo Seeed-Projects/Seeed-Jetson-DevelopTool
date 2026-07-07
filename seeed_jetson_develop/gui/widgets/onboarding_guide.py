@@ -621,6 +621,9 @@ class StepPage(QWidget):
         self._tip_container: QFrame | None = None
         if tip_text != tip_key:
             tip_container = QFrame(content_widget)
+            tip_container.setMinimumWidth(_onb(380, 500))
+            tip_container.setMaximumWidth(_onb(520, 620))
+            tip_container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
             tip_container.setStyleSheet(f"""
                 QFrame {{
                     background: {C_GREEN_GLOW};
@@ -629,11 +632,12 @@ class StepPage(QWidget):
                 }}
             """)
             tip_layout = QHBoxLayout(tip_container)
-            tip_layout.setContentsMargins(pt(12), pt(6), pt(12), pt(6))
+            tip_layout.setContentsMargins(pt(14), pt(8), pt(14), pt(8))
             tip_lbl = make_label(tip_text, size=11, color=C_GREEN)
             tip_lbl.setWordWrap(True)
             tip_lbl.setAlignment(Qt.AlignCenter)
-            tip_lbl.setMaximumHeight(pt(50))
+            tip_lbl.setMinimumWidth(_onb(340, 460))
+            tip_lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
             if PLATFORM.is_windows:
                 tip_lbl.setMaximumWidth(_onb(360, 500))
             tip_layout.addWidget(tip_lbl)
@@ -883,18 +887,27 @@ class OnboardingGuide(QDialog):
         header_layout.addWidget(self._lang_btn, 0, Qt.AlignVCenter)
         header_layout.addStretch()
 
+        right_controls = QWidget(header)
+        right_controls.setFixedHeight(pt(28))
+        right_controls.setStyleSheet("background:transparent; border:none;")
+        right_layout = QHBoxLayout(right_controls)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(_onb(10, 14))
+
         # "不再显示" 复选框 — 极简扁平风（与 EN · 中文 一致）
-        self._dismiss_cb = QCheckBox(t("onboarding.dismiss", lang=self._lang), header)
+        self._dismiss_cb = QCheckBox(t("onboarding.dismiss", lang=self._lang), right_controls)
         self._dismiss_cb.setCursor(Qt.PointingHandCursor)
+        self._dismiss_cb.setFixedHeight(pt(28))
         self._dismiss_cb.setStyleSheet(f"""
             QCheckBox {{
                 color: {C_TEXT3}; font-size: {pt(11)}px;
                 spacing: {pt(8)}px; background: transparent;
-                border: none; padding: {pt(4)}px {pt(6)}px;
+                border: none; padding: 0 {pt(6)}px;
             }}
             QCheckBox:hover {{ color: {C_TEXT2}; }}
             QCheckBox::indicator {{
                 width: {pt(12)}px; height: {pt(12)}px;
+                margin-top: 0; margin-bottom: 0;
                 border-radius: {pt(2)}px; border: 1px solid {C_TEXT3};
                 background: transparent;
             }}
@@ -904,38 +917,41 @@ class OnboardingGuide(QDialog):
             }}
         """)
         self._dismiss_cb.stateChanged.connect(self._on_dismiss_changed)
-        header_layout.addWidget(self._dismiss_cb, 0, Qt.AlignVCenter)
+        right_layout.addWidget(self._dismiss_cb, 0, Qt.AlignVCenter)
 
         # "跳过" 链接 — 极简扁平风
-        self._skip_btn = QPushButton(t("onboarding.skip", lang=self._lang), header)
+        self._skip_btn = QPushButton(t("onboarding.skip", lang=self._lang), right_controls)
         self._skip_btn.setCursor(Qt.PointingHandCursor)
         self._skip_btn.setFlat(True)
+        self._skip_btn.setFixedHeight(pt(28))
         self._skip_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; border: none;
                 color: {C_TEXT3}; font-size: {pt(11)}px;
-                padding: {pt(4)}px {pt(6)}px;
+                padding: 0 {pt(6)}px;
             }}
             QPushButton:hover {{ color: {C_TEXT}; }}
         """)
         self._skip_btn.clicked.connect(self._on_close)
-        header_layout.addWidget(self._skip_btn, 0, Qt.AlignVCenter)
+        right_layout.addWidget(self._skip_btn, 0, Qt.AlignVCenter)
 
         # 关闭 ✕ — 极简扁平风（无 hover 背景块）
-        self._close_btn = QPushButton("✕", header)
+        self._close_btn = QPushButton("✕", right_controls)
         self._close_btn.setCursor(Qt.PointingHandCursor)
         self._close_btn.setFlat(True)
+        self._close_btn.setFixedHeight(pt(28))
         self._close_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent; color: {C_TEXT3};
                 font-size: {pt(11)}px; font-weight: 400;
-                border: none; padding: {pt(4)}px {pt(6)}px;
+                border: none; padding: 0 {pt(6)}px;
             }}
             QPushButton:hover {{ color: {C_TEXT}; }}
         """)
         self._close_btn.setToolTip(t("common.close", lang=self._lang))
         self._close_btn.clicked.connect(self._on_close)
-        header_layout.addWidget(self._close_btn, 0, Qt.AlignVCenter)
+        right_layout.addWidget(self._close_btn, 0, Qt.AlignVCenter)
+        header_layout.addWidget(right_controls, 0, Qt.AlignVCenter)
         container_layout.addWidget(header)
 
         # 页面栈

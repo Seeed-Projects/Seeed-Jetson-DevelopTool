@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import re
+import shlex
 from pathlib import Path
 from typing import Optional
 
@@ -11,6 +13,14 @@ from seeed_jetson_develop.modules.devices.diagnostics import python_module_check
 _DATA_DIR = Path(__file__).parent / "data"
 _BASE_DATA = _DATA_DIR / "apps.json"
 _GENERATED_DATA = _DATA_DIR / "jetson_examples.json"
+
+
+class AppParameterError(ValueError):
+    """Raised when an app command parameter is missing or invalid."""
+
+
+_PARAM_RE = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+_SHELL_WORD_RE = r"(?:'[^']*'|\"[^\"]*\"|[^\s'\"]+)+"
 
 _JX_BOOTSTRAP_CMD = (
     "bash -c 'export PATH=$HOME/.local/bin:$PATH && "
@@ -41,6 +51,61 @@ def _prepend_bootstrap(app: dict) -> dict:
         if cmds and any("reComputer" in c for c in cmds):
             app[key] = [_JX_BOOTSTRAP_CMD] + cmds
     return app
+
+
+def _install_params_by_name(app: dict) -> dict[str, dict]:
+    return {
+        str(param.get("name")): param
+        for param in app.get("install_params") or []
+        if param.get("name")
+    }
+
+
+def render_app_commands(
+    app: dict,
+    params: dict[str, str] | None = None,
+    command_key: str = "install_cmds",
+) -> list[str]:
+    """Render app commands with shell-quoted install parameters."""
+    params = params or {}
+    param_specs = _install_params_by_name(app)
+
+    for name, spec in param_specs.items():
+        value = str(params.get(name) or "")
+        if spec.get("required") and not value.strip():
+            raise AppParameterError(f"required app parameter is missing: {name}")
+
+    rendered: list[str] = []
+    for cmd in app.get(command_key) or []:
+        def _replace(match: re.Match[str]) -> str:
+            name = match.group(1)
+            if name not in param_specs:
+                return match.group(0)
+            value = str(params.get(name) or "")
+            return shlex.quote(value)
+
+        rendered.append(_PARAM_RE.sub(_replace, cmd))
+    return rendered
+
+
+def mask_app_commands(app: dict, cmds: list[str]) -> list[str]:
+    """Mask secret install parameter values in rendered commands."""
+    masked = list(cmds)
+    for name, spec in _install_params_by_name(app).items():
+        if not spec.get("secret"):
+            continue
+        template_values = app.get("install_cmds") or []
+        for template in template_values:
+            marker = "{" + name + "}"
+            if marker not in template:
+                continue
+            prefix, suffix = template.split(marker, 1)
+            quoted_prefix = re.escape(prefix)
+            quoted_suffix = re.escape(suffix)
+            pattern = re.compile(quoted_prefix + _SHELL_WORD_RE + quoted_suffix)
+            replacement = prefix + "***" + suffix
+            masked = [pattern.sub(replacement, cmd) for cmd in masked]
+    return masked
 
 
 def load_apps() -> list[dict]:

@@ -55,6 +55,7 @@ class Runner:
         cmd: str | list[str],
         timeout: int = 30,
         on_output: Optional[Callable[[str], None]] = None,
+        should_cancel: Optional[Callable[[], bool]] = None,
     ) -> tuple[int, str]:
         """
         执行命令，返回 (returncode, output)。
@@ -65,6 +66,8 @@ class Runner:
         popen_cmd, use_shell = _prepare_local_command(cmd)
         proc = None
         try:
+            if should_cancel and should_cancel():
+                return -1, "cancelled"
             proc = subprocess.Popen(
                 popen_cmd,
                 shell=use_shell,
@@ -83,6 +86,9 @@ class Runner:
                     break
                 if not chunk:
                     break
+                if should_cancel and should_cancel():
+                    proc.kill()
+                    return -1, "cancelled"
                 buf += chunk
                 # 按 \n 或 \r 切割，保留最后未完成的片段
                 parts = re.split(rb"[\n\r]+", buf)
@@ -131,14 +137,20 @@ class SSHRunner(Runner):
         """将用户命令包装成可在远端 SSH 执行的 bash 命令。
 
         sudo 密码注入：使用 shlex.quote 直接转义后存入 SEEED_SUDO_PASSWORD。
-        脚本里需要 root 权限时定义本地 _S() 函数使用：
-            _S() { printf '%s\\n' "$SEEED_SUDO_PASSWORD" | command sudo -S -p '' "$@" 2>&1; return $?; }
+        同时导出 bash sudo() 函数，保证嵌套 bash 脚本里的普通 sudo 也能非交互执行。
         """
         wrapper_parts = ["export TERM=${TERM:-xterm-256color};"]
         if self.sudo_password:
             wrapper_parts.append(
                 f"SEEED_SUDO_PASSWORD={shlex.quote(self.sudo_password)}; "
                 f"export SEEED_SUDO_PASSWORD; "
+            )
+            wrapper_parts.append(
+                "sudo() { "
+                "if [ -n \"${SEEED_SUDO_PASSWORD:-}\" ]; then "
+                "printf '%s\\n' \"$SEEED_SUDO_PASSWORD\" | command sudo -S -p '' \"$@\" 2>&1; "
+                "else command sudo \"$@\"; fi; "
+                "}; export -f sudo; "
             )
         wrapper_parts.append(cmd)
         wrapper = " ".join(wrapper_parts)
@@ -167,6 +179,7 @@ class SSHRunner(Runner):
         cmd: str,
         timeout: int = 30,
         on_output: Optional[Callable[[str], None]] = None,
+        should_cancel: Optional[Callable[[], bool]] = None,
     ) -> tuple[int, str]:
         safe_cmd = self._build_remote_shell_command(cmd)
         try:
@@ -240,6 +253,9 @@ class SSHRunner(Runner):
                     if deadline and time.time() > deadline:
                         ch.close()
                         return -1, "timeout"
+                    if should_cancel and should_cancel():
+                        ch.close()
+                        return -1, "cancelled"
                     time.sleep(0.05)
 
                 if out_buf.strip():
@@ -273,6 +289,7 @@ class SerialRunner(Runner):
         cmd: str,
         timeout: int = 30,
         on_output: Optional[Callable[[str], None]] = None,
+        should_cancel: Optional[Callable[[], bool]] = None,
     ) -> tuple[int, str]:
         import re
         import time
@@ -289,6 +306,8 @@ class SerialRunner(Runner):
             lines.append(text)
 
         try:
+            if should_cancel and should_cancel():
+                return -1, "cancelled"
             ser = serial.Serial(
                 self.port, baudrate=115200, timeout=0.1,
                 bytesize=serial.EIGHTBITS, parity=serial.PARITY_NONE,

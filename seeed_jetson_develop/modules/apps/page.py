@@ -1,7 +1,8 @@
 """App marketplace page."""
 from __future__ import annotations
 
-from qtpy.QtCore import Qt, QThread, Signal, QTimer
+from qtpy.QtCore import Qt, QThread, Signal, QTimer, QUrl
+from qtpy.QtGui import QDesktopServices
 from qtpy.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton, QLineEdit,
     QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -29,7 +30,12 @@ def _can_execute_from_current_env(parent: QWidget) -> bool:
     return False
 
 
-from seeed_jetson_develop.modules.apps.registry import load_apps
+from seeed_jetson_develop.modules.apps.registry import (
+    AppParameterError,
+    load_apps,
+    mask_app_commands,
+    render_app_commands,
+)
 from seeed_jetson_develop.gui.runtime_i18n import apply_dialog_language as _apply_dlg_lang
 from seeed_jetson_develop.gui.widgets.list_page_base import ListPageBase
 from seeed_jetson_develop.gui.theme import (
@@ -53,6 +59,7 @@ _CATEGORY_LABEL_KEYS = {
     "RAG / Vector DB": "apps.category.rag_vector_db",
     "Robotics / ROS 1": "apps.category.robotics_ros1",
     "Robotics / ROS 2": "apps.category.robotics_ros2",
+    "Device Management": "apps.category.device_management",
     "开发工具": "apps.category.devtools",
 }
 
@@ -154,11 +161,12 @@ class _InstallThread(QThread):
     log  = Signal(str)
     done = Signal(bool)
 
-    def __init__(self, cmds: list[str], app: dict | None = None):
+    def __init__(self, cmds: list[str], app: dict | None = None, display_cmds: list[str] | None = None):
         super().__init__()
-        self._cmds   = cmds
-        self._app    = app or {}
-        self._cancel = False
+        self._cmds         = cmds
+        self._display_cmds = display_cmds or cmds
+        self._app          = app or {}
+        self._cancel       = False
 
     def cancel(self):
         self._cancel = True
@@ -289,14 +297,24 @@ class _InstallThread(QThread):
                 self.done.emit(False)
                 return
 
-        for cmd in self._cmds:
+        for idx, cmd in enumerate(self._cmds):
             if self._cancel:
                 self.log.emit("Cancelled")
                 self.done.emit(False)
                 return
-            self.log.emit(f"\n$ {cmd}")
+            display_cmd = self._display_cmds[idx] if idx < len(self._display_cmds) else cmd
+            self.log.emit(f"\n$ {display_cmd}")
             _timeout = 7200 if ("Download" in cmd or "wget" in cmd or "aria2c" in cmd or "docker load" in cmd or "apt-get install" in cmd) else 600
-            rc, _ = runner.run(cmd, timeout=_timeout, on_output=lambda l: self.log.emit(l))
+            rc, out = runner.run(
+                cmd,
+                timeout=_timeout,
+                on_output=lambda l: self.log.emit(l),
+                should_cancel=lambda: self._cancel,
+            )
+            if self._cancel or out == "cancelled":
+                self.log.emit("Cancelled")
+                self.done.emit(False)
+                return
             if rc != 0:
                 self.log.emit(f"[failed] rc={rc}")
                 self.log.emit(f"\nCommand failed (rc={rc})")
@@ -306,16 +324,118 @@ class _InstallThread(QThread):
         self.done.emit(True)
 
 
+class _InstallParamsDialog(QDialog):
+    """Collect install parameters before opening the execution dialog."""
+
+    def __init__(self, app: dict, parent=None):
+        super().__init__(parent)
+        self._app = app
+        self._inputs: dict[str, QLineEdit] = {}
+        self._values: dict[str, str] = {}
+
+        self.setWindowTitle(f"{_at('apps.action.install')}  {app['name']}")
+        self.setMinimumSize(_pt(460), _pt(260))
+        self.setStyleSheet(f"background:{C_BG}; color:{C_TEXT}; border:none;")
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(24, 22, 24, 22)
+        root.setSpacing(14)
+
+        root.addWidget(_lbl(app["name"], 15, C_TEXT, bold=True))
+        desc = app.get("desc") or ""
+        if desc:
+            root.addWidget(_lbl(desc, 11, C_TEXT2, wrap=True))
+
+        for param in app.get("install_params") or []:
+            name = str(param.get("name") or "")
+            if not name:
+                continue
+            label_text = str(param.get("label") or name)
+            if param.get("required"):
+                label_text += " *"
+            root.addWidget(_lbl(label_text, 12, C_TEXT2))
+            edit = QLineEdit()
+            edit.setPlaceholderText(str(param.get("placeholder") or ""))
+            if param.get("secret"):
+                edit.setEchoMode(QLineEdit.Password)
+            edit.setStyleSheet(f"""
+                QLineEdit {{
+                    background:{C_CARD_LIGHT};
+                    border:none;
+                    border-radius:8px;
+                    color:{C_TEXT};
+                    padding:9px 10px;
+                    font-size:{_pt(11)}px;
+                }}
+                QLineEdit:focus {{
+                    border:1px solid {C_GREEN};
+                }}
+            """)
+            root.addWidget(edit)
+            self._inputs[name] = edit
+
+            help_text = str(param.get("help_text") or "")
+            help_url = str(param.get("help_url") or "")
+            if help_text or help_url:
+                help_row = QHBoxLayout()
+                if help_text:
+                    help_row.addWidget(_lbl(help_text, 10, C_TEXT3, wrap=True), 1)
+                else:
+                    help_row.addStretch()
+                if help_url:
+                    open_btn = _btn("Open seeed-fleet.com", small=True)
+                    open_btn.clicked.connect(lambda _checked=False, url=help_url: QDesktopServices.openUrl(QUrl(url)))
+                    help_row.addWidget(open_btn)
+                root.addLayout(help_row)
+
+        root.addStretch()
+
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        cancel_btn = _btn(_at("common.cancel"))
+        install_btn = _btn(_at("apps.action.install"), primary=True)
+        cancel_btn.clicked.connect(self.reject)
+        install_btn.clicked.connect(self._accept_if_valid)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addWidget(install_btn)
+        root.addLayout(btn_row)
+
+    def values(self) -> dict[str, str]:
+        return dict(self._values)
+
+    def _accept_if_valid(self):
+        values = {name: edit.text().strip() for name, edit in self._inputs.items()}
+        for param in self._app.get("install_params") or []:
+            name = str(param.get("name") or "")
+            if param.get("required") and not values.get(name):
+                _show_warning_message(
+                    self,
+                    _at("common.notice"),
+                    f"{param.get('label') or name} is required. Get your API key from https://seeed-fleet.com/",
+                )
+                return
+        self._values = values
+        self.accept()
+
+
 # Install / uninstall dialog
 class _InstallDialog(QDialog):
     install_done = Signal(str, bool)
 
-    def __init__(self, app: dict, cmds: list[str], parent=None, mode: str = "install"):
+    def __init__(
+        self,
+        app: dict,
+        cmds: list[str],
+        parent=None,
+        mode: str = "install",
+        preview_cmds: list[str] | None = None,
+    ):
         super().__init__(parent)
-        self._app    = app
-        self._cmds   = cmds
-        self._thread = None
-        self._mode   = mode  # "install" or "uninstall"
+        self._app          = app
+        self._cmds         = cmds
+        self._preview_cmds = preview_cmds or cmds
+        self._thread       = None
+        self._mode         = mode  # "install" or "uninstall"
 
         title_map = {
             "install": _at("apps.action.install"),
@@ -439,7 +559,7 @@ class _InstallDialog(QDialog):
             font-size:{_pt(11)}px;
             padding:12px;
         """)
-        preview.setPlainText("\n".join(f"$ {c}" for c in cmds))
+        preview.setPlainText("\n".join(f"$ {c}" for c in self._preview_cmds))
         lay.addWidget(preview)
 
         # Log area
@@ -532,7 +652,7 @@ class _InstallDialog(QDialog):
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
         self._bg_btn.setEnabled(True)
-        t = _InstallThread(self._cmds, app=self._app)
+        t = _InstallThread(self._cmds, app=self._app, display_cmds=self._preview_cmds)
         t.log.connect(self._append)
         t.done.connect(self._on_done)
         t.start()
@@ -689,6 +809,11 @@ class AppsPage(ListPageBase):
         bus.device_connected.connect(lambda _: (self._device_meta.update({"l4t": None}), self._start_check()))
         # Async load: kick off background thread after UI is shown
         QTimer.singleShot(0, self._async_load)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self.items_data:
+            QTimer.singleShot(0, self._start_check)
 
     def _async_load(self):
         """Load app data in background thread to avoid blocking UI."""
@@ -959,7 +1084,7 @@ class AppsPage(ListPageBase):
 
     # Dialog operations
 
-    def _open_dialog(self, app_id: str, mode: str, cmds: list[str], done_cb):
+    def _open_dialog(self, app_id: str, mode: str, cmds: list[str], done_cb, preview_cmds: list[str] | None = None):
         import logging, traceback as _tb
         try:
             app = next((a for a in self.items_data if a["id"] == app_id), None)
@@ -974,7 +1099,7 @@ class AppsPage(ListPageBase):
                     _at("apps.msg.no_exec_cmd", name=app["name"]),
                 )
                 return
-            dlg = _InstallDialog(app, cmds, parent=self, mode=mode)
+            dlg = _InstallDialog(app, cmds, parent=self, mode=mode, preview_cmds=preview_cmds)
             dlg.install_done.connect(done_cb)
             _apply_dlg_lang(dlg, self)
             dlg.exec_()
@@ -992,7 +1117,22 @@ class AppsPage(ListPageBase):
         if app_id == "browser":
             self._open_browser_install(app)
             return
-        self._open_dialog(app_id, "install", self._get_cmds(app), self._on_install_done)
+        cmds = self._get_cmds(app)
+        preview_cmds = None
+        if app.get("install_params"):
+            if not _can_execute_from_current_env(self):
+                return
+            params_dlg = _InstallParamsDialog(app, parent=self)
+            _apply_dlg_lang(params_dlg, self)
+            if params_dlg.exec_() != QDialog.Accepted:
+                return
+            try:
+                cmds = render_app_commands(app, params_dlg.values())
+                preview_cmds = mask_app_commands(app, cmds)
+            except AppParameterError as exc:
+                _show_warning_message(self, _at("common.notice"), str(exc))
+                return
+        self._open_dialog(app_id, "install", cmds, self._on_install_done, preview_cmds=preview_cmds)
 
     def _open_browser_install(self, app: dict):
         if not _can_execute_from_current_env(self):
