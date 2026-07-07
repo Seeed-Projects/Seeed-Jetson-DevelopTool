@@ -64,7 +64,10 @@ class FileTransferThread(QThread):
             client, sftp = self._runner.open_sftp()
             self._ensure_remote_dir(sftp, self._remote_dir)
 
-            for idx, local_path in enumerate(self._local_paths, start=1):
+            # Filter valid files and compute total size for byte-based progress.
+            valid_paths: list[Path] = []
+            file_sizes: list[int] = []
+            for local_path in self._local_paths:
                 if local_path.is_dir():
                     self._emit_log(f"[skip] directory not supported yet: {local_path.name}")
                     self.file_done.emit(str(local_path), False)
@@ -73,19 +76,39 @@ class FileTransferThread(QThread):
                     self._emit_log(f"[skip] file not found: {local_path}")
                     self.file_done.emit(str(local_path), False)
                     continue
+                valid_paths.append(local_path)
+                file_sizes.append(local_path.stat().st_size)
 
+            total_size = sum(file_sizes)
+            uploaded_size = 0
+            processed_files = len(valid_paths)
+
+            for idx, local_path in enumerate(valid_paths, start=1):
+                file_size = file_sizes[idx - 1]
                 remote_path = f"{self._remote_dir.rstrip('/')}/{local_path.name}"
                 self._emit_log(f"[upload] {local_path.name} -> {remote_path}")
 
-                def _progress(sent: int, size: int, name=local_path.name):
+                def _progress(
+                    sent: int,
+                    size: int,
+                    name: str = local_path.name,
+                    base: int = uploaded_size,
+                ):
                     if size > 0:
-                        pct = int(sent / size * 100)
-                        self._emit_log(f"[progress] {name}: {pct}%")
+                        file_pct = int(sent / size * 100)
+                        self._emit_log(f"[progress] {name}: {file_pct}%")
+                    if total_size > 0:
+                        overall_pct = int((base + sent) / total_size * 100)
+                        self.progress.emit(overall_pct)
 
                 sftp.put(str(local_path), remote_path, callback=_progress)
+                uploaded_size += file_size
                 self._emit_log(f"[ok] uploaded {local_path.name}")
                 self.file_done.emit(str(local_path), True)
-                self.progress.emit(int(idx / total_files * 100))
+                if total_size > 0:
+                    self.progress.emit(int(uploaded_size / total_size * 100))
+                else:
+                    self.progress.emit(int(idx / processed_files * 100))
 
             self.progress.emit(100)
             self.done.emit(True, "upload completed")
