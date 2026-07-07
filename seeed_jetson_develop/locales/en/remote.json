@@ -300,10 +300,11 @@
   "remote.jetson_net_config.apply_maybe_failed": "Configuration may have failed. Check logs.",
   "remote.jetson_net_config.apply_done": "Configuration completed. Device IP: {ip}",
   "remote.transfer.title": "File Transfer",
-  "remote.transfer.drop_hint": "Drag files from PC here, or click the button below to select files",
+  "remote.transfer.drop_hint": "Drag files or folders from PC here, or click the buttons below to select files/folders",
   "remote.transfer.target_path": "Target Path",
   "remote.transfer.target_placeholder": "/home/seeed/",
   "remote.transfer.select_files": "Select Files",
+  "remote.transfer.select_folder": "Select Folder",
   "remote.transfer.download_files": "Download from Jetson",
   "remote.transfer.status.ready": "● Ready",
   "remote.transfer.status.uploading": "● Uploading...",
@@ -313,7 +314,7 @@
   "remote.transfer.status.no_connection": "● Not connected",
   "remote.transfer.download_dialog.title": "Select Jetson Files",
   "remote.transfer.download_dialog.header": "Select files on Jetson",
-  "remote.transfer.download_dialog.hint": "Check the files you want to download and choose a local folder.",
+  "remote.transfer.download_dialog.hint": "Check the files or folders you want to download and choose a local folder.",
   "remote.transfer.download_dialog.path_placeholder": "/home/seeed/",
   "remote.transfer.download_dialog.refresh": "Refresh",
   "remote.transfer.download_dialog.select_all": "Select All",
@@ -323,6 +324,6 @@
   "remote.transfer.download_dialog.status.ready": "Ready",
   "remote.transfer.download_dialog.status.files": "{count} items",
   "remote.transfer.download_dialog.status.error": "Failed to list files: {err}",
-  "remote.transfer.download_dialog.no_selection": "Please select at least one file.",
-  "remote.transfer.download_dialog.double_click_enter": "Double-click to open this folder"
+  "remote.transfer.download_dialog.no_selection": "Please select at least one file or folder.",
+  "remote.transfer.download_dialog.double_click_enter_or_check": "Double-click to open, or check to download the entire folder"
 }

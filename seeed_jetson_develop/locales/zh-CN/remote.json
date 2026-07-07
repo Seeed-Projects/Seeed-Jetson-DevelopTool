@@ -301,10 +301,11 @@
   "remote.jetson_net_config.apply_maybe_failed": "配置可能失败，请查看日志。",
   "remote.jetson_net_config.apply_done": "配置完成，设备 IP：{ip}",
   "remote.transfer.title": "文件传输",
-  "remote.transfer.drop_hint": "将 PC 文件拖拽到此处，或点击下方按钮选择文件",
+  "remote.transfer.drop_hint": "将 PC 文件或文件夹拖拽到此处，或点击下方按钮选择文件/文件夹",
   "remote.transfer.target_path": "目标路径",
   "remote.transfer.target_placeholder": "/home/seeed/",
   "remote.transfer.select_files": "选择文件",
+  "remote.transfer.select_folder": "选择文件夹",
   "remote.transfer.download_files": "从 Jetson 下载",
   "remote.transfer.status.ready": "● 已就绪",
   "remote.transfer.status.uploading": "● 上传中...",
@@ -313,8 +314,8 @@
   "remote.transfer.status.failed": "● 失败",
   "remote.transfer.status.no_connection": "● 未连接",
   "remote.transfer.download_dialog.title": "选择 Jetson 文件",
-  "remote.transfer.download_dialog.header": "选择 Jetson 上的文件",
-  "remote.transfer.download_dialog.hint": "勾选要下载的文件，并选择保存到 PC 的目录。",
+  "remote.transfer.download_dialog.header": "选择 Jetson 上的文件或文件夹",
+  "remote.transfer.download_dialog.hint": "勾选要下载的文件或文件夹，并选择保存到 PC 的目录。",
   "remote.transfer.download_dialog.path_placeholder": "/home/seeed/",
   "remote.transfer.download_dialog.refresh": "刷新",
   "remote.transfer.download_dialog.select_all": "全选",
@@ -324,6 +325,6 @@
   "remote.transfer.download_dialog.status.ready": "就绪",
   "remote.transfer.download_dialog.status.files": "共 {count} 项",
   "remote.transfer.download_dialog.status.error": "列出文件失败：{err}",
-  "remote.transfer.download_dialog.no_selection": "请至少选择一个文件。",
-  "remote.transfer.download_dialog.double_click_enter": "双击进入该文件夹"
+  "remote.transfer.download_dialog.no_selection": "请至少选择一个文件或文件夹。",
+  "remote.transfer.download_dialog.double_click_enter_or_check": "双击进入文件夹，或勾选以下载整个文件夹"
 }

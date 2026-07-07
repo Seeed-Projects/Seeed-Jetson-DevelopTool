@@ -133,14 +133,11 @@ class RemoteFileSelectDialog(QDialog):
                 item.setText(f"{'📁 ' if is_dir else '📄 '}{name}")
                 item.setData(Qt.UserRole, name)
                 item.setData(Qt.UserRole + 1, is_dir)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Unchecked)
                 if is_dir:
-                    # Folders are navigable but not downloadable/checkable.
-                    item.setFlags(item.flags() & ~Qt.ItemIsUserCheckable)
-                    item.setToolTip(_tt("remote.transfer.download_dialog.double_click_enter"))
+                    item.setToolTip(_tt("remote.transfer.download_dialog.double_click_enter_or_check"))
                     item.setForeground(self.palette().color(self.palette().Disabled, self.palette().Text))
-                else:
-                    item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-                    item.setCheckState(Qt.Unchecked)
                 self._list.addItem(item)
 
             self._status_lbl.setText(_tt("remote.transfer.download_dialog.status.files", count=len(files)))
@@ -168,19 +165,19 @@ class RemoteFileSelectDialog(QDialog):
         self._path_edit.setText(new_path)
         self._load_files()
 
-    def _is_checkable_file(self, item: QListWidgetItem) -> bool:
-        return bool(item.flags() & Qt.ItemIsUserCheckable) and not item.data(Qt.UserRole + 1)
+    def _is_checkable(self, item: QListWidgetItem) -> bool:
+        return bool(item.flags() & Qt.ItemIsUserCheckable)
 
     def _select_all(self) -> None:
         for i in range(self._list.count()):
             item = self._list.item(i)
-            if self._is_checkable_file(item):
+            if self._is_checkable(item):
                 item.setCheckState(Qt.Checked)
 
     def _select_none(self) -> None:
         for i in range(self._list.count()):
             item = self._list.item(i)
-            if self._is_checkable_file(item):
+            if self._is_checkable(item):
                 item.setCheckState(Qt.Unchecked)
 
     def _on_download(self) -> None:
@@ -188,7 +185,7 @@ class RemoteFileSelectDialog(QDialog):
         selected: list[str] = []
         for i in range(self._list.count()):
             item = self._list.item(i)
-            if not self._is_checkable_file(item):
+            if not self._is_checkable(item):
                 continue
             if item.checkState() == Qt.Checked or item.isSelected():
                 name = item.data(Qt.UserRole)

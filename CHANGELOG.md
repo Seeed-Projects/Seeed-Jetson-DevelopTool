@@ -37,6 +37,12 @@
 
 ### 远程与串口网络配置
 
+- **0525259** `feat(remote): recursive folder upload/download over SFTP`
+  - 上传线程支持递归上传本地文件夹，保持目录结构并汇总字节总进度。
+  - 下载线程支持递归下载远程文件夹，按原目录结构保存到 PC。
+  - 下载选择对话框允许勾选文件夹以下载其全部内容；双击仍进入文件夹。
+  - 更新中英文 locale 提示文案。
+
 - **fe71d6f** `fix(remote): emit byte-based overall progress during SFTP upload/download`
   - 修复文件传输时日志已显示 4% 但顶部进度条仍显示 0% 的问题。
   - 上传/下载线程现在先计算总字节数，并在传输过程中按总进度实时更新进度条。
