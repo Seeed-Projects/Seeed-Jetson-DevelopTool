@@ -37,6 +37,10 @@
 
 ### 远程与串口网络配置
 
+- **fe71d6f** `fix(remote): emit byte-based overall progress during SFTP upload/download`
+  - 修复文件传输时日志已显示 4% 但顶部进度条仍显示 0% 的问题。
+  - 上传/下载线程现在先计算总字节数，并在传输过程中按总进度实时更新进度条。
+
 - **8025ff0** `fix(remote): disable competing NM connections before applying static IP on JetPack 5`
   - 串口配置静态 IP 前，先断开目标网口、禁用该网口上其他 NetworkManager 连接的自动连接，再添加静态连接。
   - 解决 JetPack 5 上默认有线连接抢占 `eth1` 导致静态 IP 配置后无法 SSH 的问题。
