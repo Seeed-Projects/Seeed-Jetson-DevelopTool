@@ -1,6 +1,6 @@
 """GUI module exports."""
 
-# Lazy imports to avoid importing PyQt5 at module import time.
+# Lazy imports to avoid importing qtpy at module import time.
 __all__ = ["MainWindow", "main"]
 
 

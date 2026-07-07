@@ -11,9 +11,9 @@ ContentBackground — 内容区背景装饰动画
 """
 import math
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QLinearGradient, QPen
-from PyQt5.QtWidgets import QWidget
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QColor, QPainter, QLinearGradient, QPen
+from qtpy.QtWidgets import QWidget
 
 
 class ContentBackground(QWidget):

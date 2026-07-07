@@ -5,9 +5,9 @@ FocusRippleLineEdit — 带焦点波纹效果的输入框
 原理：focusInEvent/focusOutEvent 触发目标值 → QTimer 逐步逼近 → paintEvent 绘制光条。
 不涉及 QGraphicsEffect / Layout，100% 安全。
 """
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QLinearGradient
-from PyQt5.QtWidgets import QLineEdit
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QColor, QPainter, QLinearGradient
+from qtpy.QtWidgets import QLineEdit
 
 
 class FocusRippleLineEdit(QLineEdit):

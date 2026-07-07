@@ -1,9 +1,9 @@
 """Skills center page."""
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint, QRect
-from PyQt5.QtGui import QTextCursor
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal, QTimer, QPoint, QRect
+from qtpy.QtGui import QTextCursor
+from qtpy.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton, QLineEdit,
     QVBoxLayout, QHBoxLayout, QScrollArea,
     QDialog, QTextEdit, QMessageBox, QSizePolicy,
@@ -91,8 +91,8 @@ import logging as _logging
 _log = _logging.getLogger("seeed.skills.page")
 
 class _LoadThread(QThread):
-    partial = pyqtSignal(list)
-    loaded  = pyqtSignal(list)
+    partial = Signal(list)
+    loaded  = Signal(list)
 
     def run(self):
         import time as _t
@@ -125,9 +125,9 @@ class _LoadThread(QThread):
 
 # Skill install thread (SFTP copy to Jetson)
 class _InstallThread(QThread):
-    log      = pyqtSignal(str)
-    progress = pyqtSignal(int, int)   # current, total
-    done     = pyqtSignal(bool, str)
+    log      = Signal(str)
+    progress = Signal(int, int)   # current, total
+    done     = Signal(bool, str)
 
     def __init__(self, skill: Skill, dest_path: str):
         super().__init__()
@@ -223,7 +223,7 @@ _SOURCE_COLOR = {
 }
 
 class _InstallDialog(QDialog):
-    install_done = pyqtSignal(str, str, bool)   # skill_id, source, success
+    install_done = Signal(str, str, bool)   # skill_id, source, success
 
     def __init__(self, skill: Skill, parent=None):
         super().__init__(parent)
@@ -240,7 +240,7 @@ class _InstallDialog(QDialog):
         root_lay.setSpacing(0)
 
         # ── 可滚动主体 ──
-        from PyQt5.QtWidgets import QScrollArea
+        from qtpy.QtWidgets import QScrollArea
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
@@ -367,7 +367,7 @@ class _InstallDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -469,7 +469,7 @@ class _DocDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -653,7 +653,7 @@ class SkillsPage(PageBase):
             self._tab_slider.setGeometry(target_geo)
             self._tab_slider.show()
             return
-        from PyQt5.QtCore import QPropertyAnimation, QEasingCurve
+        from qtpy.QtCore import QPropertyAnimation, QEasingCurve
         old_anim = getattr(self._tab_slider, '_anim', None)
         if old_anim is not None:
             old_anim.stop()
@@ -894,7 +894,7 @@ class SkillsPage(PageBase):
         doc_b.setCursor(Qt.PointingHandCursor)
         doc_b.setFixedWidth(BTN_W)
         doc_b.setText("📖")
-        from PyQt5.QtGui import QFont
+        from qtpy.QtGui import QFont
         ef = QFont("Noto Color Emoji")
         ef.setPointSize(_pt(10))
         doc_b.setFont(ef)

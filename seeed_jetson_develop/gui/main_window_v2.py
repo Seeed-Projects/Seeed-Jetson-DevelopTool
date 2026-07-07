@@ -10,9 +10,9 @@ import threading
 import traceback
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QPoint, QRect, QEvent, QTimer, QtMsgType, qInstallMessageHandler, QPropertyAnimation, QEasingCurve
-from PyQt5.QtGui import QColor, QPixmap, QPainter
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QPoint, QRect, QEvent, QTimer, QtMsgType, qInstallMessageHandler, QPropertyAnimation, QEasingCurve
+from qtpy.QtGui import QColor, QPixmap, QPainter
+from qtpy.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame,
     QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QToolButton, QMenu,
@@ -174,7 +174,7 @@ class SidebarButton(QPushButton):
         if self._hover_glow > 0.01 and not self.isChecked():
             p = QPainter(self)
             p.setRenderHint(QPainter.Antialiasing)
-            from PyQt5.QtGui import QLinearGradient
+            from qtpy.QtGui import QLinearGradient
             bar_w = int(3 * self._hover_glow)
             grad = QLinearGradient(0, 0, bar_w, 0)
             grad.setColorAt(0, QColor(141, 194, 31, int(140 * self._hover_glow)))
@@ -985,8 +985,8 @@ class MainWindowV2(QMainWindow):
             self._floating_ai._chat.set_system(self._floating_ai._system)
 
     def _open_url(self, url):
-        from PyQt5.QtGui import QDesktopServices
-        from PyQt5.QtCore import QUrl
+        from qtpy.QtGui import QDesktopServices
+        from qtpy.QtCore import QUrl
         QDesktopServices.openUrl(QUrl(url))
 
     def _show_onboarding(self):
@@ -1001,7 +1001,7 @@ class MainWindowV2(QMainWindow):
 #  入口
 # ─────────────────────────────────────────────
 def main():
-    from PyQt5.QtGui import QFont, QFontDatabase
+    from qtpy.QtGui import QFont, QFontDatabase
     qInstallMessageHandler(_qt_message_handler)
     app = QApplication(sys.argv)
     app.setApplicationName("Seeed Jetson Develop Tool")
@@ -1042,7 +1042,7 @@ def main():
     # 首次启动引导（延迟弹出，等窗口完全渲染）
     from seeed_jetson_develop.core.config import is_onboarding_dismissed
     if not is_onboarding_dismissed():
-        from PyQt5.QtCore import QTimer
+        from qtpy.QtCore import QTimer
         def _show_guide():
             from seeed_jetson_develop.gui.widgets.onboarding_guide import show_onboarding
             show_onboarding(parent=win, lang=win._lang if hasattr(win, '_lang') else "zh-CN")

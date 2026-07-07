@@ -6,9 +6,9 @@ EmptyStateWidget — 空状态插图
 """
 import math
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QFont, QPen, QBrush, QLinearGradient
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QLabel
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QColor, QPainter, QFont, QPen, QBrush, QLinearGradient
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QLabel
 
 from seeed_jetson_develop.gui.theme import C_BG, C_CARD, C_GREEN, C_TEXT2, C_TEXT3, pt
 

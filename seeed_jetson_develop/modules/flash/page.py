@@ -9,9 +9,9 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QPixmap, QTextCursor, QDesktopServices, QTextOption
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QPixmap, QTextCursor, QDesktopServices, QTextOption
+from qtpy.QtWidgets import (
     QApplication, QBoxLayout, QCheckBox, QComboBox, QDialog,
     QDialogButtonBox, QFileDialog, QFrame, QHBoxLayout, QLabel,
     QLineEdit, QMessageBox, QProgressBar, QPushButton, QAbstractScrollArea, QScrollArea,
@@ -118,6 +118,26 @@ def _l4t_to_jetpack(l4t: str, l4t_data: list) -> str | None:
     return _L4T_TO_JETPACK_FALLBACK.get(pure_l4t)
 
 
+def _parse_l4t_version(l4t: str) -> tuple[int, ...]:
+    """Extract numeric L4T version tuple for sorting."""
+    import re
+    match = re.match(r'^([\d.]+)', l4t)
+    if not match:
+        return (0,)
+    return tuple(int(p) for p in match.group(1).split('.'))
+
+
+def _sort_l4t_versions(versions: list[str]) -> list[str]:
+    """Sort L4T versions descending so the newest appears first."""
+    def _key(v: str) -> tuple:
+        parts = list(_parse_l4t_version(v))
+        # Pad shorter versions so 39.2 sorts consistently with 39.2.0
+        while len(parts) < 4:
+            parts.append(0)
+        return tuple(parts)
+    return sorted(versions, key=_key, reverse=True)
+
+
 def _product_display_name(product: str) -> str:
     raw = (product or "").strip()
     if not raw:
@@ -195,7 +215,7 @@ def _product_display_name_with_module(product: str) -> str:
 
 
 def _open_url(url: str):
-    from PyQt5.QtCore import QUrl
+    from qtpy.QtCore import QUrl
     QDesktopServices.openUrl(QUrl(url))
 
 
@@ -1081,7 +1101,7 @@ def build_page() -> QWidget:
         product = _current_flash_product_key()
         flash_l4t_combo.clear()
         if product in products:
-            flash_l4t_combo.addItems(products[product])
+            flash_l4t_combo.addItems(_sort_l4t_versions(products[product]))
         info = product_images.get(product, {})
         name = info.get("name", product)
         versions = len(products.get(product, []))
@@ -1289,7 +1309,7 @@ def build_page() -> QWidget:
 
         def _thread_wrapper():
             result = _do_fetch()
-            from PyQt5.QtCore import QTimer
+            from qtpy.QtCore import QTimer
             QTimer.singleShot(0, lambda: _on_fetch_done(result))
 
         threading.Thread(target=_thread_wrapper, daemon=True).start()

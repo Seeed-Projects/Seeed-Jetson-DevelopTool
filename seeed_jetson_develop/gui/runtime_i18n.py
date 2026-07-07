@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from PyQt5.QtWidgets import (
+from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
     QGroupBox,
@@ -695,7 +695,7 @@ def get_current_lang(widget=None) -> str:
             if lang:
                 return lang
         # 遍历所有顶层窗口
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         app = QApplication.instance()
         if app:
             for w in app.topLevelWidgets():

@@ -6,9 +6,9 @@ BreathingDot — 呼吸指示灯
 """
 import math
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QRadialGradient
-from PyQt5.QtWidgets import QWidget
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QColor, QPainter, QRadialGradient
+from qtpy.QtWidgets import QWidget
 
 
 class BreathingDot(QWidget):

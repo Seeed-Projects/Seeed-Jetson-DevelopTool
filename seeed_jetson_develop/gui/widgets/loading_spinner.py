@@ -6,9 +6,9 @@ LoadingSpinner — 旋转加载动画
 """
 import math
 
-from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QPainter, QPen, QConicalGradient
-from PyQt5.QtWidgets import QWidget
+from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QColor, QPainter, QPen, QConicalGradient
+from qtpy.QtWidgets import QWidget
 
 
 class LoadingSpinner(QWidget):

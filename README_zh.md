@@ -5,8 +5,14 @@ Seeed Jetson Develop Tool 是面向 Seeed Jetson 开发者的桌面客户端。�
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg)]()
+[![PyPI Downloads](https://static.pepy.tech/badge/seeed-jetson-developer)](https://pepy.tech/project/seeed-jetson-developer)
+[![PyPI Downloads / month](https://static.pepy.tech/badge/seeed-jetson-developer/month)](https://pepy.tech/project/seeed-jetson-developer)
 
 [English](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/README.md)
+
+### PyPI 下载趋势
+
+![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)
 
 ![UI 预览](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
@@ -27,13 +33,13 @@ Seeed Jetson Develop Tool 是面向 Seeed Jetson 开发者的桌面客户端。�
 ## 系统要求
 
 - Python 3.8 或更新版本。
-- 运行 PyQt5 GUI 需要图形桌面环境。
+- 运行 PyQt6 GUI（通过 qtpy）需要图形桌面环境。
 - 固件烧录推荐使用 Ubuntu 20.04 / 22.04 / 24.04 主机。
 - Windows 可运行 GUI，并提供 WSL2 + usbipd 辅助烧录流程；如果要做稳定量产或频繁烧录，仍建议使用原生 Ubuntu。
 - 远程开发、应用安装、Skills 安装、网络诊断和 OTA 需要 Jetson 已开启 SSH。
 - 下载 BSP、应用依赖、OTA 包、Skills 依赖或刷新 BSP 元数据时需要联网。
 
-Python 依赖在 `pyproject.toml` 中声明，主要包括 PyQt5、paramiko、requests、pyserial、pyte、rich、tqdm、click 和 anthropic。
+Python 依赖在 `pyproject.toml` 中声明，主要包括 qtpy + PyQt6、paramiko、requests、pyserial、pyte、rich、tqdm、click 和 anthropic。
 
 ## 安装和启动
 
@@ -222,7 +228,7 @@ pytest
 
 ```text
 seeed_jetson_develop/
-  gui/                 PyQt5 主窗口、主题、i18n 和通用组件
+  gui/                 Qt 主窗口、主题、i18n 和通用组件（通过 qtpy + PyQt6）
   modules/flash/       烧录页面和烧录线程
   modules/remote/      SSH、串口初始化、VNC/noVNC、网络共享
   modules/devices/     设备诊断和 PyTorch 安装支持

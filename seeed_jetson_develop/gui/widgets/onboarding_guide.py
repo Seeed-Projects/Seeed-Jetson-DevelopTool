@@ -14,12 +14,12 @@ import math
 import time
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QSize, QPoint, QTimer
-from PyQt5.QtGui import (
+from qtpy.QtCore import Qt, QPropertyAnimation, QEasingCurve, QSize, QPoint, QTimer
+from qtpy.QtGui import (
     QColor, QPixmap, QPainter, QFont, QPen, QBrush,
     QLinearGradient, QRadialGradient, QPainterPath,
 )
-from PyQt5.QtWidgets import (
+from qtpy.QtWidgets import (
     QDialog, QWidget, QFrame, QStackedWidget, QSizePolicy,
     QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QCheckBox, QGraphicsOpacityEffect,

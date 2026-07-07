@@ -1,7 +1,7 @@
 """Runtime dependency checks and optional auto-install helpers.
 
 This module is intentionally kept free of heavy third-party imports so that it
-can run before PyQt5 is loaded and fix the environment when needed.
+can run before qtpy is loaded and fix the environment when needed.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 
-# System apt packages commonly required by PyQt5's xcb platform plugin on
+# System apt packages commonly required by qtpy's xcb platform plugin on
 # Debian/Ubuntu.  These are not installable via pip, so we detect them and
 # either install automatically (with sudo) or print the exact apt command.
 _DEBIAN_SYSTEM_PACKAGES = [
@@ -33,7 +33,7 @@ _DEBIAN_SYSTEM_PACKAGES = [
 # Fallback core Python packages required to run the GUI / CLI.  We prefer to
 # read the real list from pyproject.toml when it is available.
 _CORE_PYTHON_PACKAGES = [
-    "PyQt5",
+    "qtpy",
     "requests",
     "tqdm",
     "click",
@@ -76,24 +76,51 @@ def _get_project_python_requirements() -> list[str]:
 
 
 def _python_package_installed(name: str) -> bool:
-    """Check whether a Python distribution package is installed by its pip name."""
+    """Check whether a Python distribution package is installed by its pip name.
+
+    importlib.metadata is the fast path, but it can miss packages that were
+    installed into the user site-packages directory while this process is
+    already running (or when the environment has user-site quirks).  We fall
+    back to ``pip show`` and finally to importing the module itself.
+    """
+    # Fast path: importlib.metadata
     try:
         from importlib.metadata import version, PackageNotFoundError
+        try:
+            version(name)
+            return True
+        except PackageNotFoundError:
+            pass
     except ImportError:  # pragma: no cover
         try:
             from importlib_metadata import version, PackageNotFoundError  # type: ignore
-        except ImportError:
-            # Fallback: try importing the module name as-is.
             try:
-                __import__(name)
+                version(name)
                 return True
-            except ImportError:
-                return False
+            except PackageNotFoundError:
+                pass
+        except ImportError:
+            pass
 
+    # Robust path: ask pip, which knows about --user installs and editable
+    # installs that importlib.metadata sometimes cannot see.
     try:
-        version(name)
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "show", name],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip().startswith("Name:"):
+            return True
+    except Exception:
+        pass
+
+    # Fallback: try importing the module name as-is.
+    try:
+        __import__(name)
         return True
-    except PackageNotFoundError:
+    except ImportError:
         return False
 
 
@@ -194,7 +221,7 @@ def ensure_dependencies(
     auto_install_python: bool = True,
     auto_install_system: bool = False,
 ) -> None:
-    """Check and optionally install dependencies before importing PyQt5.
+    """Check and optionally install dependencies before importing qtpy.
 
     System dependencies are *not* installed by default because that requires
     ``sudo`` and would surprise users who installed from pip.  Set

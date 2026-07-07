@@ -1,6 +1,6 @@
 """Community page UI with quick links and product purchase entry."""
 import webbrowser
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGridLayout
 from seeed_jetson_develop.gui.i18n import get_language, t
 from seeed_jetson_develop.gui.widgets.page_base import PageBase
 from seeed_jetson_develop.gui.theme import (

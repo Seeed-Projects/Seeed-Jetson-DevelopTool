@@ -7,9 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QUrl, QEvent, QPoint
-from PyQt5.QtGui import QDesktopServices, QColor, QPixmap
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal, QUrl, QEvent, QPoint
+from qtpy.QtGui import QDesktopServices, QColor, QPixmap
+from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
@@ -260,9 +260,9 @@ I18N = {
 class FlashThread(QThread):
     """Background thread for flashing workflow."""
 
-    progress = pyqtSignal(str)
-    progress_value = pyqtSignal(int)
-    finished = pyqtSignal(bool, str)
+    progress = Signal(str)
+    progress_value = Signal(int)
+    finished = Signal(bool, str)
 
     def __init__(self, product, l4t_version, tr, skip_verify=False, download_only=False):
         super().__init__()
@@ -1309,7 +1309,7 @@ class MainWindow(QMainWindow):
 
 
 def main():
-    from PyQt5.QtWidgets import QApplication
+    from qtpy.QtWidgets import QApplication
 
     app = QApplication(sys.argv)
     app.setApplicationName("Seeed Jetson Flash")

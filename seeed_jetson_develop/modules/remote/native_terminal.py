@@ -3,15 +3,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 import pyte
-from PyQt5.QtCore import QEvent, Qt, pyqtSignal
-from PyQt5.QtGui import QColor, QFont, QFontMetrics, QTextCharFormat, QTextCursor
-from PyQt5.QtWidgets import QApplication, QPlainTextEdit, QTextEdit
+from qtpy.QtCore import QEvent, Qt, Signal
+from qtpy.QtGui import QColor, QFont, QFontMetrics, QTextCharFormat, QTextCursor
+from qtpy.QtWidgets import QApplication, QPlainTextEdit, QTextEdit
 
 from seeed_jetson_develop.gui.theme import build_mono_font
 
 
 class NativeTerminalWidget(QPlainTextEdit):
-    input_bytes = pyqtSignal(bytes)
+    input_bytes = Signal(bytes)
 
     def __init__(self, parent=None, columns: int = 100, lines: int = 28, history: int = 2000):
         super().__init__(parent)

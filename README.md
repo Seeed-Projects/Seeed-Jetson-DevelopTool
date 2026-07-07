@@ -5,8 +5,14 @@ Seeed Jetson Develop Tool is a desktop client for Seeed Jetson developers. It br
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey.svg)]()
+[![PyPI Downloads](https://static.pepy.tech/badge/seeed-jetson-developer)](https://pepy.tech/project/seeed-jetson-developer)
+[![PyPI Downloads / month](https://static.pepy.tech/badge/seeed-jetson-developer/month)](https://pepy.tech/project/seeed-jetson-developer)
 
 [中文文档](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/README_zh.md)
+
+### PyPI Downloads Trend
+
+![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)
 
 ![UI Preview](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
@@ -27,13 +33,13 @@ The current command-line entry point launches the GUI. Product selection, flashi
 ## Requirements
 
 - Python 3.8 or newer.
-- A graphical desktop environment for the PyQt5 GUI.
+- A graphical desktop environment for the PyQt6 GUI (via qtpy).
 - Ubuntu 20.04 / 22.04 / 24.04 is recommended for firmware flashing.
 - Windows is supported for the GUI and includes WSL2 + usbipd assisted flashing, but native Ubuntu is still the most reliable flashing host.
 - SSH access to the Jetson is required for remote development, app installation, skills installation, diagnostics over network, and OTA.
 - Internet access is required when downloading BSP packages, apps, skills dependencies, OTA payloads, or refreshing BSP metadata.
 
-Python dependencies are declared in `pyproject.toml` and include PyQt5, paramiko, requests, pyserial, pyte, rich, tqdm, click, and anthropic.
+Python dependencies are declared in `pyproject.toml` and include qtpy + PyQt6, paramiko, requests, pyserial, pyte, rich, tqdm, click, and anthropic.
 
 ## Install
 
@@ -222,7 +228,7 @@ Project layout:
 
 ```text
 seeed_jetson_develop/
-  gui/                 PyQt5 main window, theme, i18n, widgets
+  gui/                 Qt main window, theme, i18n, widgets (via qtpy + PyQt6)
   modules/flash/       Flash page and flash thread
   modules/remote/      SSH, serial init, VNC/noVNC, network sharing
   modules/devices/     Diagnostics and PyTorch install support

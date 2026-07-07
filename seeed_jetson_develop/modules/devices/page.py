@@ -4,8 +4,8 @@ from __future__ import annotations
 import json
 import shlex
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal, QTimer
+from qtpy.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton,
     QVBoxLayout, QHBoxLayout, QGridLayout,
     QScrollArea, QDialog, QTextEdit,
@@ -204,9 +204,9 @@ def _status_tag(text=None, color=C_TEXT3) -> QLabel:
 
 # Background diagnostic thread.
 class _DiagThread(QThread):
-    result   = pyqtSignal(str, str, str)   # item_id, status_text, color_key
-    info_ready = pyqtSignal(dict)          # Device info dictionary.
-    finished_all = pyqtSignal()
+    result   = Signal(str, str, str)   # item_id, status_text, color_key
+    info_ready = Signal(dict)          # Device info dictionary.
+    finished_all = Signal()
 
     def __init__(self, mode="full", runner: Runner = None):
         super().__init__()
@@ -225,8 +225,8 @@ class _DiagThread(QThread):
 
 
 class _InstallThread(QThread):
-    log = pyqtSignal(str)
-    done = pyqtSignal(bool)
+    log = Signal(str)
+    done = Signal(bool)
 
     def __init__(self, commands: list[str]):
         super().__init__()
@@ -254,7 +254,7 @@ class _InstallThread(QThread):
 
 # PyTorch install dialog.
 class _TorchInstallDialog(QDialog):
-    install_succeeded = pyqtSignal()
+    install_succeeded = Signal()
 
     def __init__(self, l4t: str, parent=None):
         super().__init__(parent)
@@ -274,8 +274,8 @@ class _TorchInstallDialog(QDialog):
         root_lay.setSpacing(0)
 
         # ── 可滚动主体 ──
-        from PyQt5.QtWidgets import QScrollArea
-        from PyQt5.QtCore import Qt
+        from qtpy.QtWidgets import QScrollArea
+        from qtpy.QtCore import Qt
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
@@ -374,7 +374,7 @@ class _TorchInstallDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -388,7 +388,7 @@ class _TorchInstallDialog(QDialog):
         self.move(x, y)
 
     def _append(self, text: str):
-        from PyQt5.QtGui import QTextCursor
+        from qtpy.QtGui import QTextCursor
         self._log.moveCursor(QTextCursor.End)
         self._log.insertPlainText(text + "\n")
         self._log.ensureCursorVisible()
@@ -650,7 +650,7 @@ class DevicesPage(PageBase):
 
             if key == "ip":
                 # Scrollable multi-line IP list
-                from PyQt5.QtWidgets import QScrollArea
+                from qtpy.QtWidgets import QScrollArea
                 scroll = QScrollArea()
                 scroll.setWidgetResizable(True)
                 scroll.setFrameShape(QScrollArea.NoFrame)
@@ -820,7 +820,7 @@ class DevicesPage(PageBase):
                 font-size: {_pt(11)}px; font-weight: 500;
             """)
             # 150ms 后恢复常态背景
-            from PyQt5.QtCore import QTimer
+            from qtpy.QtCore import QTimer
             QTimer.singleShot(150, lambda t=tag, c=color: t.setStyleSheet(f"""
                 background: {normal_bg}; color: {c};
                 border-radius: 6px; padding: 4px 12px;

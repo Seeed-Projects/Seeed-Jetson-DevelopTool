@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import platform
 
-from PyQt5.QtCore import QThread, pyqtSignal
+from qtpy.QtCore import QThread, Signal
 
 from seeed_jetson_develop.flash import JetsonFlasher
 from seeed_jetson_develop.gui.i18n import get_language, t
@@ -155,12 +155,12 @@ class _FlashProgressEstimator:
 
 
 class FlashThread(QThread):
-    progress_msg = pyqtSignal(str)
-    progress_val = pyqtSignal(int)
-    progress_log = pyqtSignal(str)
+    progress_msg = Signal(str)
+    progress_val = Signal(int)
+    progress_log = Signal(str)
     # Large firmware packages can exceed 2GB, so use Python objects to avoid Qt int overflow.
-    download_progress = pyqtSignal(object, object)
-    finished = pyqtSignal(bool, str)
+    download_progress = Signal(object, object)
+    finished = Signal(bool, str)
 
     def __init__(
         self,

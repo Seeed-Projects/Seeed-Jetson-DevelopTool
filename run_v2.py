@@ -42,7 +42,7 @@ def _excepthook(exc_type, exc_value, exc_tb):
     msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
     log.critical("未捕获异常:\n%s", msg)
     try:
-        from PyQt5.QtWidgets import QApplication, QMessageBox
+        from qtpy.QtWidgets import QApplication, QMessageBox
         if QApplication.instance():
             QMessageBox.critical(None, "程序错误",
                 f"发生未捕获异常，详情已写入:\n{_log_file}\n\n{msg[-800:]}")
@@ -262,8 +262,8 @@ if os.environ.get("SEEED_BOOTSTRAP_ONLY", "").lower() in {"1", "true", "yes"}:
     log.info("bootstrap-only: environment checks completed")
     sys.exit(0)
 
-from PyQt5.QtCore import Qt, QtMsgType, qInstallMessageHandler
-from PyQt5.QtWidgets import QApplication
+from qtpy.QtCore import Qt, QtMsgType, qInstallMessageHandler
+from qtpy.QtWidgets import QApplication
 
 def _qt_message_handler(msg_type, context, message):
     if msg_type == QtMsgType.QtWarningMsg and "DirectWrite: CreateFontFaceFromHDC() failed" in message:
@@ -283,8 +283,11 @@ def _qt_message_handler(msg_type, context, message):
 qInstallMessageHandler(_qt_message_handler)
 
 # 高 DPI 支持（必须在 QApplication 创建之前设置）
-QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+# PyQt6 已默认启用高 DPI 缩放，且不再提供这两个 attribute
+if hasattr(Qt, "AA_EnableHighDpiScaling"):
+    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+if hasattr(Qt, "AA_UseHighDpiPixmaps"):
+    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
 
 log.debug("DISPLAY=%s LD_PRELOAD=%s LIBGL_DRIVERS_PATH=%s",
           os.environ.get("DISPLAY"), os.environ.get("LD_PRELOAD"), os.environ.get("LIBGL_DRIVERS_PATH"))

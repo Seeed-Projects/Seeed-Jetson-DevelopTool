@@ -4,9 +4,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QUrl
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal, QUrl
+from qtpy.QtGui import QDesktopServices
+from qtpy.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFrame,
@@ -33,8 +33,8 @@ from ..flash import JetsonFlasher
 class FlashThread(QThread):
     """Background thread for flashing workflow."""
 
-    progress = pyqtSignal(str)
-    finished = pyqtSignal(bool, str)
+    progress = Signal(str)
+    finished = Signal(bool, str)
 
     def __init__(self, product, l4t_version, skip_verify=False, download_only=False):
         super().__init__()
@@ -703,7 +703,7 @@ class MainWindow(QMainWindow):
 
 def main():
     """Application entry point."""
-    from PyQt5.QtWidgets import QApplication
+    from qtpy.QtWidgets import QApplication
     from .app_icon import apply_app_icon
 
     app = QApplication(sys.argv)

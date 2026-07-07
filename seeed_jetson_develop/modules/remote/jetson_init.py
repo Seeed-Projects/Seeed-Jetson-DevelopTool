@@ -13,8 +13,8 @@ import time
 
 import serial
 import serial.tools.list_ports
-from PyQt5.QtCore import QThread, QTimer, Qt, pyqtSignal
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import QThread, QTimer, Qt, Signal
+from qtpy.QtWidgets import (
     QDialog,
     QGridLayout,
     QHBoxLayout,
@@ -226,7 +226,7 @@ def _external_serial_commands(port: str) -> list[str]:
 
 
 class _ProbeThread(QThread):
-    finished_probe = pyqtSignal(dict)
+    finished_probe = Signal(dict)
 
     def __init__(self, port: str):
         super().__init__()
@@ -237,10 +237,10 @@ class _ProbeThread(QThread):
 
 
 class _EmbeddedSerialThread(QThread):
-    opened = pyqtSignal()
-    closed = pyqtSignal()
-    output = pyqtSignal(str)
-    error = pyqtSignal(str)
+    opened = Signal()
+    closed = Signal()
+    output = Signal(str)
+    error = Signal(str)
 
     def __init__(self, port: str, baudrate: int = 115200):
         super().__init__()
@@ -293,9 +293,9 @@ class _EmbeddedSerialThread(QThread):
 
 
 class _SerialCmdThread(QThread):
-    output = pyqtSignal(str)
-    done = pyqtSignal(str)
-    failed = pyqtSignal(str)
+    output = Signal(str)
+    done = Signal(str)
+    failed = Signal(str)
 
     def __init__(self, port: str, username: str, password: str, command: str):
         super().__init__()
@@ -490,7 +490,7 @@ class JetsonInitDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -915,7 +915,7 @@ class JetsonNetConfigDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -1113,9 +1113,19 @@ class JetsonNetConfigDialog(QDialog):
         inner = (
             # --- attempt 1: NetworkManager ---
             f"if systemctl is-active --quiet NetworkManager 2>/dev/null; then "
-            f"nmcli con delete {con_name} 2>/dev/null; "
+            # Disconnect any active connection on the interface first and
+            # disable autoconnect on other profiles for this interface so that
+            # JetPack 5's default wired connection does not steal eth1 back.
+            f"nmcli dev disconnect {iface} 2>/dev/null || true; "
+            f"nmcli con delete {con_name} 2>/dev/null || true; "
+            f"nmcli -t -f NAME,DEVICE con show 2>/dev/null | "
+            f"while IFS=: read -r name dev; do "
+            f"[ \"$dev\" = \"{iface}\" ] && [ \"$name\" != \"{con_name}\" ] && "
+            f"nmcli con mod \"$name\" connection.autoconnect no 2>/dev/null || true; "
+            f"done; "
             f"nmcli con add type ethernet ifname {iface} con-name {con_name} "
-            f"ipv4.method manual ipv4.addresses {ip_cidr}{gw_nmcli} && "
+            f"ipv4.method manual ipv4.addresses {ip_cidr}{gw_nmcli} "
+            f"connection.autoconnect yes && "
             f"nmcli con up {con_name}; "
             # --- attempt 2: systemd-networkd ---
             f"elif systemctl is-active --quiet systemd-networkd 2>/dev/null; then "

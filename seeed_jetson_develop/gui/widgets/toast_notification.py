@@ -17,9 +17,9 @@ ToastNotification — 全局浮动通知系统
 """
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QPoint
-from PyQt5.QtGui import QColor, QPainter, QFont
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QPropertyAnimation, QEasingCurve, QTimer, QPoint
+from qtpy.QtGui import QColor, QPainter, QFont
+from qtpy.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton, QGraphicsOpacityEffect,
     QApplication,
 )
@@ -164,7 +164,7 @@ class Toast(QWidget):
         if ref:
             ref_geo = ref.geometry()
         else:
-            from PyQt5.QtWidgets import QDesktopWidget
+            from qtpy.QtWidgets import QDesktopWidget
             ref_geo = QDesktopWidget().availableGeometry()
 
         base_x = ref_geo.x() + ref_geo.width() - pt(320) - cls._MARGIN_RIGHT

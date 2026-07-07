@@ -4,8 +4,8 @@
 """
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QScrollArea
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QScrollArea
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_TEXT, C_TEXT3,
@@ -30,7 +30,7 @@ class PageBase(QWidget):
         self.i18n = I18nBinding()
 
         # 设置 size policy 让页面能够扩展填充空间
-        from PyQt5.QtWidgets import QSizePolicy
+        from qtpy.QtWidgets import QSizePolicy
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         root = QVBoxLayout(self)

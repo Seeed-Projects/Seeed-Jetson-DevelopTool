@@ -4,15 +4,20 @@ from __future__ import annotations
 
 import re
 import shutil
+from pathlib import Path
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtWidgets import (
+
+from qtpy.QtCore import Qt, QThread, Signal, QUrl
+from qtpy.QtGui import QDragEnterEvent, QDropEvent
+from qtpy.QtWidgets import (
     QDialog,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
+    QProgressBar,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -58,6 +63,9 @@ from seeed_jetson_develop.modules.remote.jetson_init import (
     open_jetson_init_dialog,
     open_jetson_net_config_dialog,
 )
+from seeed_jetson_develop.modules.remote.file_download_thread import FileDownloadThread
+from seeed_jetson_develop.modules.remote.file_transfer_thread import FileTransferThread
+from seeed_jetson_develop.modules.remote.remote_file_select_dialog import RemoteFileSelectDialog
 from seeed_jetson_develop.modules.remote.net_share_dialog import open_net_share_dialog
 
 
@@ -113,8 +121,8 @@ def _show_need_connection_dialog(parent: QWidget, tool_name: str):
 
 
 class _ScanThread(QThread):
-    found = pyqtSignal(list)
-    progress = pyqtSignal(int, int)
+    found = Signal(list)
+    progress = Signal(int, int)
 
     def __init__(self, subnet: str | None = None):
         super().__init__()
@@ -126,7 +134,7 @@ class _ScanThread(QThread):
 
 
 class _SSHCheckThread(QThread):
-    result = pyqtSignal(bool, str)
+    result = Signal(bool, str)
 
     def __init__(self, host: str, username: str, password: str):
         super().__init__()
@@ -158,7 +166,7 @@ class _SSHCheckThread(QThread):
 
 
 class _ApiKeyDialog(QDialog):
-    key_saved = pyqtSignal()
+    key_saved = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -270,15 +278,15 @@ class _ApiKeyDialog(QDialog):
     def _update_toggle_icon(self, checked: bool):
         emoji = "🙈" if checked else "👁"
         self._toggle_btn.setText(emoji)
-        from PyQt5.QtGui import QFont
+        from qtpy.QtGui import QFont
         ef = QFont("Noto Color Emoji")
         ef.setPointSize(_pt(12))
         self._toggle_btn.setFont(ef)
 
 
 class _SshCmdThread(QThread):
-    line_out = pyqtSignal(str)
-    finished_ = pyqtSignal(int, str)
+    line_out = Signal(str)
+    finished_ = Signal(int, str)
 
     def __init__(self, runner, commands):
         super().__init__()
@@ -336,7 +344,7 @@ class _VscodeWebDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -432,7 +440,7 @@ class _JupyterLaunchDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -479,7 +487,7 @@ class _JupyterLaunchDialog(QDialog):
 
 
 class _ApiTestThread(QThread):
-    result = pyqtSignal(bool, str)
+    result = Signal(bool, str)
 
     def __init__(self, api_key, base_url):
         super().__init__()
@@ -526,7 +534,7 @@ class _VscodeSSHDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -538,6 +546,67 @@ class _VscodeSSHDialog(QDialog):
         x = geo.x() + (geo.width()  - self.width())  // 2
         y = geo.y() + (geo.height() - self.height()) // 2
         self.move(x, y)
+
+
+class _DropZone(QFrame):
+    """支持从 PC 拖拽文件到客户端的拖放区域。"""
+
+    files_dropped = Signal(list)
+
+    def __init__(self, title_text: str, hint_text: str, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        self.setMinimumHeight(_pt(120))
+        self.setFrameShape(QFrame.StyledPanel)
+        self.setStyleSheet(
+            f"QFrame {{ background:{C_CARD_LIGHT}; border:2px dashed {C_TEXT3}; border-radius:12px; }}"
+        )
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.setSpacing(8)
+
+        self._title = QLabel(title_text)
+        self._title.setAlignment(Qt.AlignCenter)
+        self._title.setStyleSheet(
+            f"color:{C_TEXT}; font-size:{_pt(13)}px; background:transparent; font-weight:700;"
+        )
+        self._hint = QLabel(hint_text)
+        self._hint.setAlignment(Qt.AlignCenter)
+        self._hint.setStyleSheet(
+            f"color:{C_TEXT3}; font-size:{_pt(11)}px; background:transparent;"
+        )
+        layout.addWidget(self._title)
+        layout.addWidget(self._hint)
+
+    def set_text(self, title: str, hint: str) -> None:
+        self._title.setText(title)
+        self._hint.setText(hint)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dragLeaveEvent(self, event) -> None:
+        self.setStyleSheet(
+            f"QFrame {{ background:{C_CARD_LIGHT}; border:2px dashed {C_TEXT3}; border-radius:12px; }}"
+        )
+
+    def dragMoveEvent(self, event) -> None:
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+            self.setStyleSheet(
+                f"QFrame {{ background:{C_CARD_LIGHT}; border:2px dashed {C_GREEN}; border-radius:12px; }}"
+            )
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        self.setStyleSheet(
+            f"QFrame {{ background:{C_CARD_LIGHT}; border:2px dashed {C_TEXT3}; border-radius:12px; }}"
+        )
+        urls = event.mimeData().urls()
+        files = [url.toLocalFile() for url in urls if url.isLocalFile()]
+        if files:
+            self.files_dropped.emit(files)
+        event.acceptProposedAction()
 
 
 def build_page() -> QWidget:
@@ -684,8 +753,165 @@ def build_page() -> QWidget:
         data["remote_last_subnet"] = subnet_input.text().strip()
         _cfg.save(data)
 
-    for w in (ip_input, user_input, pass_input, subnet_input):
+    for w in (ip_input, user_input, pass_input, sudo_input, subnet_input):
         w.editingFinished.connect(_save_conn)
+
+    # ── File transfer card ───────────────────────────────────────────────────
+    transfer_card = _card(12)
+    transfer_lay = QVBoxLayout(transfer_card)
+    transfer_lay.setContentsMargins(24, 20, 24, 20)
+    transfer_lay.setSpacing(14)
+
+    transfer_title = _lbl(_tt("remote.transfer.title"), 15, C_TEXT, bold=True)
+    transfer_status = QLabel(_tt("remote.transfer.status.no_connection"))
+    transfer_status.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px; background:transparent;")
+    transfer_head = QHBoxLayout()
+    transfer_head.addWidget(transfer_title)
+    transfer_head.addStretch()
+    transfer_head.addWidget(transfer_status)
+    transfer_lay.addLayout(transfer_head)
+
+    target_row = QHBoxLayout()
+    target_label = _lbl(_tt("remote.transfer.target_path"), 11, C_TEXT2)
+    target_input = QLineEdit()
+    target_input.setPlaceholderText("/home/seeed/")
+    target_input.setStyleSheet(input_qss(radius=8, font_size=11))
+    target_input.setFixedHeight(_pt(40))
+    target_row.addWidget(target_label)
+    target_row.addWidget(target_input, 1)
+    transfer_lay.addLayout(target_row)
+
+    drop_zone = _DropZone(
+        _tt("remote.transfer.title"),
+        _tt("remote.transfer.drop_hint"),
+    )
+    drop_zone.setEnabled(False)
+    transfer_lay.addWidget(drop_zone, 1)
+
+    select_btn = _btn(_tt("remote.transfer.select_files"), small=True)
+    select_btn.setEnabled(False)
+    transfer_lay.addWidget(select_btn)
+
+    download_btn = _btn(_tt("remote.transfer.download_files"), small=True)
+    download_btn.setEnabled(False)
+    transfer_lay.addWidget(download_btn)
+
+    progress_bar = QProgressBar()
+    progress_bar.setRange(0, 100)
+    progress_bar.setValue(0)
+    progress_bar.setTextVisible(True)
+    progress_bar.setStyleSheet(
+        f"QProgressBar {{ border:none; background:{C_CARD_LIGHT}; border-radius:6px; text-align:center; color:{C_TEXT}; }}"
+        f"QProgressBar::chunk {{ background:{C_GREEN}; border-radius:6px; }}"
+    )
+    transfer_lay.addWidget(progress_bar)
+
+    transfer_log = QTextEdit()
+    transfer_log.setReadOnly(True)
+    transfer_log.setMaximumHeight(_pt(120))
+    transfer_log.setStyleSheet(
+        f"background:{C_CARD_LIGHT}; color:{C_TEXT2}; border:none; border-radius:8px; padding:8px;"
+    )
+    transfer_lay.addWidget(transfer_log)
+
+    _shadow(transfer_card)
+    lay.addWidget(transfer_card)
+
+    transfer_thread_holder = [None]
+
+    def _append_transfer_log(message: str) -> None:
+        transfer_log.append(message)
+
+    def _set_transfer_connected(connected: bool) -> None:
+        if connected:
+            username = user_input.text().strip() or "seeed"
+            default_path = f"/home/{username}/"
+            if not target_input.text().strip():
+                target_input.setText(default_path)
+            transfer_status.setText(_tt("remote.transfer.status.ready"))
+            transfer_status.setStyleSheet(f"color:{C_GREEN}; font-size:{_pt(11)}px; background:transparent; font-weight:700;")
+            drop_zone.setEnabled(True)
+            select_btn.setEnabled(True)
+            download_btn.setEnabled(True)
+        else:
+            transfer_status.setText(_tt("remote.transfer.status.no_connection"))
+            transfer_status.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px; background:transparent;")
+            drop_zone.setEnabled(False)
+            select_btn.setEnabled(False)
+            download_btn.setEnabled(False)
+
+    def _start_file_upload(local_files: list[str]) -> None:
+        runner = get_runner()
+        if not isinstance(runner, SSHRunner):
+            _show_need_connection_dialog(page, _tt("remote.transfer.title"))
+            return
+        if not local_files:
+            return
+        remote_dir = target_input.text().strip() or f"/home/{runner.username}/"
+        progress_bar.setValue(0)
+        transfer_log.clear()
+        transfer_status.setText(_tt("remote.transfer.status.uploading"))
+        transfer_status.setStyleSheet(f"color:{C_ORANGE}; font-size:{_pt(11)}px; background:transparent; font-weight:700;")
+        drop_zone.setEnabled(False)
+        select_btn.setEnabled(False)
+
+        thread = FileTransferThread(runner, [Path(f) for f in local_files], remote_dir)
+        thread.log.connect(_append_transfer_log)
+        thread.progress.connect(progress_bar.setValue)
+        thread.done.connect(lambda ok, msg: (
+            _set_transfer_connected(True),
+            transfer_status.setText(_tt("remote.transfer.status.done") if ok else _tt("remote.transfer.status.failed")),
+            transfer_status.setStyleSheet(
+                f"color:{C_GREEN if ok else C_RED}; font-size:{_pt(11)}px; background:transparent; font-weight:700;"
+            ),
+        ))
+        thread.start()
+        transfer_thread_holder[0] = thread
+
+    def _open_file_dialog() -> None:
+        files, _ = QFileDialog.getOpenFileNames(page, _tt("remote.transfer.select_files"))
+        if files:
+            _start_file_upload(files)
+
+    def _start_file_download() -> None:
+        runner = get_runner()
+        if not isinstance(runner, SSHRunner):
+            _show_need_connection_dialog(page, _tt("remote.transfer.title"))
+            return
+
+        dlg = RemoteFileSelectDialog(runner, parent=page)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+
+        remote_files = dlg.selected_paths()
+        local_dir = dlg.local_dir()
+        if not remote_files or local_dir is None:
+            return
+
+        progress_bar.setValue(0)
+        transfer_log.clear()
+        transfer_status.setText(_tt("remote.transfer.status.downloading"))
+        transfer_status.setStyleSheet(f"color:{C_ORANGE}; font-size:{_pt(11)}px; background:transparent; font-weight:700;")
+        drop_zone.setEnabled(False)
+        select_btn.setEnabled(False)
+        download_btn.setEnabled(False)
+
+        thread = FileDownloadThread(runner, remote_files, local_dir)
+        thread.log.connect(_append_transfer_log)
+        thread.progress.connect(progress_bar.setValue)
+        thread.done.connect(lambda ok, msg: (
+            _set_transfer_connected(True),
+            transfer_status.setText(_tt("remote.transfer.status.done") if ok else _tt("remote.transfer.status.failed")),
+            transfer_status.setStyleSheet(
+                f"color:{C_GREEN if ok else C_RED}; font-size:{_pt(11)}px; background:transparent; font-weight:700;"
+            ),
+        ))
+        thread.start()
+        transfer_thread_holder[0] = thread
+
+    drop_zone.files_dropped.connect(_start_file_upload)
+    select_btn.clicked.connect(_open_file_dialog)
+    download_btn.clicked.connect(_start_file_download)
 
     scan_holder = [None]
     ssh_holder = [None]
@@ -703,10 +929,15 @@ def build_page() -> QWidget:
     def _do_scan():
         if scan_holder[0] and scan_holder[0].isRunning():
             return
+        raw_subnet = subnet_input.text().strip()
+        subnet = connector.normalize_subnet_prefix(raw_subnet)
+        if raw_subnet and subnet:
+            subnet_input.setText(subnet)
+            _save_conn()
         scan_btn.setEnabled(False)
         scan_btn.setText(_tt("remote.conn.btn.scanning"))
         scan_result.setText(_tt("remote.scan.scanning_lan"))
-        t_scan = _ScanThread(subnet_input.text().strip() or None)
+        t_scan = _ScanThread(subnet)
         t_scan.found.connect(_scan_done)
         t_scan.progress.connect(lambda s, total: scan_result.setText(_tt("remote.scan.progress", scanned=s, total=total)))
         t_scan.start()
@@ -727,6 +958,7 @@ def build_page() -> QWidget:
             set_runner(SSHRunner(ip, username=user, password=pwd, sudo_password=sudo_input.text().strip() or pwd))
             bus.device_connected.emit({"ip": ip, "name": "Jetson", "model": ""})
             terminal_btn.setEnabled(True)
+            _set_transfer_connected(True)
         else:
             conn_status.setText(_tt("remote.conn.status.failed"))
             conn_status.setStyleSheet(f"color:{C_RED}; font-size:{_pt(11)}px; background:transparent; font-weight:700;")
@@ -734,6 +966,7 @@ def build_page() -> QWidget:
             set_runner(None)
             bus.device_disconnected.emit(ip)
             terminal_btn.setEnabled(False)
+            _set_transfer_connected(False)
 
     def _do_ssh():
         ip = ip_input.text().strip()
@@ -828,8 +1061,8 @@ def build_page() -> QWidget:
     init_lay.addWidget(init_hint)
     init_port_holder = [""]
     init_terminal_btn = _btn(_tt("remote.init.btn.terminal"), primary=True, small=True)
-    init_net_btn = _btn(_tt("remote.init.btn.net_config"), small=True)
-    init_share_btn = _btn(_tt("remote.init.btn.net_share"), small=True)
+    init_net_btn = _btn(_tt("remote.init.btn.net_config"), primary=True, small=True)
+    init_share_btn = _btn(_tt("remote.init.btn.net_share"), primary=True, small=True)
     init_btn_row = QHBoxLayout()
     init_btn_row.addWidget(init_terminal_btn)
     init_btn_row.addWidget(init_net_btn)
@@ -978,6 +1211,14 @@ def build_page() -> QWidget:
     page.i18n.bind_text(init_net_btn, "remote.init.btn.net_config")
     page.i18n.bind_text(init_share_btn, "remote.init.btn.net_share")
     page.i18n.bind_text(tools_title, "remote.tools.title")
+    page.i18n.bind_text(transfer_title, "remote.transfer.title")
+    page.i18n.bind_text(target_label, "remote.transfer.target_path")
+    page.i18n.bind_placeholder(target_input, "remote.transfer.target_placeholder")
+    page.i18n.bind_text(select_btn, "remote.transfer.select_files")
+    page.i18n.bind_text(download_btn, "remote.transfer.download_files")
+    page.i18n.bind_callable(
+        lambda: drop_zone.set_text(_tt("remote.transfer.title"), _tt("remote.transfer.drop_hint"))
+    )
     page.i18n.bind_callable(_refresh_tool_texts)
     page.i18n.bind_callable(_refresh_api_status)
     page.i18n.bind_callable(_refresh_init)

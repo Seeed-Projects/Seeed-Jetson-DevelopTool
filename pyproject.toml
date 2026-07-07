@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "seeed-jetson-developer"
-version = "0.1.9"
+version = "0.1.9.post4"
 description = "Seeed Jetson Developer Tool — Flash, device management, app market, skills, and remote development"
 readme = "README.md"
 license = { text = "MIT" }
@@ -20,6 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Operating System :: OS Independent",
     "Topic :: Software Development :: Embedded Systems",
     "Topic :: System :: Hardware",
@@ -31,7 +32,9 @@ dependencies = [
     "tqdm>=4.60.0",
     "click>=8.0.0",
     "rich>=10.0.0",
-    "PyQt5>=5.15.0",
+    "qtpy>=2.3.0",
+    "PyQt6>=6.4.0,<6.8; python_version<'3.9'",
+    "PyQt6>=6.4.0; python_version>='3.9'",
     "paramiko>=2.8.0",
     "anthropic>=0.20.0",
     "pyserial>=3.5",
@@ -60,7 +63,12 @@ seeed_jetson_develop = [
     "assets/*.ico",
     "assets/devices/*",
     "assets/recovery/*",
+    "modules/ota/data/*.json",
     "modules/apps/data/*.json",
     "modules/skills/data/*.json",
     "skills/**/*",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:launch_testing"

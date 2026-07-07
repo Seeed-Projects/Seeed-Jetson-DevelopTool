@@ -1,9 +1,9 @@
 """App marketplace page."""
 from __future__ import annotations
 
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
-from PyQt5.QtGui import QDesktopServices
-from PyQt5.QtWidgets import (
+from qtpy.QtCore import Qt, QThread, Signal, QTimer, QUrl
+from qtpy.QtGui import QDesktopServices
+from qtpy.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton, QLineEdit,
     QVBoxLayout, QHBoxLayout, QGridLayout,
     QScrollArea, QDialog, QTextEdit, QMessageBox, QSizePolicy,
@@ -103,7 +103,7 @@ class _ResponsiveScrollArea(QScrollArea):
         super().resizeEvent(event)
         if self._on_resize:
             # Debounce list rebuild on resize.
-            from PyQt5.QtCore import QTimer
+            from qtpy.QtCore import QTimer
             if self._resize_timer:
                 self._resize_timer.stop()
             self._resize_timer = QTimer(self)
@@ -114,7 +114,7 @@ class _ResponsiveScrollArea(QScrollArea):
 
 # Background app data loader thread
 class _LoadAppsThread(QThread):
-    loaded = pyqtSignal(list)
+    loaded = Signal(list)
 
     def run(self):
         from seeed_jetson_develop.modules.apps.registry import load_apps
@@ -123,8 +123,8 @@ class _LoadAppsThread(QThread):
 
 
 class _StatusCheckThread(QThread):
-    single_result = pyqtSignal(str, str)   # app_id, status
-    all_done      = pyqtSignal(dict)
+    single_result = Signal(str, str)   # app_id, status
+    all_done      = Signal(dict)
 
     def __init__(self, apps: list[dict]):
         super().__init__()
@@ -158,8 +158,8 @@ class _StatusCheckThread(QThread):
 
 # App install thread
 class _InstallThread(QThread):
-    log  = pyqtSignal(str)
-    done = pyqtSignal(bool)
+    log  = Signal(str)
+    done = Signal(bool)
 
     def __init__(self, cmds: list[str], app: dict | None = None, display_cmds: list[str] | None = None):
         super().__init__()
@@ -420,7 +420,7 @@ class _InstallParamsDialog(QDialog):
 
 # Install / uninstall dialog
 class _InstallDialog(QDialog):
-    install_done = pyqtSignal(str, bool)
+    install_done = Signal(str, bool)
 
     def __init__(
         self,
@@ -516,7 +516,7 @@ class _InstallDialog(QDialog):
         titlebar.mouseReleaseEvent = _tb_release
 
         # ── 可滚动主体 ──
-        from PyQt5.QtWidgets import QScrollArea
+        from qtpy.QtWidgets import QScrollArea
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QScrollArea.NoFrame)
@@ -627,7 +627,7 @@ class _InstallDialog(QDialog):
 
     def showEvent(self, event):
         super().showEvent(event)
-        from PyQt5.QtWidgets import QApplication
+        from qtpy.QtWidgets import QApplication
         geo = QApplication.primaryScreen().availableGeometry()
         max_w = int(geo.width()  * 0.95)
         max_h = int(geo.height() * 0.92)
@@ -641,7 +641,7 @@ class _InstallDialog(QDialog):
         self.move(x, y)
 
     def _append(self, text: str):
-        from PyQt5.QtGui import QTextCursor
+        from qtpy.QtGui import QTextCursor
         self._log_edit.moveCursor(QTextCursor.End)
         self._log_edit.insertPlainText(text + "\n")
         self._log_edit.ensureCursorVisible()
@@ -664,7 +664,7 @@ class _InstallDialog(QDialog):
 
     def _send_to_background(self):
         """Hide dialog, replace status_dot with a clickable button to restore."""
-        from PyQt5.QtWidgets import QMessageBox
+        from qtpy.QtWidgets import QMessageBox
         msg = QMessageBox(self)
         msg.setWindowTitle("Minimize to Background")
         msg.setText(f"<b>{self._app.get('name', '')}</b> will continue running in the background.<br><br>Click the status bar at the top to restore this window.")
@@ -755,7 +755,7 @@ class _InstallDialog(QDialog):
 
     def _confirm_close(self):
         if self._thread and self._thread.isRunning():
-            from PyQt5.QtWidgets import QMessageBox
+            from qtpy.QtWidgets import QMessageBox
             msg = QMessageBox(self)
             msg.setWindowTitle("Cancel Installation?")
             msg.setText(f"<b>{self._app.get('name', '')}</b> is still installing.<br><br>Closing will stop the process.")
@@ -770,7 +770,7 @@ class _InstallDialog(QDialog):
 
     def closeEvent(self, event):
         if self._thread and self._thread.isRunning():
-            from PyQt5.QtWidgets import QMessageBox
+            from qtpy.QtWidgets import QMessageBox
             msg = QMessageBox(self)
             msg.setWindowTitle("Cancel Installation?")
             msg.setText(f"<b>{self._app.get('name', '')}</b> is still installing.<br><br>Closing will stop the process.")
@@ -1262,7 +1262,7 @@ class AppsPage(ListPageBase):
         return lbl
 
     def _build_row(self, app: dict) -> QFrame:
-        from PyQt5.QtWidgets import QFrame
+        from qtpy.QtWidgets import QFrame
         from seeed_jetson_develop.gui.runtime_i18n import get_current_lang, translate_text as _tr
         status = self._statuses.get(app["id"], "available")
         row = QFrame()
