@@ -2,6 +2,13 @@
 
 ## 0.1.9.post4（最新）
 
+### 文档与统计
+
+- **ff0728d** `docs(readme): add dynamic PyPI downloads chart`
+  - 新增 `scripts/generate_downloads_chart.py`，从 pypistats.org 拉取近 90 天下载数据并生成 SVG 趋势图。
+  - 新增 GitHub Actions 工作流，每天自动更新 `assets/downloads-chart.svg`。
+  - 在 `README.md` 和 `README_zh.md` 中加入 PyPI 总下载量/月下载量徽章和动态下载曲线图。
+
 ### AI-bot 与 API 配置
 
 - **eb75c8d** `refactor(config): remove hard-coded proxy URLs and allow explicit ai_provider`
