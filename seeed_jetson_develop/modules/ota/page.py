@@ -187,6 +187,7 @@ def _l4t_to_jetpack(l4t: str) -> str | None:
     mapping = {
         "35.5.0": "5.1.3", "35.5": "5.1.3",
         "36.4.3": "6.2", "36.4": "6.2",
+        "36.5.0": "6.2", "36.5": "6.2",
         "36.3.0": "6.0", "36.3": "6.0",
         "36.2.0": "6.0 DP", "36.2": "6.0 DP",
         "39.2": "7.2", "39.2.0": "7.2",
@@ -224,6 +225,9 @@ def _product_display_name(product: str) -> str:
         return f"reComputer J501 AGX Orin {m.group(1)}G"
     if compact == "orin-nano-devkit-super":
         return "Orin Nano Dev Kit Super"
+    m = re.fullmatch(r"agx-orin-devkit-(\d+)g", compact)
+    if m:
+        return f"NVIDIA Jetson AGX Orin Developer Kit {m.group(1)}GB"
     return f"reComputer {raw}"
 
 
@@ -463,7 +467,7 @@ def build_page() -> QWidget:
     dev_info_row = QHBoxLayout()
     dev_img = QLabel()
     dev_img.setFixedSize(pt(160), pt(100))
-    dev_img.setScaledContents(True)
+    dev_img.setAlignment(Qt.AlignCenter)
     dev_img.setStyleSheet(f"background:{C_CARD_LIGHT}; border-radius:8px;")
     dev_info_col = QVBoxLayout()
     dev_info_col.setSpacing(pt(8))

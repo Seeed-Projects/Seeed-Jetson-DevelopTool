@@ -222,10 +222,10 @@
       "ota_tools_sha256": ""
     },
     {
-      "id": "jp62-to-jp72-agx-orin-devkit",
-      "name": "JetPack 6.2 → JetPack 7.2",
-      "source_jetpack": "6.2",
-      "source_l4t": "36.4.3",
+      "id": "jp61-to-jp72-agx-orin-devkit",
+      "name": "JetPack 6.1 → JetPack 7.2",
+      "source_jetpack": "6.1",
+      "source_l4t": "36.3.0",
       "target_jetpack": "7.2",
       "target_l4t": "39.2.0",
       "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.0/release/ota_tools_R39.2.0_aarch64.tbz2",
@@ -235,8 +235,38 @@
           "id": "with_sdk",
           "name": "含 CUDA / TensorRT / SDK",
           "name_en": "With CUDA / TensorRT / SDK",
-          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBGKa5XV7YERqXScGAthjsvAbqP-YUwVcNUKzhy3prQav4?e=d3IFda&download=1",
-          "filename": "agx-orin-devkit_jp6.2tojp7.2_36.4.3to39.2.0.tar.gz",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDZ3UllW0wcQI9_awBTPANMARUmJBjRLJ8lArgrGxHc7AY?e=AEeM7h&download=1",
+          "filename": "agx-orin-devkit_jp6.1tojp7.2_36.3.0to39.2.0.tar.gz",
+          "sha256": ""
+        }
+      ],
+      "supported_products": [
+        "NVIDIA Jetson AGX Orin Developer Kit 32GB",
+        "NVIDIA Jetson AGX Orin Developer Kit 64GB"
+      ],
+      "product_keys": [
+        "agx-orin-devkit-32g",
+        "agx-orin-devkit-64g"
+      ],
+      "description": "OTA upgrade from JetPack 6.1 to JetPack 7.2 for NVIDIA Jetson AGX Orin Developer Kit. Only full SDK package is available.",
+      "ota_tools_sha256": ""
+    },
+    {
+      "id": "jp62-to-jp72-agx-orin-devkit",
+      "name": "JetPack 6.2 → JetPack 7.2",
+      "source_jetpack": "6.2",
+      "source_l4t": "36.5.0",
+      "target_jetpack": "7.2",
+      "target_l4t": "39.2.0",
+      "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.0/release/ota_tools_R39.2.0_aarch64.tbz2",
+      "ota_tools_filename": "ota_tools_R39.2.0_aarch64.tbz2",
+      "payload_options": [
+        {
+          "id": "with_sdk",
+          "name": "含 CUDA / TensorRT / SDK",
+          "name_en": "With CUDA / TensorRT / SDK",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDZ3UllW0wcQI9_awBTPANMARUmJBjRLJ8lArgrGxHc7AY?e=AEeM7h&download=1",
+          "filename": "agx-orin-devkit_jp6.2tojp7.2_36.5.0to39.2.0.tar.gz",
           "sha256": ""
         }
       ],
@@ -249,6 +279,126 @@
         "agx-orin-devkit-64g"
       ],
       "description": "OTA upgrade from JetPack 6.2 to JetPack 7.2 for NVIDIA Jetson AGX Orin Developer Kit. Only full SDK package is available.",
+      "ota_tools_sha256": ""
+    },
+    {
+      "id": "jp61-to-jp72-j401-classic",
+      "name": "JetPack 6.1 → JetPack 7.2",
+      "source_jetpack": "6.1",
+      "source_l4t": "36.3.0",
+      "target_jetpack": "7.2",
+      "target_l4t": "39.2.0",
+      "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.0/release/ota_tools_R39.2.0_aarch64.tbz2",
+      "ota_tools_filename": "ota_tools_R39.2.0_aarch64.tbz2",
+      "payload_options": [
+        {
+          "id": "with_sdk",
+          "name": "含 CUDA / TensorRT / SDK",
+          "name_en": "With CUDA / TensorRT / SDK",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQArEBJcrhd1Q4u_sz8LcgAcAa38JTC9KjGwr5YcVas5HDk?e=nGQxAU&download=1",
+          "filename": "ota_payload_package_j401_classic_jp6.1_to_jp72_with_sdk.tar.gz",
+          "sha256": ""
+        }
+      ],
+      "supported_products": [
+        "reComputer J4012",
+        "reComputer J4011"
+      ],
+      "product_keys": [
+        "j4012classic",
+        "j4011classic"
+      ],
+      "description": "OTA upgrade from JetPack 6.1 to JetPack 7.2 for reComputer J40x Classic series. Only full SDK package is available.",
+      "ota_tools_sha256": ""
+    },
+    {
+      "id": "jp62-to-jp72-j401-classic",
+      "name": "JetPack 6.2 → JetPack 7.2",
+      "source_jetpack": "6.2",
+      "source_l4t": "36.4.3",
+      "target_jetpack": "7.2",
+      "target_l4t": "39.2.0",
+      "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.0/release/ota_tools_R39.2.0_aarch64.tbz2",
+      "ota_tools_filename": "ota_tools_R39.2.0_aarch64.tbz2",
+      "payload_options": [
+        {
+          "id": "with_sdk",
+          "name": "含 CUDA / TensorRT / SDK",
+          "name_en": "With CUDA / TensorRT / SDK",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQArEBJcrhd1Q4u_sz8LcgAcAa38JTC9KjGwr5YcVas5HDk?e=nGQxAU&download=1",
+          "filename": "ota_payload_package_j401_classic_jp6.2_to_jp72_with_sdk.tar.gz",
+          "sha256": ""
+        }
+      ],
+      "supported_products": [
+        "reComputer J4012",
+        "reComputer J4011"
+      ],
+      "product_keys": [
+        "j4012classic",
+        "j4011classic"
+      ],
+      "description": "OTA upgrade from JetPack 6.2 to JetPack 7.2 for reComputer J40x Classic series. Only full SDK package is available.",
+      "ota_tools_sha256": ""
+    },
+    {
+      "id": "jp61-to-jp72-j301-classic",
+      "name": "JetPack 6.1 → JetPack 7.2",
+      "source_jetpack": "6.1",
+      "source_l4t": "36.3.0",
+      "target_jetpack": "7.2",
+      "target_l4t": "39.2.0",
+      "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.0/release/ota_tools_R39.2.0_aarch64.tbz2",
+      "ota_tools_filename": "ota_tools_R39.2.0_aarch64.tbz2",
+      "payload_options": [
+        {
+          "id": "with_sdk",
+          "name": "含 CUDA / TensorRT / SDK",
+          "name_en": "With CUDA / TensorRT / SDK",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQArEBJcrhd1Q4u_sz8LcgAcAa38JTC9KjGwr5YcVas5HDk?e=nGQxAU&download=1",
+          "filename": "ota_payload_package_j301_classic_jp6.1_to_jp72_with_sdk.tar.gz",
+          "sha256": ""
+        }
+      ],
+      "supported_products": [
+        "reComputer J3011",
+        "reComputer J3010"
+      ],
+      "product_keys": [
+        "j3011classic",
+        "j3010classic"
+      ],
+      "description": "OTA upgrade from JetPack 6.1 to JetPack 7.2 for reComputer J30x Classic series. Only full SDK package is available.",
+      "ota_tools_sha256": ""
+    },
+    {
+      "id": "jp62-to-jp72-j301-classic",
+      "name": "JetPack 6.2 → JetPack 7.2",
+      "source_jetpack": "6.2",
+      "source_l4t": "36.4.3",
+      "target_jetpack": "7.2",
+      "target_l4t": "39.2.0",
+      "ota_tools_url": "https://developer.nvidia.com/downloads/embedded/L4T/r39_Release_v2.0/release/ota_tools_R39.2.0_aarch64.tbz2",
+      "ota_tools_filename": "ota_tools_R39.2.0_aarch64.tbz2",
+      "payload_options": [
+        {
+          "id": "with_sdk",
+          "name": "含 CUDA / TensorRT / SDK",
+          "name_en": "With CUDA / TensorRT / SDK",
+          "url": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQArEBJcrhd1Q4u_sz8LcgAcAa38JTC9KjGwr5YcVas5HDk?e=nGQxAU&download=1",
+          "filename": "ota_payload_package_j301_classic_jp6.2_to_jp72_with_sdk.tar.gz",
+          "sha256": ""
+        }
+      ],
+      "supported_products": [
+        "reComputer J3011",
+        "reComputer J3010"
+      ],
+      "product_keys": [
+        "j3011classic",
+        "j3010classic"
+      ],
+      "description": "OTA upgrade from JetPack 6.2 to JetPack 7.2 for reComputer J30x Classic series. Only full SDK package is available.",
       "ota_tools_sha256": ""
     },
     {

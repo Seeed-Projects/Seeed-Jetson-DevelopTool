@@ -247,3 +247,117 @@ def reset_onboarding():
     data = load()
     data[_ONBOARDING_KEY] = False
     save(data)
+
+
+# ── Proxy settings ───────────────────────────────────────────────────────────
+
+PROXY_KEYS = ("http_proxy", "https_proxy", "all_proxy")
+
+
+def _proxy_from_env() -> dict[str, str]:
+    """Read proxy URLs from environment variables (uppercase, then lowercase)."""
+    found: dict[str, str] = {}
+    for key in PROXY_KEYS:
+        value = (os.environ.get(key.upper()) or os.environ.get(key) or "").strip()
+        if value:
+            found[key] = value
+    return found
+
+
+def get_proxy_settings() -> dict[str, str | None]:
+    """Resolve HTTP/HTTPS/SOCKS proxy settings.
+
+    Priority (highest first):
+      1. App config file (~/.config/seeed-jetson-tool/config.json)
+      2. Environment variables (HTTP_PROXY, HTTPS_PROXY, ALL_PROXY and lowercase)
+
+    Returns a dict with keys ``http``, ``https``, ``all``. Values are either a
+    proxy URL string or ``None``.
+    """
+    data = load()
+    proxies: dict[str, str] = {}
+
+    # 1. App config takes precedence.
+    for key in PROXY_KEYS:
+        value = (data.get(key) or data.get(key.upper()) or "").strip()
+        if value:
+            proxies[key] = value
+
+    # 2. Environment variables fill the gaps.
+    env_proxies = _proxy_from_env()
+    for key in PROXY_KEYS:
+        if key not in proxies and key in env_proxies:
+            proxies[key] = env_proxies[key]
+
+    return {
+        "http": proxies.get("http_proxy"),
+        "https": proxies.get("https_proxy"),
+        "all": proxies.get("all_proxy"),
+    }
+
+
+def get_effective_https_proxy() -> str | None:
+    """Return the proxy URL that should be used for HTTPS API calls.
+
+    Falls back from explicit HTTPS proxy to ALL_PROXY. Returns ``None`` when no
+    suitable proxy is configured.
+    """
+    proxies = get_proxy_settings()
+    return proxies.get("https") or proxies.get("all")
+
+
+# ── Proxy settings ───────────────────────────────────────────────────────────
+
+PROXY_KEYS = ("http_proxy", "https_proxy", "all_proxy")
+
+
+def _proxy_from_env() -> dict[str, str]:
+    """Read proxy URLs from environment variables (uppercase, then lowercase)."""
+    found: dict[str, str] = {}
+    for key in PROXY_KEYS:
+        value = (os.environ.get(key.upper()) or os.environ.get(key) or "").strip()
+        if value:
+            found[key] = value
+    return found
+
+
+def get_proxy_settings() -> dict[str, str | None]:
+    """Resolve HTTP/HTTPS/SOCKS proxy settings.
+
+    Priority (highest first):
+      1. App config file (~/.config/seeed-jetson-tool/config.json)
+      2. Environment variables (HTTP_PROXY, HTTPS_PROXY, ALL_PROXY and lowercase)
+
+    Returns a dict with keys ``http``, ``https``, ``all``. Values are either a
+    proxy URL string or ``None``.
+    """
+    data = load()
+    proxies: dict[str, str] = {}
+
+    # 1. App config takes precedence.
+    for key in PROXY_KEYS:
+        value = (data.get(key) or data.get(key.upper()) or "").strip()
+        if value:
+            proxies[key] = value
+
+    # 2. Environment variables fill the gaps.
+    env_proxies = _proxy_from_env()
+    for key in PROXY_KEYS:
+        if key not in proxies and key in env_proxies:
+            proxies[key] = env_proxies[key]
+
+    return {
+        "http": proxies.get("http_proxy"),
+        "https": proxies.get("https_proxy"),
+        "all": proxies.get("all_proxy"),
+    }
+
+
+def get_effective_https_proxy() -> str | None:
+    """Return the proxy URL that should be used for HTTPS API calls.
+
+    Falls back from explicit HTTPS proxy to ALL_PROXY. Returns ``None`` when no
+    suitable proxy is configured.
+    """
+    proxies = get_proxy_settings()
+    return proxies.get("https") or proxies.get("all")

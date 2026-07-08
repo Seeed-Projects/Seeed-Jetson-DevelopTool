@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 
+import logging
 import os
 import re
 
@@ -42,9 +43,59 @@ from seeed_jetson_develop.gui.theme import (
 from seeed_jetson_develop.gui.i18n import get_language, t as _t_raw
 
 
+log = logging.getLogger("seeed.gui.ai_chat")
+
+
 def _t(key: str, **kwargs) -> str:
     """Translate key using current language."""
     return _t_raw(key, lang=get_language(), **kwargs)
+
+
+def _build_http_client() -> "httpx.Client":
+    """Create an httpx client with explicit proxy support.
+
+    Priority:
+      1. Explicit HTTPS proxy from app config or env (HTTPS_PROXY/https_proxy).
+      2. ALL_PROXY/all_proxy when no HTTPS proxy is set.
+
+    Supported protocols:
+      - http:// / https:// : passed directly to httpx.
+      - socks:// / socks4:// / socks5:// / socks5h:// : requires ``httpx-socks``.
+
+    When the configured proxy is unsupported or unavailable, falls back to
+    ``trust_env=False`` to avoid the classic "Unknown scheme for proxy URL"
+    crash caused by system-level SOCKS proxies.
+    """
+    import httpx
+    from seeed_jetson_develop.core.config import get_effective_https_proxy
+
+    proxy_url = get_effective_https_proxy()
+    if proxy_url:
+        scheme = proxy_url.split("://", 1)[0].lower()
+        if scheme in ("http", "https"):
+            try:
+                return httpx.Client(proxy=proxy_url, trust_env=False)
+            except TypeError:
+                # httpx < 0.28 used the parameter name 'proxies'
+                return httpx.Client(proxies=proxy_url, trust_env=False)
+        if scheme in ("socks", "socks4", "socks5", "socks5h"):
+            try:
+                from httpx_socks import SyncProxyTransport
+
+                transport = SyncProxyTransport.from_url(proxy_url)
+                return httpx.Client(transport=transport, trust_env=False)
+            except ImportError:
+                log.warning(
+                    "SOCKS proxy is configured (%s) but httpx-socks is not installed. "
+                    "Install it with: pip install httpx-socks. Running AI chat without proxy.",
+                    proxy_url,
+                )
+            except Exception as exc:
+                log.warning("Failed to create SOCKS transport for %s: %s", proxy_url, exc)
+
+    # Default: disable proxy auto-detection from environment to avoid crashes
+    # when the system has a SOCKS proxy configured.
+    return httpx.Client(trust_env=False)
 
 
 # 安全命令黑名单：只拦截真正破坏性的操作
@@ -174,12 +225,11 @@ class _AiToolThread(QThread):
 
     def _run_anthropic(self, base_url: str):
         import anthropic
-        import httpx
         # Disable proxy auto-detection for the AI client. SOCKS proxies in
         # particular (e.g. socks://127.0.0.1:7890/) are not supported by
         # httpx/anthropic and cause "Unknown scheme for proxy URL" errors.
         # trust_env=False prevents httpx from reading HTTP_PROXY/ALL_PROXY.
-        http_client = httpx.Client(trust_env=False)
+        http_client = _build_http_client()
         client = anthropic.Anthropic(
             api_key=self._api_key,
             base_url=base_url,
@@ -247,13 +297,12 @@ class _AiToolThread(QThread):
     def _run_openai(self, base_url: str):
         import json
         import openai
-        import httpx
         # OpenAI SDK expects the base URL to include the /v1 path segment.
         # Some user gateways are configured without it in their Codex config.
         url = base_url.rstrip("/")
         if not url.endswith("/v1"):
             url = url + "/v1"
-        http_client = httpx.Client(trust_env=False)
+        http_client = _build_http_client()
         client = openai.OpenAI(
             api_key=self._api_key,
             base_url=url,
