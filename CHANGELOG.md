@@ -2,6 +2,11 @@
 
 ## 0.1.9.post4（最新）
 
+### 修复
+
+- **fcacc07** `fix(gui): convert QPoint to QPointF for QLinearGradient on PyQt6/macOS`
+  - 修复 macOS + PyQt6 启动时 `QLinearGradient` 因参数类型不匹配导致的崩溃。
+
 ### OTA 数据
 
 - **80f26e3** `feat(ota): add JP6.1/6.2 → JP7.2 OTA paths for Industrial/Robotics series`

@@ -56,7 +56,7 @@ class FlashAnimationWidget(QWidget):
         p.setRenderHint(QPainter.Antialiasing, True)
 
         panel = self.rect().adjusted(8, 8, -8, -8)
-        bg = QLinearGradient(panel.topLeft(), panel.bottomLeft())
+        bg = QLinearGradient(QPointF(panel.topLeft()), QPointF(panel.bottomLeft()))
         bg.setColorAt(0.0, QColor("#13202B"))
         bg.setColorAt(1.0, QColor("#0F171F"))
         p.fillRect(self.rect(), QColor("#151D26"))
