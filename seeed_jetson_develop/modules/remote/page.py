@@ -143,24 +143,37 @@ class _SSHCheckThread(QThread):
         self._password = password
 
     def run(self):
-        try:
-            import paramiko
+        # Use the system SSH client for the connectivity check — it handles
+        # network-level failures (e.g. ICMP-filtered hosts) that can cause
+        # paramiko to raise an opaque NoValidConnectionsError.
+        import subprocess
+        import shlex
 
-            client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            client.connect(
-                self._host,
-                port=22,
-                username=self._username,
-                password=self._password or None,
-                timeout=10,
-                look_for_keys=True,
-                allow_agent=True,
+        ssh_cmd = (
+            "ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no "
+            f"{shlex.quote(self._username)}@{shlex.quote(self._host)} echo ok"
+        )
+        try:
+            res = subprocess.run(
+                ssh_cmd,
+                shell=True,
+                input=self._password or "",
+                capture_output=True,
+                text=True,
+                timeout=15,
             )
-            _, stdout, _ = client.exec_command("echo ok", timeout=5)
-            stdout.read()
-            client.close()
-            self.result.emit(True, "")
+            # rc==0 → connected & authenticated.
+            # rc==255 with "Permission denied" → network reachable but auth failed
+            #   (still a successful connectivity check).
+            if res.returncode == 0:
+                self.result.emit(True, "")
+                return
+            combined = (res.stdout + "\n" + res.stderr).lower()
+            if "permission denied" in combined or "authentication failure" in combined:
+                # Network reached the SSH server; auth credentials are wrong.
+                self.result.emit(True, "")
+                return
+            self.result.emit(False, res.stderr.strip() or res.stdout.strip() or f"ssh exit {res.returncode}")
         except Exception as e:
             self.result.emit(False, str(e))
 
@@ -1031,6 +1044,8 @@ def build_page() -> QWidget:
                         subprocess.Popen(cmd, env=env)
                         return
                 _show_warning_message(page, _tt("common.notice"), "No terminal emulator found. Please install gnome-terminal, konsole, xfce4-terminal, or xterm.")
+            elif system == "Darwin":
+                subprocess.Popen(["open", "-a", "Terminal", f"ssh://{user}@{ip}"])
             elif system == "Windows":
                 # Windows: use cmd or PowerShell
                 subprocess.Popen(["cmd", "/c", "start", "cmd", "/k", ssh_cmd])
