@@ -12,7 +12,7 @@ Seeed Jetson Develop Tool is a desktop client for Seeed Jetson developers. It br
 
 ### PyPI Downloads Trend
 
-![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)
+[![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)](https://pepy.tech/project/seeed-jetson-developer)
 
 ![UI Preview](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 

@@ -13,6 +13,7 @@ Output:
 """
 
 import base64
+import filecmp
 import io
 import os
 import re
@@ -54,6 +55,31 @@ def read_app_version() -> str:
 APP_VERSION = read_app_version()
 
 
+def _asset_duplicates() -> set[Path]:
+    """Return relative paths that exist identically in both top-level and package assets.
+
+    The runtime resolver (seeed_jetson_develop.resources.resolve_runtime_path)
+    already falls back from ``assets/<rel>`` to ``seeed_jetson_develop/assets/<rel>``,
+    so embedding both copies is redundant and bloats the installer.
+    """
+    dup: set[Path] = set()
+    root_assets = ROOT / "assets"
+    pkg_assets = ROOT / "seeed_jetson_develop" / "assets"
+    if not root_assets.exists() or not pkg_assets.exists():
+        return dup
+    for src in root_assets.rglob("*"):
+        if not src.is_file():
+            continue
+        rel = src.relative_to(root_assets)
+        dst = pkg_assets / rel
+        if dst.exists() and filecmp.cmp(src, dst, shallow=False):
+            dup.add(rel)
+    return dup
+
+
+_ASSET_DUPLICATES = _asset_duplicates()
+
+
 def should_exclude(rel: Path) -> bool:
     for part in rel.parts:
         if part in EXCLUDE_NAMES:
@@ -66,6 +92,19 @@ def should_exclude(rel: Path) -> bool:
         return True
     # Skip large zip/tar inside assets
     if rel.suffix in {".zip", ".tar", ".tar.gz"} and "assets" in rel.parts:
+        return True
+    # Omit root assets that are byte-identical to the package copy; the runtime
+    # resolver will fall back to seeed_jetson_develop/assets/<rel> automatically.
+    if (
+        len(rel.parts) >= 2
+        and rel.parts[0] == "assets"
+        and rel.parts[1] != "seeed_jetson_develop"
+    ):
+        if Path(*rel.parts[1:]) in _ASSET_DUPLICATES:
+            return True
+    # The app loads skills from seeed_jetson_develop/skills/; the top-level
+    # skills/ directory is the source copy and is redundant in the installer.
+    if rel.parts[0] == "skills" and len(rel.parts) >= 2:
         return True
     return False
 
@@ -182,9 +221,9 @@ success "Virtual environment ready"
 
 # ── Install dependencies ──────────────────────────────────────────────────────
 info "Upgrading pip..."
-"$VENV_PY" -m pip install --upgrade pip --quiet || warn "pip upgrade failed, continuing..."
+"$VENV_PY" -m pip install --upgrade pip --no-input --disable-pip-version-check --quiet || warn "pip upgrade failed, continuing..."
 info "Installing dependencies (this may take a few minutes)..."
-"$VENV_PY" -m pip install -r "$INSTALL_DIR/requirements.txt" --quiet
+"$VENV_PY" -m pip install --no-input --disable-pip-version-check -r "$INSTALL_DIR/requirements.txt" --quiet
 success "Dependencies installed"
 
 # ── Create launcher script ────────────────────────────────────────────────────
@@ -310,7 +349,7 @@ Write-Ok "Virtual environment ready"
 # ── Upgrade pip first (use python -m pip to avoid stale pip.exe on Windows) ───
 Write-Step "Upgrading pip..."
 try {{
-    & $VenvPy -m pip install --upgrade pip --quiet
+    & $VenvPy -m pip install --upgrade pip --no-input --disable-pip-version-check --quiet
     Write-Ok "pip upgraded"
 }} catch {{
     Write-Warn "pip upgrade failed (non-fatal): $_"
@@ -318,7 +357,7 @@ try {{
 
 # ── Install dependencies ──────────────────────────────────────────────────────
 Write-Step "Installing dependencies (this may take a few minutes)..."
-& $VenvPy -m pip install -r "$InstallDir\requirements.txt" --quiet
+& $VenvPy -m pip install --no-input --disable-pip-version-check -r "$InstallDir\requirements.txt" --quiet
 Write-Ok "Dependencies installed"
 
 # ── Create launcher batch file ────────────────────────────────────────────────
@@ -384,6 +423,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 import urllib.request
 import urllib.error
 import zipfile
@@ -493,6 +533,7 @@ STRINGS = {
         "log_shortcut_fail":   "无法创建桌面快捷方式:{err}\n",
         "err_cancelled":       "用户取消安装",
         "err_cmd_fail":        "命令执行失败 (exit {code}):{cmd}",
+        "err_timeout":         "命令执行超时 ({timeout}s):{cmd}\n请检查网络连接或手动执行该命令。",
         "progress_deps_lines": "安装依赖(已处理 {n} 行日志)",
     },
     "en": {
@@ -552,6 +593,7 @@ STRINGS = {
         "log_shortcut_fail":   "Could not create desktop shortcut: {err}\n",
         "err_cancelled":       "Installation cancelled by user",
         "err_cmd_fail":        "Command failed (exit {code}): {cmd}",
+        "err_timeout":         "Command timed out after {timeout}s: {cmd}\nCheck your network connection or run the command manually.",
         "progress_deps_lines": "Installing dependencies ({n} log lines processed)",
     },
 }
@@ -974,7 +1016,11 @@ class InstallerGUI:
         ]
         try:
             proc = subprocess.Popen(install_args, creationflags=SUBPROCESS_FLAGS)
-            ret = proc.wait()
+            ret = proc.wait(timeout=300)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            raise RuntimeError(t("err_py_exit", code="TIMEOUT",
+                                 path=installer_path))
         except Exception as exc:
             raise RuntimeError(t("err_py_launch", err=exc))
         if ret != 0:
@@ -1072,7 +1118,11 @@ class InstallerGUI:
 
         self._stage("upgrade_pip")
         try:
-            self._run_capture([venv_py, "-m", "pip", "install", "--upgrade", "pip"])
+            self._run_capture(
+                [venv_py, "-m", "pip", "install", "--upgrade", "--no-input",
+                 "--disable-pip-version-check", "pip"],
+                timeout=120,
+            )
         except Exception as exc:
             self._log(t("log_pip_fail", err=exc))
 
@@ -1080,8 +1130,10 @@ class InstallerGUI:
         requirements = os.path.join(install_dir, "requirements.txt")
         self._run_capture(
             [venv_py, "-m", "pip", "install", "--progress-bar", "off",
+             "--no-input", "--disable-pip-version-check",
              "-r", requirements],
             progress_base=45, progress_span=45,
+            timeout=600,
         )
 
         self._stage("shortcut")
@@ -1107,27 +1159,71 @@ class InstallerGUI:
 
         self.queue.put(("progress", 100, t("status_done")))
 
-    def _run_capture(self, args, progress_base=None, progress_span=None):
+    def _run_capture(self, args, progress_base=None, progress_span=None,
+                     timeout=None):
+        """Run a subprocess, stream its output, and enforce an overall timeout.
+
+        A dedicated reader thread collects stdout lines so the worker thread
+        can still respond to cancellation and detect hangs even when the child
+        process blocks without producing output.
+        """
         self._log("$ %s\n" % " ".join(args))
         proc = subprocess.Popen(
             args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1, creationflags=SUBPROCESS_FLAGS,
         )
+
+        output_lines = []
+        reader_exc = []
+
+        def reader():
+            try:
+                assert proc.stdout is not None
+                for line in proc.stdout:
+                    output_lines.append(line)
+            except Exception as exc:
+                reader_exc.append(exc)
+
+        reader_thread = threading.Thread(target=reader, daemon=True)
+        reader_thread.start()
+
+        start = time.monotonic()
         line_count = 0
-        assert proc.stdout is not None
-        for line in proc.stdout:
-            if self.cancelled:
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
-                raise RuntimeError(t("err_cancelled"))
-            self._log(line)
+        while reader_thread.is_alive():
+            # Drain newly available lines for logging / progress.
+            while line_count < len(output_lines):
+                line = output_lines[line_count]
+                line_count += 1
+                if self.cancelled:
+                    proc.kill()
+                    reader_thread.join(timeout=2)
+                    raise RuntimeError(t("err_cancelled"))
+                self._log(line)
+                if progress_base is not None and progress_span is not None:
+                    pct = progress_base + min(progress_span, line_count // 3)
+                    self.queue.put(("progress", pct,
+                                    t("progress_deps_lines", n=line_count)))
+
+            if timeout is not None and time.monotonic() - start > timeout:
+                proc.kill()
+                reader_thread.join(timeout=2)
+                raise RuntimeError(t("err_timeout",
+                                     timeout=timeout,
+                                     cmd=" ".join(args)))
+
+            time.sleep(0.05)
+
+        reader_thread.join()
+        # Process any remaining buffered lines.
+        while line_count < len(output_lines):
+            line = output_lines[line_count]
             line_count += 1
+            self._log(line)
             if progress_base is not None and progress_span is not None:
                 pct = progress_base + min(progress_span, line_count // 3)
                 self.queue.put(("progress", pct,
                                 t("progress_deps_lines", n=line_count)))
+
         ret = proc.wait()
         if ret != 0:
             raise RuntimeError(t("err_cmd_fail", code=ret, cmd=" ".join(args)))

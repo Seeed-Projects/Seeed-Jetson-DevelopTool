@@ -182,7 +182,7 @@ def main() -> None:
 
     svg = generate_svg(dates, values)
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(svg, encoding="utf-8")
+    OUTPUT.write_text(svg + "\n", encoding="utf-8")
     print(f"Wrote {OUTPUT} ({len(dates)} days, max daily downloads {max(values)})")
 
 
