@@ -6,6 +6,12 @@ import logging
 import traceback
 from pathlib import Path
 
+# 在 Windows 无控制台模式（pythonw / PyInstaller --windowed）下，先注入
+# CREATE_NO_WINDOW，避免后续所有子进程调用弹出黑色 cmd 窗口。
+from seeed_jetson_develop.core.win_subprocess import install_no_console_patch
+
+install_no_console_patch()
+
 # ── 日志文件（~/.cache/seeed-jetson/app.log）──────────────────────────────
 _log_dir = Path.home() / ".cache" / "seeed-jetson"
 _log_dir.mkdir(parents=True, exist_ok=True)

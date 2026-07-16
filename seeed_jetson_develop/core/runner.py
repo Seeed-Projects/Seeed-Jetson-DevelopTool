@@ -5,12 +5,16 @@ import os
 import re
 import shlex
 import subprocess
+import sys
 import logging
 import threading
 import time
 from typing import Callable, Optional
 
 log = logging.getLogger("seeed.core.runner")
+
+# 在 Windows 无控制台模式下隐藏子进程弹窗；Linux/macOS 保持 0。
+_SUBPROCESS_FLAGS = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
 
 
 _SHELL_META_RE = re.compile(r"[|&;<>()$`\\n]")
@@ -74,6 +78,7 @@ class Runner:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 env=env,
+                creationflags=_SUBPROCESS_FLAGS,
             )
             fd    = proc.stdout.fileno()
             buf   = b""
