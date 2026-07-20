@@ -1137,5 +1137,13 @@
     "filename": "mfi_reserver-industrial-orin-nx-16g-7.2.0-39.2.0-2026-06-24.tar.gz",
     "foldername": "mfi_reserver-industrial-orin-nx-16g-7.2.0-39.2.0",
     "sha256": "fcf2eb2d0977856cc8e74aa1483397b61eff588fdae00145c67a9ed7953beba7"
+  },
+  {
+    "product": "j601",
+    "l4t": "38.4.0",
+    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBofCO4bWF9SLdbLQE1V8DgAbJIot8X9Jbpl03gkwmNZO0?e=AApkc3",
+    "filename": "mfi_recomputer-thor-carrier-j6014-7.1-38.4.0-2026-07-13.tar.gz",
+    "foldername": "mfi_recomputer-thor-carrier-j6014",
+    "sha256": "TBD"
   }
 ]

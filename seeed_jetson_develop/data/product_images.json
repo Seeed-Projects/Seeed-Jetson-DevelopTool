@@ -243,5 +243,12 @@
     "wiki": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/",
     "getting_started": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/",
     "hardware_interfaces": "https://wiki.seeedstudio.com/reComputer_J30_40_with_Jetson_getting_start/"
+  },
+  "j601": {
+    "name": "reComputer J601 (T5000)",
+    "local_image": "assets/devices/j601-carrier-board.jpg",
+    "wiki": "",
+    "getting_started": "",
+    "hardware_interfaces": ""
   }
 }
