@@ -17,7 +17,7 @@ from typing import Callable
 import requests
 from tqdm import tqdm
 
-from seeed_jetson_develop.data_update import get_data_file
+from seeed_jetson_develop.data_update import get_data_file, load_json_data
 
 
 def _is_windows_host() -> bool:
@@ -223,14 +223,13 @@ class JetsonFlasher:
         self.download_dir.mkdir(parents=True, exist_ok=True)
     
     def _load_firmware_info(self):
-        """加载固件信息"""
-        with open(self.data_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        
+        """加载固件信息（合并打包数据与本地缓存，避免缓存缺失新产品）。"""
+        data = load_json_data("l4t_data.json", [])
+
         for item in data:
-            if item['product'] == self.product and item['l4t'] == self.l4t_version:
+            if item.get("product") == self.product and item.get("l4t") == self.l4t_version:
                 return item
-        
+
         raise ValueError(self._fmt("flash.flasher.firmware_not_found", product=self.product, l4t=self.l4t_version))
 
     @staticmethod
