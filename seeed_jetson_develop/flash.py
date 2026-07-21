@@ -92,7 +92,7 @@ def find_recovery_device_line(log: Callable[[str], None] | None = None) -> str |
         print("[flash] Ensure Jetson is in Recovery mode and a DATA USB cable is connected.")
         return None
 
-    nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623", "7e19"}
+    nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623", "7e19", "7026"}
     result = subprocess.run(
         ["lsusb"],
         capture_output=True,
@@ -123,6 +123,7 @@ _PID_TO_MODULE = {
     "7523": "Orin Nano 8GB",
     "7623": "Orin Nano 4GB",
     "7e19": "Xavier NX",
+    "7026": "AGX Thor T5000",
 }
 
 
@@ -160,7 +161,7 @@ def get_recovery_module_info(log: Callable[[str], None] | None = None) -> dict |
             "module_name": "Unknown NVIDIA APX",
         }
 
-    nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623", "7e19"}
+    nvidia_apx_ids = {"7023", "7223", "7323", "7423", "7523", "7623", "7e19", "7026"}
     result = subprocess.run(
         ["lsusb"],
         capture_output=True,

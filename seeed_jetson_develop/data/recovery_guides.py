@@ -25,6 +25,7 @@ NX_NANO_XAVIER_IDS = NX_NANO_IDS + [("Xavier NX", "0955:7e19")]
 AGX_IDS = [
     ("AGX Orin 32GB", "0955:7223"),
     ("AGX Orin 64GB", "0955:7023"),
+    ("AGX Thor T5000", "0955:7026"),
 ]
 
 GUIDES = {

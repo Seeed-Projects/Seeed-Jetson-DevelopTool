@@ -41,7 +41,7 @@ FLASH_PACKAGES = (
     "binutils",
     "usbutils",
 )
-NVIDIA_APX_IDS = {"7023", "7223", "7323", "7423", "7523", "7623", "7e19"}
+NVIDIA_APX_IDS = {"7023", "7223", "7323", "7423", "7523", "7623", "7e19", "7026"}
 NVIDIA_INITRD_USB_IDS = {"7035"}
 WSL_RELEASE_API = os.environ.get("SEEED_WSL_RELEASE_API", "https://api.github.com/repos/microsoft/WSL/releases/latest")
 WSL_DISTRO_INFO_URL = os.environ.get(
