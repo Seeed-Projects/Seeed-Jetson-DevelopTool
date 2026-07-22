@@ -5,6 +5,8 @@ import json
 import logging
 import os
 import platform as py_platform
+import shutil
+import subprocess
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -217,6 +219,45 @@ def _product_display_name_with_module(product: str) -> str:
 def _open_url(url: str):
     from qtpy.QtCore import QUrl
     QDesktopServices.openUrl(QUrl(url))
+
+
+def _open_folder(path: Path) -> bool:
+    """Open the given directory in the native file manager.
+
+    Supports Windows, macOS and Linux. Falls back to QDesktopServices if
+    no suitable opener is available.
+    """
+    path = Path(path)
+    path.mkdir(parents=True, exist_ok=True)
+    system = py_platform.system()
+    try:
+        if system == "Windows":
+            subprocess.Popen(
+                ["explorer", str(path)],
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        elif system == "Darwin":
+            subprocess.Popen(["open", str(path)])
+        else:
+            opener = None
+            for cmd in ("xdg-open", "nautilus", "dolphin", "pcmanfm", "thunar", "caja"):
+                if shutil.which(cmd):
+                    opener = cmd
+                    break
+            if opener:
+                subprocess.Popen(
+                    [opener, str(path)],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            else:
+                raise OSError("No file manager found")
+        return True
+    except Exception:
+        # Final fallback using Qt's desktop services.
+        from qtpy.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+        return True
 
 
 def _load_flash_data():
@@ -773,6 +814,11 @@ def build_page() -> QWidget:
     """)
     flash_clear_btn.clicked.connect(lambda: _clear_firmware_cache())
 
+    flash_open_folder_btn = make_button(_ft("flash.btn.open_download_folder"), small=True)
+    flash_open_folder_btn.setCursor(Qt.PointingHandCursor)
+    flash_open_folder_btn.setToolTip(_ft("flash.btn.open_download_folder_tip"))
+    flash_open_folder_btn.clicked.connect(lambda: _open_download_folder())
+
     flash_back_btn = RippleButton(_ft("flash.btn.back"))
     flash_back_btn.setCursor(Qt.PointingHandCursor)
     flash_back_btn.setStyleSheet(f"""
@@ -810,6 +856,7 @@ def build_page() -> QWidget:
     btn_row_top = QHBoxLayout()
     btn_row_top.addWidget(flash_download_btn)
     btn_row_top.addWidget(flash_clear_btn)
+    btn_row_top.addWidget(flash_open_folder_btn)
     btn_row_top.addWidget(flash_cancel_btn)
     btn_row_top.addStretch()
     btn_outer.addLayout(btn_row_top)
@@ -836,6 +883,7 @@ def build_page() -> QWidget:
     rec_lay.addWidget(step2_sub_lbl)
 
     rec_status_lbl = make_label(_ft("flash.status.waiting_detection"), 13, C_TEXT2)
+    rec_status_lbl.setWordWrap(True)
     rec_lay.addWidget(rec_status_lbl)
 
     # Module info label: prominently shows detected module after recovery detection
@@ -881,7 +929,7 @@ def build_page() -> QWidget:
 
     rec_flash_btn = RippleButton(_ft("flash.btn.next"))
     rec_flash_btn.setCursor(Qt.PointingHandCursor)
-    rec_flash_btn.setEnabled(False)
+    rec_flash_btn.setEnabled(True)
     rec_flash_btn.setStyleSheet(f"""
         QPushButton {{
             background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
@@ -894,7 +942,7 @@ def build_page() -> QWidget:
         QPushButton:pressed {{ background: #6BA30F; }}
         QPushButton:disabled {{ background: #1A232E; color: #5A6B7A; }}
     """)
-    rec_flash_btn.clicked.connect(lambda: _flash_go_next_step())
+    rec_flash_btn.clicked.connect(lambda: _on_rec_next())
 
     rec_btn_row.addWidget(rec_back_btn)
     rec_btn_row.addWidget(rec_detect_btn)
@@ -1145,6 +1193,7 @@ def build_page() -> QWidget:
         _update_cache_label()
         _validate_device_selection()
         _build_recovery_guide(_current_flash_product_key())
+        _reset_recovery_detection()
 
     def _update_cache_label():
         product = _current_flash_product_key()
@@ -1390,6 +1439,23 @@ def build_page() -> QWidget:
         # Next button is no longer tied to cache state; keep current selection validity.
         _validate_device_selection()
 
+    def _open_download_folder():
+        product = _current_flash_product_key()
+        l4t = flash_l4t_combo.currentText()
+        target: Path
+        try:
+            if product and l4t:
+                flasher = JetsonFlasher(product, l4t)
+                target = flasher.download_dir
+            else:
+                target = Path.home() / "jetson_firmware"
+        except Exception as exc:
+            target = Path.home() / "jetson_firmware"
+            _flash_log_append(_ft("flash.log.open_folder_failed", path=target, error=exc))
+            return
+        _open_folder(target)
+        _flash_log_append(_ft("flash.log.opened_download_folder", path=target))
+
     def _ensure_sudo() -> bool:
         import getpass as _getpass
         if sudo_check_cached():
@@ -1539,7 +1605,6 @@ def build_page() -> QWidget:
         rec_status_lbl.setStyleSheet(f"color:{C_TEXT2}; background:transparent;")
         rec_module_lbl.setVisible(False)
         rec_module_lbl.setText("")
-        rec_flash_btn.setEnabled(False)
         rec_back_btn.setVisible(False)
         _validate_device_selection()
 
@@ -1737,6 +1802,25 @@ def build_page() -> QWidget:
 
     last_detect_state = {"found": None}
 
+    def _reset_recovery_detection():
+        """Reset detection state when product/L4T changes."""
+        rec_status_lbl.setText(_ft("flash.status.waiting_detection"))
+        rec_status_lbl.setStyleSheet(f"color:{C_TEXT2}; background:transparent;")
+        rec_module_lbl.setVisible(False)
+        rec_module_lbl.setText("")
+        last_detect_state["found"] = None
+
+    def _show_no_recovery_warning():
+        msg = QMessageBox(page.window())
+        msg.setWindowTitle(_ft("flash.dialog.no_recovery.title"))
+        msg.setIcon(QMessageBox.Warning)
+        msg.setText(_ft("flash.dialog.no_recovery.text"))
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.setDefaultButton(QMessageBox.Ok)
+        # QMessageBox does not have setWordWrap; use stylesheet to widen the text label.
+        msg.setStyleSheet("QLabel { min-width: 360px; }")
+        msg.exec_()
+
     def _detect_recovery():
         try:
             info = get_recovery_module_info(log=_flash_log_append)
@@ -1751,22 +1835,27 @@ def build_page() -> QWidget:
                     _ft("flash.detect.module_info", module=module_name)
                 )
                 rec_module_lbl.setVisible(True)
-                rec_flash_btn.setEnabled(True)
                 last_detect_state["found"] = True
             else:
                 rec_status_lbl.setText(_ft("flash.detect.status_not_found"))
                 rec_status_lbl.setStyleSheet(f"color:{C_ORANGE}; background:transparent;")
                 rec_module_lbl.setVisible(False)
                 rec_module_lbl.setText("")
-                rec_flash_btn.setEnabled(False)
-                if last_detect_state["found"] is not False:
-                    _flash_log_append(_ft("flash.detect.warn_no_apx"))
-                    last_detect_state["found"] = False
+                _flash_log_append(_ft("flash.detect.warn_no_apx"))
+                last_detect_state["found"] = False
+                _show_no_recovery_warning()
         except Exception as e:
             rec_status_lbl.setText(_ft("flash.detect.status_failed", error=e))
             rec_status_lbl.setStyleSheet(f"color:{C_RED}; background:transparent;")
             _flash_log_append(_ft("flash.detect.err_lsusb", error=e))
             last_detect_state["found"] = None
+            _show_no_recovery_warning()
+
+    def _on_rec_next():
+        if not last_detect_state.get("found"):
+            _show_no_recovery_warning()
+            return
+        _start_flash()
 
     def _start_flash():
         product = _current_flash_product_key()
@@ -1994,6 +2083,8 @@ def build_page() -> QWidget:
     i18n.bind_tooltip(flash_download_btn, "flash.btn.download_extract_tip")
     i18n.bind_text(flash_clear_btn, "flash.btn.clear_cache")
     i18n.bind_tooltip(flash_clear_btn, "flash.btn.clear_cache_tip")
+    i18n.bind_text(flash_open_folder_btn, "flash.btn.open_download_folder")
+    i18n.bind_tooltip(flash_open_folder_btn, "flash.btn.open_download_folder_tip")
     i18n.bind_text(flash_next_btn, "flash.btn.start_flash")
     i18n.bind_tooltip(flash_next_btn, "flash.btn.start_flash_tip")
     i18n.bind_text(flash_back_btn, "flash.btn.back")
@@ -2067,6 +2158,7 @@ def build_page() -> QWidget:
     flash_l4t_combo.currentTextChanged.connect(lambda l4t: _update_jetpack_display(l4t))
     flash_l4t_combo.currentTextChanged.connect(lambda _: _update_cache_label())
     flash_l4t_combo.currentTextChanged.connect(lambda _: _validate_device_selection())
+    flash_l4t_combo.currentTextChanged.connect(lambda _: _reset_recovery_detection())
     update_src_btn.clicked.connect(_update_download_source)
 
     # Initial state.

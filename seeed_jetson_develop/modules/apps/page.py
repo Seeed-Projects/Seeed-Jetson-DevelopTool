@@ -6,7 +6,7 @@ from qtpy.QtGui import QDesktopServices
 from qtpy.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton, QLineEdit,
     QVBoxLayout, QHBoxLayout, QGridLayout,
-    QScrollArea, QDialog, QTextEdit, QMessageBox, QSizePolicy,
+    QScrollArea, QDialog, QTextEdit, QMessageBox, QSizePolicy, QInputDialog,
 )
 
 from seeed_jetson_develop.core.runner import Runner, SSHRunner, get_runner
@@ -17,6 +17,77 @@ from seeed_jetson_develop.gui.i18n import get_language, t
 
 def _at(key: str, **kwargs) -> str:
     return t(key, lang=get_language(), **kwargs)
+
+
+def _app_web_url(app: dict, runner=None) -> str:
+    runner = runner or get_runner()
+    host = runner.host if isinstance(runner, SSHRunner) else "localhost"
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    return f"http://{host}:{app.get('web_port', 8080)}/"
+
+
+def _commands_require_sudo(cmds: list[str]) -> bool:
+    import re
+    return any(re.search(r"\bsudo\b", cmd or "") for cmd in cmds)
+
+
+def _ensure_ssh_sudo_password(parent: QWidget, cmds: list[str]) -> bool:
+    runner = get_runner()
+    if not isinstance(runner, SSHRunner) or not _commands_require_sudo(cmds):
+        return True
+
+    from seeed_jetson_develop.core import config as app_config
+
+    saved = app_config.load()
+    candidates = [
+        runner.sudo_password,
+        runner.password,
+        str(saved.get("remote_last_sudo_password") or ""),
+        str(saved.get("remote_last_password") or ""),
+    ]
+    tried = set()
+
+    def _verify(password: str) -> bool:
+        if not password or password in tried:
+            return False
+        tried.add(password)
+        runner.sudo_password = password
+        rc, output = runner.run("sudo -v", timeout=20)
+        if rc != 0:
+            return False
+        if "unable to resolve host" in (output or "").lower():
+            runner.run(
+                "sudo sh -c 'host=$(hostname); getent hosts \"$host\" >/dev/null 2>&1 || "
+                "printf \"127.0.1.1\\t%s\\n\" \"$host\" >> /etc/hosts'",
+                timeout=20,
+            )
+        data = app_config.load()
+        data["remote_last_sudo_password"] = password
+        app_config.save(data)
+        return True
+
+    for password in candidates:
+        if _verify(password):
+            return True
+
+    for _ in range(3):
+        password, accepted = QInputDialog.getText(
+            parent,
+            _at("apps.dialog.sudo.title"),
+            _at("apps.dialog.sudo.body", host=runner.host),
+            QLineEdit.Password,
+        )
+        if not accepted:
+            return False
+        if _verify(password):
+            return True
+        _show_warning_message(
+            parent,
+            _at("apps.dialog.sudo.invalid_title"),
+            _at("apps.dialog.sudo.invalid_body"),
+        )
+    return False
 
 
 def _can_execute_from_current_env(parent: QWidget) -> bool:
@@ -199,6 +270,194 @@ class _InstallThread(QThread):
                     log_fn(f"[warn] {mgr} install error: {e}")
         log_fn("[warn] could not auto-install aria2c on Windows, download will use fallback")
 
+    def _upload_yolo26_tensorrt_assets(self, runner):
+        """Download YOLO26 ONNX on the PC and deploy native TensorRT sources."""
+        import base64
+        import hashlib
+        import os
+        import shlex
+        import shutil
+        import tarfile
+        import tempfile
+        from pathlib import Path
+
+        import requests
+
+        log = self.log.emit
+        log("[info] preparing yolo26-tensorrt assets")
+
+        import sys
+
+        repo_root = Path(__file__).resolve().parents[3]
+        candidate_dirs = [
+            Path(__file__).resolve().parent / "assets" / "yolo26-tensorrt",
+            repo_root.parent / "jetson-examples" / "reComputer" / "scripts" / "yolo26-tensorrt",
+            repo_root / "jetson-examples" / "reComputer" / "scripts" / "yolo26-tensorrt",
+        ]
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            meipass_path = Path(meipass)
+            candidate_dirs.insert(0, meipass_path / "jetson-examples" / "reComputer" / "scripts" / "yolo26-tensorrt")
+            candidate_dirs.insert(0, meipass_path / "yolo26-tensorrt")
+        env_dir = os.environ.get("SEEED_YOLO26_TENSORRT_ASSETS")
+        if env_dir:
+            candidate_dirs.insert(0, Path(env_dir))
+
+        example_dir = None
+        for d in candidate_dirs:
+            if d.exists():
+                example_dir = d
+                break
+        if example_dir is None:
+            log("[failed] cannot find local yolo26-tensorrt example dir")
+            return False
+
+        cache_dir = Path.home() / ".seeed" / "yolo26-tensorrt"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        onnx_path = cache_dir / "yolo26n.onnx"
+        onnx_url = "https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.onnx"
+        onnx_sha256 = "2e947b787d9e787b93a16772a5f55b1d4d8c4d86f53146149c5d6a642442d6f7"
+
+        def _sha256(path):
+            digest = hashlib.sha256()
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            return digest.hexdigest()
+
+        if onnx_path.exists() and _sha256(onnx_path) != onnx_sha256:
+            log("[warn] cached yolo26n.onnx is invalid; downloading it again")
+            onnx_path.unlink()
+
+        if not onnx_path.exists() or onnx_path.stat().st_size == 0:
+            log(f"[info] downloading yolo26n.onnx to {onnx_path} ...")
+            part_path = onnx_path.with_suffix(onnx_path.suffix + ".part")
+            try:
+                response = requests.get(onnx_url, stream=True, timeout=(15, 300))
+                response.raise_for_status()
+                total_size = int(response.headers.get("content-length", 0))
+                downloaded = 0
+                last_percent = -1
+                with part_path.open("wb") as stream:
+                    for chunk in response.iter_content(chunk_size=1024 * 1024):
+                        if not chunk:
+                            continue
+                        stream.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            percent = min(100, int(downloaded * 100 / total_size))
+                            if percent >= last_percent + 10:
+                                last_percent = percent
+                                log(f"[info] download {percent}%")
+                if _sha256(part_path) != onnx_sha256:
+                    raise ValueError("downloaded ONNX SHA256 mismatch")
+                part_path.replace(onnx_path)
+            except Exception as e:
+                part_path.unlink(missing_ok=True)
+                log(f"[failed] download yolo26n.onnx: {type(e).__name__}: {e}")
+                return False
+            log("[ok] yolo26n.onnx downloaded")
+        else:
+            log(f"[ok] using cached yolo26n.onnx ({onnx_path})")
+
+        actual_sha256 = _sha256(onnx_path)
+        if actual_sha256 != onnx_sha256:
+            log(f"[failed] yolo26n.onnx SHA256 mismatch: {actual_sha256}")
+            onnx_path.unlink(missing_ok=True)
+            return False
+
+        remote_dir = "$HOME/.seeed_apps/yolo26-tensorrt"
+        remote_tar_shell = "$HOME/.seeed_apps/yolo26-tensorrt-assets.tar.gz"
+        # SFTP uses a path relative to the user's home directory (no shell expansion).
+        remote_tar_sftp = ".seeed_apps/yolo26-tensorrt-assets.tar.gz"
+
+        # Local Jetson mode: copy files directly.
+        if not isinstance(runner, SSHRunner):
+            if is_jetson():
+                target = Path.home() / ".seeed_apps" / "yolo26-tensorrt"
+                target.mkdir(parents=True, exist_ok=True)
+                for item in example_dir.iterdir():
+                    dest = target / item.name
+                    if item.is_dir():
+                        if dest.exists():
+                            shutil.rmtree(dest)
+                        shutil.copytree(item, dest)
+                    else:
+                        shutil.copy2(item, dest)
+                shutil.copy2(onnx_path, target / "yolo26n.onnx")
+                (target / "run.sh").chmod(0o755)
+                (target / "clean.sh").chmod(0o755)
+                log("[ok] yolo26-tensorrt assets copied locally")
+                return True
+            log("[failed] local runner is not a Jetson; cannot deploy yolo26-tensorrt")
+            return False
+
+        # SSH path: package and upload a tar archive.
+        with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            with tarfile.open(tmp_path, "w:gz") as tar:
+                for item in example_dir.iterdir():
+                    tar.add(item, arcname=item.name)
+                tar.add(onnx_path, arcname="yolo26n.onnx")
+            log(f"[info] asset tar size: {os.path.getsize(tmp_path)} bytes")
+
+            rc, _ = runner.run(f"mkdir -p {remote_dir}", timeout=20)
+            if rc != 0:
+                log("[failed] cannot create remote asset dir")
+                return False
+
+            upload_ok = False
+            try:
+                client, sftp = runner.open_sftp()
+                try:
+                    sftp.put(tmp_path, remote_tar_sftp)
+                    upload_ok = True
+                finally:
+                    try:
+                        sftp.close()
+                    except Exception:
+                        pass
+                    client.close()
+            except Exception as sftp_err:
+                log(f"[warn] sftp upload failed ({type(sftp_err).__name__}: {sftp_err}), trying ssh fallback...")
+                encoded = base64.b64encode(Path(tmp_path).read_bytes()).decode("ascii")
+                fallback_cmd = (
+                    f"set -e; mkdir -p {remote_dir}; "
+                    "command -v base64 >/dev/null 2>&1 || { echo base64-not-found; exit 1; }; "
+                    f"printf '%s' {shlex.quote(encoded)} | base64 -d > {remote_tar_shell}; "
+                    f"test -s {remote_tar_shell}"
+                )
+                rc, out = runner.run(f"bash -lc {shlex.quote(fallback_cmd)}", timeout=180)
+                if rc == 0:
+                    upload_ok = True
+                    log("[ok] uploaded asset tar via ssh fallback")
+                else:
+                    log(f"[failed] fallback upload rc={rc}: {out}")
+                    return False
+
+            if not upload_ok:
+                log("[failed] asset upload did not complete")
+                return False
+
+            extract_cmd = (
+                f"set -e; cd {remote_dir}; "
+                f"tar -xzf {remote_tar_shell} -C {remote_dir}; "
+                f"chmod +x {remote_dir}/run.sh {remote_dir}/clean.sh; "
+                f"rm -f {remote_tar_shell}"
+            )
+            rc, out = runner.run(extract_cmd, timeout=60, on_output=lambda l: log(l))
+            if rc != 0:
+                log("[failed] extract assets failed")
+                return False
+            log("[ok] yolo26-tensorrt assets uploaded and extracted")
+            return True
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+
     def run(self):
         runner = get_runner()
         # Auto-install aria2c on Windows if needed (local runner only)
@@ -294,6 +553,15 @@ class _InstallThread(QThread):
                 self.log.emit(f"[ok] uploaded run_camera_depth_rtsp.sh to {remote_asset_dir}")
             except Exception as e:
                 self.log.emit(f"[failed] upload depth_anything_v3 assets failed: {type(e).__name__}: {e}")
+                self.done.emit(False)
+                return
+
+        needs_yolo26_assets = any(
+            "YOLO26_TENSORRT_SKIP_DOWNLOAD" in (cmd or "")
+            for cmd in self._cmds
+        )
+        if self._app.get("id") == "jx-yolo26-tensorrt" and needs_yolo26_assets:
+            if not self._upload_yolo26_tensorrt_assets(runner):
                 self.done.emit(False)
                 return
 
@@ -441,6 +709,7 @@ class _InstallDialog(QDialog):
             "install": _at("apps.action.install"),
             "uninstall": _at("apps.action.uninstall"),
             "run": _at("apps.action.run"),
+            "stop": _at("apps.action.stop"),
             "clean": _at("apps.action.clean"),
         }
         title = title_map.get(mode, _at("apps.action.execute"))
@@ -614,9 +883,13 @@ class _InstallDialog(QDialog):
         self._ai_btn = _btn(_at("common.ask_ai"), primary=False, small=True)
         self._ai_btn.setVisible(False)
         self._ai_btn.clicked.connect(self._ask_ai)
+        self._web_btn = _btn(_at("apps.action.open_web"), primary=True, small=True)
+        self._web_btn.setVisible(False)
+        self._web_btn.clicked.connect(self._open_web_ui)
         btn_row.addWidget(self._start_btn)
         btn_row.addWidget(self._stop_btn)
         btn_row.addStretch()
+        btn_row.addWidget(self._web_btn)
         btn_row.addWidget(self._ai_btn)
         btn_row.addSpacing(8)
         btn_row.addWidget(close_btn)
@@ -649,6 +922,7 @@ class _InstallDialog(QDialog):
     def _start(self):
         self._log_edit.clear()
         self._ai_btn.setVisible(False)
+        self._web_btn.setVisible(False)
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
         self._bg_btn.setEnabled(True)
@@ -744,14 +1018,22 @@ class _InstallDialog(QDialog):
             "install": (_at("apps.dialog.done.install_ok"), _at("apps.dialog.done.install_fail")),
             "uninstall": (_at("apps.dialog.done.uninstall_ok"), _at("apps.dialog.done.uninstall_fail")),
             "run": (_at("apps.dialog.done.run_ok"), _at("apps.dialog.done.run_fail")),
+            "stop": (_at("apps.dialog.done.stop_ok"), _at("apps.dialog.done.stop_fail")),
             "clean": (_at("apps.dialog.done.clean_ok"), _at("apps.dialog.done.clean_fail")),
         }.get(self._mode, (_at("apps.dialog.done.exec_ok"), _at("apps.dialog.done.exec_fail")))
         if success:
             self._append(f"\n✅{action_text[0]}")
+            if self._mode in {"install", "run"} and self._app.get("web_port"):
+                url = _app_web_url(self._app)
+                self._append(f"🌐 {_at('apps.action.open_web')}: {url}")
+                self._web_btn.setVisible(True)
         else:
             self._append(f"\n❌{action_text[1]}")
             self._ai_btn.setVisible(True)
         self.install_done.emit(self._app["id"], success)
+
+    def _open_web_ui(self):
+        QDesktopServices.openUrl(QUrl(_app_web_url(self._app)))
 
     def _confirm_close(self):
         if self._thread and self._thread.isRunning():
@@ -1013,6 +1295,9 @@ class AppsPage(ListPageBase):
     def _get_clean_cmds(self, app: dict) -> list[str]:
         return app.get("clean_cmds") or []
 
+    def _get_stop_cmds(self, app: dict) -> list[str]:
+        return app.get("stop_cmds") or []
+
     def _get_ai_details(self, app: dict) -> list[str]:
         details = [f"Category: {self.format_category_label(app.get('category', '-'))}"]
         req = app.get("requirements") or {}
@@ -1099,6 +1384,8 @@ class AppsPage(ListPageBase):
                     _at("apps.msg.no_exec_cmd", name=app["name"]),
                 )
                 return
+            if not _ensure_ssh_sudo_password(self, cmds):
+                return
             dlg = _InstallDialog(app, cmds, parent=self, mode=mode, preview_cmds=preview_cmds)
             dlg.install_done.connect(done_cb)
             _apply_dlg_lang(dlg, self)
@@ -1179,6 +1466,18 @@ class AppsPage(ListPageBase):
         if ret == QMessageBox.Yes:
             self._open_dialog(app_id, "clean", self._get_clean_cmds(app), self._on_clean_done)
 
+    def _open_stop(self, app_id: str):
+        app = next((a for a in self.items_data if a["id"] == app_id), None)
+        if not app:
+            return
+        ret = _ask_yes_no_localized(
+            self,
+            _at("apps.msg.confirm_stop.title"),
+            _at("apps.msg.confirm_stop.body", name=app["name"]),
+        )
+        if ret == QMessageBox.Yes:
+            self._open_dialog(app_id, "stop", self._get_stop_cmds(app), self._on_stop_done)
+
     def _open_uninstall(self, app_id: str):
         app = next((a for a in self.items_data if a["id"] == app_id), None)
         if not app:
@@ -1212,6 +1511,12 @@ class AppsPage(ListPageBase):
         self._update_banner_summary()
 
     def _on_clean_done(self, app_id: str, success: bool):
+        self._rebuild_list()
+        self._update_banner_summary()
+
+    def _on_stop_done(self, app_id: str, success: bool):
+        if success:
+            self._statuses[app_id] = "installed"
         self._rebuild_list()
         self._update_banner_summary()
 
@@ -1325,6 +1630,11 @@ class AppsPage(ListPageBase):
             b.clicked.connect(lambda _, aid=app["id"]: self._open_clean(aid))
             action_row.addWidget(b)
 
+        if status == "installed" and self._get_stop_cmds(app):
+            b = _btn(_at("apps.action.stop"), danger=True, small=True)
+            b.clicked.connect(lambda _, aid=app["id"]: self._open_stop(aid))
+            action_row.addWidget(b)
+
         if status == "installed" and app.get("uninstall_cmds"):
             b = _btn(_at("apps.action.uninstall"), danger=True, small=True)
             b.clicked.connect(lambda _, aid=app["id"]: self._open_uninstall(aid))
@@ -1334,6 +1644,13 @@ class AppsPage(ListPageBase):
             b = _btn(_at("apps.action.run"), primary=True, small=True)
             b.clicked.connect(lambda _, aid=app["id"]: self._open_run(aid))
             action_row.addWidget(b)
+
+        web_port = app.get("web_port")
+        if status == "installed" and web_port:
+            b = _btn(_at("apps.action.open_web"), small=True)
+            b.clicked.connect(lambda _, a=app: self._open_web_ui(a))
+            action_row.addWidget(b)
+
         elif status != "installed":
             b = _btn(_at("apps.action.install"), primary=True, small=True)
             b.setEnabled(status != "checking")
@@ -1354,6 +1671,9 @@ class AppsPage(ListPageBase):
         action_row.addWidget(ai_b)
         outer.addLayout(action_row)
         return row
+
+    def _open_web_ui(self, app: dict):
+        QDesktopServices.openUrl(QUrl(_app_web_url(app)))
 
     def _open_ai(self, app: dict):
         assistant = getattr(self.window(), "_floating_ai", None)

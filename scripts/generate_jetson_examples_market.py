@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 
@@ -19,6 +20,26 @@ OUTPUT = (
     / "data"
     / "jetson_examples.json"
 )
+BUNDLED_ASSETS_ROOT = (
+    REPO_ROOT
+    / "seeed_jetson_develop"
+    / "modules"
+    / "apps"
+    / "assets"
+)
+
+
+def sync_bundled_assets(script_dir: Path) -> None:
+    if script_dir.name != "yolo26-tensorrt":
+        return
+    target = BUNDLED_ASSETS_ROOT / script_dir.name
+    if target.exists():
+        shutil.rmtree(target)
+    shutil.copytree(
+        script_dir,
+        target,
+        ignore=shutil.ignore_patterns("build", "*.engine", "*.log", "*.meta", "__pycache__"),
+    )
 
 
 def parse_config(path: Path) -> dict:
@@ -82,6 +103,8 @@ def prettify_name(name: str) -> str:
         "MoveNetJS": "MoveNet JS",
         "Sheared-LLaMA-2.7B-ShareGPT": "Sheared-LLaMA 2.7B ShareGPT",
         "ros1-jp6": "ROS 1 Noetic (JP6)",
+        "yolo26": "YOLO26 (Docker)",
+        "yolo26-tensorrt": "YOLO26 TensorRT C++ (Native)",
     }
     if name in aliases:
         return aliases[name]
@@ -178,6 +201,41 @@ def build_app(script_dir: Path) -> dict:
             ],
             "requirements": meta,
         }
+    if name == "yolo26-tensorrt":
+        return {
+            "id": f"jx-{name}",
+            "icon": infer_icon(category),
+            "name": prettify_name(name),
+            "category": category,
+            "desc": "Docker-free YOLO26 TensorRT C++ for JetPack 6/7. PC caches the ONNX model, Jetson builds a device-specific engine, and the camera result opens in a browser.",
+            "source": "jetson-examples",
+            "example_name": name,
+            "pc_download_assets": True,
+            "web_port": 8080,
+            "check_cmd": "bash -lc 'test -x $HOME/.seeed_apps/yolo26-tensorrt/build/yolo26_tensorrt && test -f $HOME/.seeed_apps/yolo26-tensorrt/yolo26n.engine'",
+            "install_cmds": [
+                "sudo apt-get update && sudo apt-get install -y --no-upgrade build-essential cmake libopencv-dev && dpkg-query -W libnvinfer-dev libnvinfer-bin >/dev/null",
+                "bash -lc 'cd $HOME/.seeed_apps/yolo26-tensorrt && YOLO26_TENSORRT_SKIP_DOWNLOAD=1 bash run.sh'",
+            ],
+            "run_cmds": [
+                "bash -lc 'cd $HOME/.seeed_apps/yolo26-tensorrt && YOLO26_TENSORRT_SKIP_DOWNLOAD=1 bash run.sh'",
+            ],
+            "stop_cmds": [
+                "bash -lc \"pkill -f '[b]uild/yolo26_tensorrt' || true; echo '[ok] YOLO26 TensorRT service stopped'\"",
+            ],
+            "clean_cmds": [
+                "bash -lc 'cd $HOME/.seeed_apps/yolo26-tensorrt && bash clean.sh'",
+            ],
+            "uninstall_cmds": [
+                "bash -lc 'pkill -f \"[b]uild/yolo26_tensorrt\" || true; rm -rf \"$HOME/.seeed_apps/yolo26-tensorrt\"; echo \"[ok] YOLO26 TensorRT uninstalled\"'",
+            ],
+            "requirements": {
+                "jetpack_versions": meta.get("jetpack_versions", []),
+                "required_disk_gb": meta.get("required_disk_gb", 2),
+                "required_mem_gb": meta.get("required_mem_gb", 4),
+                "docker_enabled": False,
+            },
+        }
     return {
         "id": f"jx-{name}",
         "icon": infer_icon(category),
@@ -208,6 +266,7 @@ def main() -> None:
         run_script = script_dir / "run.sh"
         if not config.exists() or not run_script.exists():
             continue
+        sync_bundled_assets(script_dir)
         apps.append(build_app(script_dir))
     OUTPUT.write_text(json.dumps(apps, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"Wrote {len(apps)} apps to {OUTPUT}")

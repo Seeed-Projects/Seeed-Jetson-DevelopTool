@@ -65,6 +65,7 @@ seeed_jetson_develop = [
     "assets/recovery/*",
     "modules/ota/data/*.json",
     "modules/apps/data/*.json",
+    "modules/apps/assets/**/*",
     "modules/skills/data/*.json",
     "skills/**/*",
 ]

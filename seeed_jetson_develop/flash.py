@@ -28,6 +28,29 @@ def _is_linux_host() -> bool:
     return platform.system() == "Linux"
 
 
+def _uses_unified_flash(firmware_dir: Path) -> bool:
+    """Return whether an extracted BSP contains NVIDIA unified-flash images."""
+    return (
+        firmware_dir
+        / "unified_flash"
+        / "out"
+        / "bsp_images"
+        / "flash_workspace"
+    ).is_dir()
+
+
+def _native_flash_command(unified_flash: bool) -> list[str]:
+    args = ["sudo"]
+    if unified_flash:
+        args.extend(["env", "UNIFIED_FLASH=1"])
+    args.extend([
+        "./tools/kernel_flash/l4t_initrd_flash.sh",
+        "--flash-only", "--massflash", "1",
+        "--network", "usb0", "--showlogs",
+    ])
+    return args
+
+
 def _hidden_startupinfo():
     if not _is_windows_host():
         return None
@@ -992,17 +1015,25 @@ class JetsonFlasher:
             print(self._fmt("flash.flasher.no_flash_script", path=flash_script))
             return False
 
+        unified_flash = _uses_unified_flash(actual_dir)
+        if not unified_flash and not (actual_dir / "bootloader").is_dir():
+            print(
+                "[Linux] Extracted firmware is incomplete: neither unified_flash images "
+                f"nor bootloader directory exists under {actual_dir}"
+            )
+            return False
+
         print(f"[Linux] Working directory: {actual_dir}")
         print(f"[Linux] Flash script: {flash_script}")
+        if unified_flash:
+            print("[Linux] NVIDIA unified flash package detected (Jetson Thor mode).")
         print("[Linux] === Starting native Linux flash (sudo required) ===")
         print("[Linux] This step requires sudo password and takes 10-30 minutes.")
         print("[Linux] Ensure the Jetson is in Recovery mode before proceeding.")
 
         try:
-            args = ["sudo", "./tools/kernel_flash/l4t_initrd_flash.sh",
-                    "--flash-only", "--massflash", "1",
-                    "--network", "usb0", "--showlogs"]
-            print(f"[Linux] Running: sudo ./tools/kernel_flash/l4t_initrd_flash.sh --flash-only --massflash 1 --network usb0 --showlogs")
+            args = _native_flash_command(unified_flash)
+            print(f"[Linux] Running: {' '.join(args)}")
             self._run_cancelable_process(args, cwd=str(actual_dir))
             print("[Linux] === Flash completed successfully. ===")
             return True
