@@ -8,6 +8,8 @@ import platform as py_platform
 import shutil
 import subprocess
 import threading
+import time
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 
@@ -324,6 +326,17 @@ def build_page() -> QWidget:
         "active_status_label": None,
         "active_progress": None,
         "device_pixmap": None,
+        "dl_samples": deque(),       # (monotonic_time, bytes) 滑动窗口采样
+        "dl_last_sample_time": 0.0,  # 上次采样时间，用于限频
+        # 多阶段 ETA：verify / extract / flash 各阶段独立滑动窗口
+        "stage_eta_windows": {       # stage -> {"samples": deque, "last_time": float}
+            "verify":  {"samples": deque(), "last_time": 0.0},
+            "extract": {"samples": deque(), "last_time": 0.0},
+            "flash":   {"samples": deque(), "last_time": 0.0},
+        },
+        "current_stage": None,        # 当前所处阶段名称，用于 UI 展示
+        "stage_eta_text": "",         # 当前阶段 ETA 文本
+        "flash_phase_active": False,  # 是否已进入烧录阶段（用于 ETA 触发条件）
     }
 
     # Custom QWidget for adaptive resize behavior.
@@ -1907,6 +1920,14 @@ def build_page() -> QWidget:
         _state["active_status_label"] = flash_run_status_lbl if is_actual_flash else flash_status_lbl
         _state["active_progress"] = flash_run_progress if is_actual_flash else flash_progress
         _state["active_progress"].setValue(0)
+        _state["dl_samples"].clear()
+        _state["dl_last_sample_time"] = 0.0
+        for w in _state["stage_eta_windows"].values():
+            w["samples"].clear()
+            w["last_time"] = 0.0
+        _state["current_stage"] = None
+        _state["stage_eta_text"] = ""
+        _state["flash_phase_active"] = False
         _state["active_status_label"].setStyleSheet(f"color:{C_GREEN if is_actual_flash else C_TEXT2}; background:transparent;")
         if is_actual_flash:
             _set_wizard_step(2)
@@ -1930,14 +1951,20 @@ def build_page() -> QWidget:
         thread.progress_val.connect(_on_flash_progress)
         thread.progress_log.connect(_flash_log_append)
         thread.download_progress.connect(_on_download_progress)
+        thread.stage_eta.connect(_on_stage_eta)
         thread.finished.connect(_on_flash_done)
         _state["flash_thread"] = thread
         thread.start()
 
     def _on_flash_msg(msg):
         _state["active_status_label"].setText(msg)
-        _flash_log_append(f"[INFO] {msg}")
+        # 含 ETA/预计剩余 的进度消息由 progress_log 单独记录，避免重复
+        if "ETA" not in msg and "预计剩余" not in msg:
+            _flash_log_append(f"[INFO] {msg}")
         msg_lower = msg.lower()
+        # 检测进入烧录阶段（用于 ETA 触发条件，替代 value >= 80 判断）
+        if "flashing" in msg_lower:
+            _state["flash_phase_active"] = True
         if any(k in msg_lower for k in ("skip download", "verify", "extract", "flash")):
             bar = _state["active_progress"]
             if bar.maximum() == 0:
@@ -1954,41 +1981,92 @@ def build_page() -> QWidget:
                 flash_scene.set_mode("flashing")
 
     def _on_flash_progress(value):
-        _state["active_progress"].setValue(value)
+        bar = _state["active_progress"]
+        # -1 表示不确定模式（WSL 解压等无法预知总量的场景）
+        if value < 0:
+            bar.setRange(0, 0)
+            return
+        if bar.maximum() == 0:
+            bar.setRange(0, 100)
+        bar.setValue(value)
         if flash_step_stack.currentIndex() == 0:
             flash_prepare_scene.set_download_progress(value / 100)
         if flash_step_stack.currentIndex() == 2:
             flash_scene.set_download_progress(value / 100)
 
+    # ── 多阶段 ETA 通用计算 ──────────────────────────────────────
+    def _format_eta(eta_secs: float) -> str:
+        """将秒数格式化为可读的 ETA 字符串."""
+        if eta_secs < 60:
+            return f"{eta_secs:.0f}s"
+        elif eta_secs < 3600:
+            return f"{eta_secs // 60:.0f}m {eta_secs % 60:.0f}s"
+        else:
+            return f"{eta_secs // 3600:.0f}h {(eta_secs % 3600) // 60:.0f}m"
+
+    def _calc_stage_eta(stage_key: str, cur: int, total: int) -> str:
+        """滑动窗口均速法：为指定阶段计算 ETA 文本.
+        
+        stage_key: "verify" | "extract" | "flash"
+        cur: 当前进度量（bytes 或 progress 百分比）
+        total: 总量
+        """
+        if total <= 0 or cur < 0:
+            return ""
+        win = _state["stage_eta_windows"].get(stage_key)
+        if win is None:
+            return ""
+        now = time.monotonic()
+        # 限频：最多每 0.5 秒采样一次
+        if now - win["last_time"] >= 0.5 or not win["samples"]:
+            win["samples"].append((now, cur))
+            win["last_time"] = now
+            # 清理超过 10 秒的旧采样点
+            while win["samples"] and now - win["samples"][0][0] > 10:
+                win["samples"].popleft()
+        samples = win["samples"]
+        if len(samples) < 2:
+            return ""
+        t0, v0 = samples[0]
+        t1, v1 = samples[-1]
+        dt = t1 - t0
+        if dt < 1.0:
+            return ""
+        speed = (v1 - v0) / dt
+        if speed <= 0:
+            # 进度停滞（如等待设备启动），显示"计算中..."而非清空 ETA
+            return _ft("flash.status.eta_calculating")
+        remaining = max(0, total - cur)
+        eta_secs = remaining / speed
+        return _format_eta(eta_secs)
+
+    def _on_stage_eta(stage: str, cur: int, total: int):
+        """处理 verify / extract 阶段的 ETA 数据。
+        状态标签和日志由 progress_msg / progress_log 统一处理，此处仅更新阶段状态。
+        """
+        cur = int(cur or 0)
+        total = int(total or 0)
+        if total <= 0:
+            return
+        _state["current_stage"] = stage
+
     def _on_download_progress(downloaded: int, total: int):
+        """更新进度条和场景动画；状态标签由 progress_msg 统一处理（含网速和 ETA）"""
         downloaded = int(downloaded or 0)
         total = int(total or 0)
         bar = _state["active_progress"]
-        def _fmt(b):
-            if b >= 1024 ** 3: return f"{b / 1024 ** 3:.1f} GB"
-            if b >= 1024 ** 2: return f"{b / 1024 ** 2:.0f} MB"
-            return f"{b / 1024:.0f} KB"
         if total > 0:
-            downloaded = max(0, downloaded)
-            total = max(1, total)
             pct = max(0, min(100, int(downloaded / total * 100)))
             bar.setRange(0, 100)
-            bar.setValue(pct)
-            label_text = _ft(
-                "flash.status.downloading_with_total",
-                downloaded=_fmt(downloaded),
-                total=_fmt(total),
-                pct=pct,
-            )
+            # 下载进度映射到 0-50 区间，与后续阶段衔接
+            bar.setValue(int(pct * 0.5))
+            # 场景动画使用下载完成度 0-1.0（覆盖 _on_flash_progress 的 0-0.5）
             if flash_step_stack.currentIndex() == 0:
                 flash_prepare_scene.set_download_progress(pct / 100)
             if flash_step_stack.currentIndex() == 2:
                 flash_scene.set_download_progress(pct / 100)
         else:
-            downloaded = max(0, downloaded)
             bar.setRange(0, 0)
-            label_text = _ft("flash.status.downloading", downloaded=_fmt(downloaded))
-        _state["active_status_label"].setText(label_text)
 
     def _on_flash_done(ok, msg):
         was_prepare_only = _state["flash_prepare_only"]
