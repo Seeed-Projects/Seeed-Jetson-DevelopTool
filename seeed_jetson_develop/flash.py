@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import hashlib
 import time
@@ -26,6 +27,13 @@ def _is_windows_host() -> bool:
 
 def _is_linux_host() -> bool:
     return platform.system() == "Linux"
+
+
+def _workspace_name(product: str, l4t_version: str) -> str:
+    """Return a filesystem-safe workspace directory name for a product + L4T pair."""
+    name = f"{product}_{l4t_version}"
+    # Replace characters that are risky on common filesystems with underscore.
+    return re.sub(r"[^a-zA-Z0-9._-]", "_", name).strip("._")
 
 
 def _uses_unified_flash(firmware_dir: Path) -> bool:
@@ -223,18 +231,22 @@ class JetsonFlasher:
         self.data_path = get_data_file("l4t_data.json")
         self._fmt = log_formatter or (lambda key, **kw: key)
         self.firmware_info = self._load_firmware_info()
+        workspace = _workspace_name(product, l4t_version)
         if download_dir:
             self.download_dir = Path(download_dir)
         elif _is_windows_host():
-            windows_dir = Path.home() / "jetson_firmware"
-            filename = self.firmware_info["filename"]
+            windows_base = Path.home() / "jetson_firmware"
+            windows_dir = windows_base / workspace
             wsl_dir = None
             if probe_wsl_cache:
                 try:
                     from seeed_jetson_develop.wsl_flash import get_wsl_download_dir
-                    wsl_dir = get_wsl_download_dir()
+                    wsl_base = get_wsl_download_dir()
+                    if wsl_base:
+                        wsl_dir = wsl_base / workspace
                 except Exception:
                     wsl_dir = None
+            filename = self.firmware_info["filename"]
             if (windows_dir / filename).exists():
                 self.download_dir = windows_dir
             elif wsl_dir and (wsl_dir / filename).exists():
@@ -242,7 +254,7 @@ class JetsonFlasher:
             else:
                 self.download_dir = windows_dir
         else:
-            self.download_dir = Path.home() / "jetson_firmware"
+            self.download_dir = Path.home() / "jetson_firmware" / workspace
         self.download_dir.mkdir(parents=True, exist_ok=True)
     
     def _load_firmware_info(self):
@@ -794,14 +806,11 @@ class JetsonFlasher:
                 part.unlink()
                 removed.append(str(part))
         if clear_extracted:
+            # 每个产品/版本有独立 workspace，extracted 只属于当前产品，直接整个删除。
             extract_dir = self.download_dir / "extracted"
-            foldername = self.firmware_info.get('foldername', '')
-            if foldername and extract_dir.exists():
-                # 只删精确匹配当前产品 foldername 的目录，绝不误删其他产品的目录
-                actual = extract_dir / foldername
-                if actual.exists():
-                    self._wsl_rmtree(actual)
-                    removed.append(str(actual))
+            if extract_dir.exists():
+                self._wsl_rmtree(extract_dir)
+                removed.append(str(extract_dir))
         return removed
 
     @staticmethod
@@ -929,7 +938,6 @@ class JetsonFlasher:
         filename = self.firmware_info['filename']
         filepath = self.download_dir / filename
         extract_dir = self.download_dir / "extracted"
-        extract_dir.mkdir(exist_ok=True)
 
         # 已解压且内容匹配当前 product+l4t，直接跳过
         if self.firmware_extracted():
@@ -938,12 +946,10 @@ class JetsonFlasher:
             print(self._fmt("flash.flasher.already_extracted", path=existing))
             return True
 
-        foldername = self.firmware_info.get('foldername', '')
-        if foldername:
-            target = extract_dir / foldername
-            if target.exists():
-                print(self._fmt("flash.flasher.old_dir_cleanup", path=target))
-                self._rmtree_privileged(target)
+        # 当前 workspace 按产品/版本隔离，重新解压前清空整个 extracted，避免旧 foldername 残留。
+        if extract_dir.exists():
+            self._wsl_rmtree(extract_dir)
+        extract_dir.mkdir(parents=True, exist_ok=True)
 
         print(self._fmt("flash.flasher.extracting", filename=filename))
 

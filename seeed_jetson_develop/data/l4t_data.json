@@ -34,10 +34,10 @@
   {
     "product": "j4012mini",
     "l4t": "36.3.0",
-    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EZojl6PUN4FFkshyt9a8kFEBUVVrQVO669V-pB_PNJvCuQ?e=YzFd1Z",
-    "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EZojl6PUN4FFkshyt9a8kFEBUVVrQVO669V-pB_PNJvCuQ?e=YzFd1Z",
+    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDEBQn1xFlURLs8L7wV-70bAc7eAhdBGBggoP6UR_8b780?e=HVIS6m",
+    "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDEBQn1xFlURLs8L7wV-70bAc7eAhdBGBggoP6UR_8b780?e=HVIS6m",
     "filename": "mfi_recomputer-mini-orin-nx-16g-j40-6.0-36.3.0.tar.gz",
-    "foldername": "mfi_recomputer-mini-orin",
+    "foldername": "mfi_recomputer-orin-j40mini",
     "sha256": "C579FF60F6F140E43C592F784EA541791DD8F7DDA49924F36EFBB63196FC1C35"
   },
   {
@@ -46,7 +46,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBKXi7tT-0STr-_p6ke0G5gAXRAlGgufMclpjSexhderiw?e=YISEtC",
     "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBKXi7tT-0STr-_p6ke0G5gAXRAlGgufMclpjSexhderiw?e=YISEtC",
     "filename": "mfi_recomputer-mini-orin-nx-8g-j40-6.0-36.3.0.tar.gz",
-    "foldername": "mfi_recomputer-mini-orin",
+    "foldername": "mfi_recomputer-orin-j40mini",
     "sha256": "3956B968F2BFB9FDF37D952E83DDB703980C813156919BC367CA5E23BBDEC89F"
   },
   {
@@ -55,7 +55,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EfA7P_6gLnJAnxptIAURoCgBDF-emSfyD9uGWYY2vuFhmg?e=DF6a8l",
     "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EfA7P_6gLnJAnxptIAURoCgBDF-emSfyD9uGWYY2vuFhmg?e=DF6a8l",
     "filename": "mfi_recomputer-mini-orin-nx-16g-j40-5.1.3-35.5.0.tar.gz",
-    "foldername": "mfi_recomputer-mini-orin",
+    "foldername": "mfi_recomputer-orin-j40mini",
     "sha256": "099bf8e706468dc36600ffdb34441683cde7454646621017fc39db49c16a2c53"
   },
   {
@@ -64,7 +64,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/Eew7pWvWB3RLtT5vMkVTFHABADBzxS8id4xNtrQHGcO3eg?e=A4X31b",
     "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/Eew7pWvWB3RLtT5vMkVTFHABADBzxS8id4xNtrQHGcO3eg?e=A4X31b",
     "filename": "mfi_recomputer-mini-orin-nx-8g-j40-5.1.3-35.5.0.tar.gz",
-    "foldername": "mfi_recomputer-mini-orin",
+    "foldername": "mfi_recomputer-orin-j40mini",
     "sha256": "6ce30b9e212310498eee2c0a363cb3514b1c607ae6a1ab403d5029115bc3a71b"
   },
   {
@@ -73,7 +73,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EVjuq6G9y_5OjIxMIHFiBj0BVckYdcRQBunaXMHFBLZ3tw?e=tY89se",
     "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EVjuq6G9y_5OjIxMIHFiBj0BVckYdcRQBunaXMHFBLZ3tw?e=tY89se",
     "filename": "mfi_recomputer-mini-orin-nano-8g-j30-6.2-36.4.3.tar.gz",
-    "foldername": "mfi_recomputer-mini-orin",
+    "foldername": "mfi_recomputer-orin-j40mini",
     "sha256": "A1C5F44B19B6C06E11AC38ABDA79AD6CBFF2AAFBEEA7BF3A14B2FE08EA37267F"
   },
   {
@@ -82,25 +82,25 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EcdaeIBdGRpCp0Dev5R3o1sB2Tr4HIwjgtp3d_XX7lE9Gg?e=bxteCW",
     "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EcdaeIBdGRpCp0Dev5R3o1sB2Tr4HIwjgtp3d_XX7lE9Gg?e=bxteCW",
     "filename": "mfi_recomputer-mini-orin-nano-4g-j30-6.2-36.4.3.tar.gz",
-    "foldername": "mfi_recomputer-mini-orin",
+    "foldername": "mfi_recomputer-orin-j40mini",
     "sha256": "23855098982DD1E05C025D3F078BCA02F396C1FB68DC58E539D83569A894571D"
   },
   {
     "product": "j3011mini",
     "l4t": "36.3.0",
-    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EabRgwAjKaJFv11KtK2r06QB_fn91IFoC97qV0LGKGPyWQ?e=fy7LwO",
-    "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EabRgwAjKaJFv11KtK2r06QB_fn91IFoC97qV0LGKGPyWQ?e=fy7LwO",
+    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBm0i5AV9F6SKxY5E9L53RrAc48Pldcjyg5_MKbYUKMasY?e=FCob3C",
+    "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBm0i5AV9F6SKxY5E9L53RrAc48Pldcjyg5_MKbYUKMasY?e=FCob3C",
     "filename": "mfi_recomputer-mini-orin-nano-8g-j30-6.0-36.3.0.tar.gz",
-    "foldername": "mfi_recomputer-mini-orin",
+    "foldername": "mfi_recomputer-orin-j40mini",
     "sha256": "C0D23150DE73F3E6D31203F7BA1B198D26A7A67F109264D049B3E0F9EEE1EE7A"
   },
   {
     "product": "j3010mini",
     "l4t": "36.3.0",
-    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EVGTsdS4n-RLhFxn6tx1NFgB4axESjVlifNXHaFzNAsmWw?e=1oNQeE",
-    "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EVGTsdS4n-RLhFxn6tx1NFgB4axESjVlifNXHaFzNAsmWw?e=1oNQeE",
+    "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBAe2KEHgq1R5w47K3xWi_BAcvA-U96X8vQtFT1znpP9rs?e=wXZKtv",
+    "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBAe2KEHgq1R5w47K3xWi_BAcvA-U96X8vQtFT1znpP9rs?e=wXZKtv",
     "filename": "mfi_recomputer-mini-orin-nano-4g-j30-6.0-36.3.0.tar.gz",
-    "foldername": "mfi_recomputer-mini-orin",
+    "foldername": "mfi_recomputer-orin-j40mini",
     "sha256": "029F135F8A86E55892F1AD4C3049C9D9908D4503C1BBEEAB324AB038A77B4027"
   },
   {
@@ -109,7 +109,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EcEvOGxB9DpOuFubj-xJ1oYBixiZy4vd0t_chXQcezPy9A?e=RnX7NN",
     "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EcEvOGxB9DpOuFubj-xJ1oYBixiZy4vd0t_chXQcezPy9A?e=RnX7NN",
     "filename": "mfi_recomputer-mini-orin-nano-8g-j30-5.1.3-35.5.0.tar.gz",
-    "foldername": "mfi_recomputer-mini-orin",
+    "foldername": "mfi_recomputer-orin-j40mini",
     "sha256": "b8f7a0b6d5974add33c3102824c671b61ca8e278b0c5e3c38a7c5a45e251251e"
   },
   {
@@ -118,7 +118,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EYi8K66PG6xOjwiU-_x3Ey4BpZhEiLFS8c_JoEDzeTVaxg?e=TkAgJV",
     "mirrorlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EYi8K66PG6xOjwiU-_x3Ey4BpZhEiLFS8c_JoEDzeTVaxg?e=TkAgJV",
     "filename": "mfi_recomputer-mini-orin-nano-4g-j30-5.1.3-35.5.0.tar.gz",
-    "foldername": "mfi_recomputer-mini-orin",
+    "foldername": "mfi_recomputer-orin-j40mini",
     "sha256": "cc6efd6e4a42f099dde47e9ed71a34e0981e77c50e3dc74f38338210c1f3bda0"
   },
   {
@@ -127,7 +127,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBnWlTaU6nIQLDOcM2KRQM6AQ6A-ODC8DnWFKRSfW8vRmc?e=1AAVH8",
     "mirrorlink": "",
     "filename": "mfi_recomputer-robo-orin-nx-16g-j40-6.2-36.4.3.tar.gz",
-    "foldername": "mfi_recomputer-robo-orin",
+    "foldername": "mfi_recomputer-orin-robotics-j401-gmsl",
     "sha256": "2ed5792564202430c1550183158d2f4a6c47d65af248a634cf1d4d13ee465bf4"
   },
   {
@@ -136,7 +136,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQAakIBc6l2wS7qKAy-1ZeHPAbTtT8XLYaIgITvBGy8vezo?e=mPygXS",
     "mirrorlink": "",
     "filename": "mfi_recomputer-robo-orin-nx-8g-j40-6.2-36.4.3.tar.gz",
-    "foldername": "mfi_recomputer-robo-orin",
+    "foldername": "mfi_recomputer-orin-robotics-j401-gmsl",
     "sha256": "dade14539ef525506dba4f59a2e9925448621d89db52b8a94417f438c0cf8024"
   },
   {
@@ -145,7 +145,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQB8NF028_DESZJ9WwSg2Q34AVCNXeZFkwJi8pbvCOcX4cI?e=Zahpfm",
     "mirrorlink": "",
     "filename": "mfi_recomputer-robo-orin-nano-8g-j30-6.2-36.4.3.tar.gz",
-    "foldername": "mfi_recomputer-robo-orin",
+    "foldername": "mfi_recomputer-orin-robotics-j401-gmsl",
     "sha256": "9b8a11bfb335fd159bbc2f29ef47f3d00d94a88c190a58ea94762954c476c176"
   },
   {
@@ -154,7 +154,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBwi3AQXJiaTZiPQaKocDSkAciLsok9znKGnAPczuZ_IfY?e=S2v5QV",
     "mirrorlink": "",
     "filename": "mfi_recomputer-robo-orin-nano-4g-j30-6.2-36.4.3.tar.gz",
-    "foldername": "mfi_recomputer-robo-orin",
+    "foldername": "mfi_recomputer-orin-robotics-j401-gmsl",
     "sha256": "3dc9d5b27e01f223e6d75b50a8cd5fa33b0fb259018011418f0692ff0eb91a54"
   },
   {
@@ -163,7 +163,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQAeJrT8r6rJSKVpp2_32UtQAZJzy4wNyCuHqVSCy0f-q4U?e=84CkEW",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nx-16g-j401-6.1-36.4.0-2026-02-07.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "b848e327b87c408565b899a11c52022b42df6de4f3dce1e5470cb2a7baccc898"
   },
   {
@@ -172,7 +172,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQB9gz3ZuAZ1Rb_ml6eY-5eCAV-k2piT1qWtbedMSEUfyzk?e=LTL5kI",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nx-8g-j401-6.1-36.4.0-2026-02-07.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "3839c99fc9e2da1f35de824c42b7bb56f9660d8f4a6ce68b196c6cb50d5d4fb4"
   },
   {
@@ -181,7 +181,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDfJ9e2HfndQKxZp7e2_A_0Ab97_Oe0zA53nK6AZ6EHDYs?e=B3tvCO",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nano-8g-j401-6.1-36.4.0-2026-02-06.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "a0863e7209351f9165cf6bd2d756a6a726b2e8fc1fa54b5d66279d5b136a3a33"
   },
   {
@@ -190,7 +190,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDrUdIOhLv6SrDpKbnUCnfgAR9URACZr46gifnBSEdOphA?e=TNUkWg",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nano-4g-j401-6.1-36.4.0-2026-02-06.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "a40edfbcda9a7a07fbf72ca4e3149d171236f5ede2c4e3a5e243da77562f9b13"
   },
   {
@@ -199,7 +199,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EavQHXoSEg9PuLs4vuujXLcB0-GW6Ti1zHGL2UHzgS6TWg?e=J7oRrf",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EbEZRxHDtgBDjBrHK_7ltfEB6JBa3VGXLx3meNc0OJUL_g?e=8MNsTg",
     "filename": "mfi_recomputer-orin-nx-16g-j401-6.0-36.3.0-2024-06-07.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "20b38d9524327fd714c37cb293036006e070b5335d6b4f6978a862be51c3db52"
   },
   {
@@ -208,7 +208,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EcfUdbmSiOBFo_Po-Cui3jkBDORKexZ4S43Jde5XApqdeQ?e=zqealW",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EQawJy3jmKBAmJgHght-vVUBHbsC3vtlvMsYfW7vsie3LQ?e=vor3t3",
     "filename": "mfi_recomputer-orin-nx-8g-j401-6.0-36.3.0-2024-06-07.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "da966e7616ed86b45e184b6db9c3eb81e779a5f4524f6c3c5610e56c53532fe1"
   },
   {
@@ -217,7 +217,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EauK-aXvruxHsC1-bAmTwZkBNB0PsvPX6S6oV4Q1UrAUFw?e=rytWvU",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EeJP8SNF76BKiJg2e-FKNd4BhJwlWiMbLcT6Y286tRO7JQ?e=ct6qLf",
     "filename": "mfi_recomputer-orin-nano-8g-j401-6.0-36.3.0-2024-06-07.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "e0fa101c5df6f507d123c2332e9fedea0ac54f8a5253cb28e71fdff01147fa68"
   },
   {
@@ -226,7 +226,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EcHfrgY9GxVNiwGh6YTB50cBCc5QcKgnGpTZQfv94x4VNw?e=Rl73Zh",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/ERQJluPq9X1LmpLXTSGZVMwBVg9ikWw8veG2aOdHv504Gw?e=hujab4",
     "filename": "mfi_recomputer-orin-nano-4g-j401-6.0-36.3.0-2024-06-07.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "80ebeac0a843baa2c3104ee6341d44f39a2cfab1c9c725e176c7b2a219b79dfc"
   },
   {
@@ -271,7 +271,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDTDQf5Gh0LSIg9QSsHPNgBAcegrhbyGeZYrQF7kMpdgFQ?e=ahwlIc",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nx-16g-j401-6.2-36.4.3-2026-02-05.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "b9529f008cf9a65460db3ee17736db971b8d110049f9f6ea8ecc8fe4d1691869"
   },
   {
@@ -280,7 +280,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDR6PGcF5i6Q5tWR9dJa1vSAfZrQUfHfQhTFe2DOeMKXuo?e=lf88Um",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nx-8g-j401-6.2-36.4.3-2026-02-05.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "b7106b4f8c5835011040c071dd14e1144b5298af300f920e44517b99c183ed05"
   },
   {
@@ -289,7 +289,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDM6v_9Ggo4R5OXqj4R1T0PAf_uevclLKzjmj8XpkX0_jQ?e=B5oC3m",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nano-8g-j401-6.2-36.4.3-2026-02-05.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "c2247262dec1379fd4494def6a6ed2d4414605a8dcb902c6d6afbb94a5e48499"
   },
   {
@@ -298,7 +298,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQA9g-hqq4_KR5bdPc2PgfgmAYq3mRxdRBkgrUtZBOm-jtE?e=WMICt2",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nano-4g-j401-6.2-36.4.3-2026-02-05.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "1d570b54853bba4ecc115789d1b03c5ba07b34344f7616dfa3c3772c9ff37e64"
   },
   {
@@ -307,7 +307,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EaUtjH4gdPFGkQX86xzbLyEB6sckcd09RxxGJAlH2Qs4yg?e=a1KYbF",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nx-16g-j201-6.2-36.4.3-2025-06-23.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-16g-6.2-36.4.3",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "2c06ad9dbdb85f604905ce81403e9089204d77292427985a0ab6786d7eabc211"
   },
   {
@@ -316,7 +316,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EUNMocOFBZNPqqC-W9uiIM4BgYUw-ZL0pk6juOVPFd_vqg?e=C8ldYX",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nx-16g-j201-6.1-36.4.0-2024-12-05.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-16g-6.1-36.4.0",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "6A2B3A71EE77E7000034351020FBF9A5260F944FB30B5DE672BF7897DEE87B5A"
   },
   {
@@ -325,7 +325,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EbKZo6jvhR5MtP5hSB2mWIUBLkMB_pl4zCJoGhAbao5yQw?e=tIZuFZ",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nx-16g-j201-6.0-36.3.0-2025-09-23.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-16g-6.0-36.3.0",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "77B5967DCDFAAE6725381EAE7BD570A254BD1F9E6E4C28DE8D9D84760C204DF1"
   },
   {
@@ -334,7 +334,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EUhr3fzFqx9DmH83QrXmFAwBEpfC-VGsyBnqHSoOPPAzGQ?e=Wv7d8f",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EcXVegQs83tJpv3kmJPMmSEB8M9djK_gWgJapIJnOJQeUw?e=ntbXLi",
     "filename": "mfi_recomputer-orin-nx-16g-industrial-5.1-35.3.1-2023-08-05.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-16g-5.1.3-35.3.1",
+    "foldername": "mfi_recomputer-orin-industrial",
     "sha256": "F6623A277E538F309999107297405E1378CF3791EA9FD19F91D263E3B4C88333"
   },
   {
@@ -343,7 +343,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBp1l1LNlFwSL5puoLcqctgAUG3mESCizwVl92hCUybwRI?e=cmgVTU",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nx-8g-j401-6.2.1-36.4.4-2026-02-04.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-8g-6.2.1-36.4.4",
+    "foldername": "mfi_recomputer-industrial-orin-j401",
     "sha256": "dcf1eed4505a4d602e624fadae6761049265d58707f3ce468fbb16f85d002e25"
   },
   {
@@ -352,7 +352,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EfYrDXxD_oRCuk5nv8WmtqIBPY9FjkEHiAmsZDpvDj-sfQ?e=qxV5MG",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nx-8g-j201-6.1-36.4.0-2024-12-05.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-8g-6.1-36.4.0",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "EC94A1F9E10D07CE2C78D8C1B742575A84DA543CCD95564D8E0BEC823C0CA514"
   },
   {
@@ -361,7 +361,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EdScxnClMMZElyNJXLzqY5EBSXN9cyUnkkl4fWfsDhn0xg?e=6PcDF1",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nx-8g-j201-6.0-36.3.0-2025-09-23.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-8g-6.0-36.3.0",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "79c16c25602ebefa239402c23d0dcdae5ddc3eb23fdadb90654fbc34a1aa44dd"
   },
   {
@@ -370,7 +370,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EbaTHCLEwfNOqAR1DH-IAWYB20HBEPG2G-IkPJ1dJJcWJw?e=2VYQXJ",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EStCSSWeyUtLkJXMj5Y6tXcBru2PIQNHLl6p2BZsRbzxjA?e=Gaaa6m",
     "filename": "mfi_recomputer-orin-nx-8g-industrial-5.1-35.3.1-2025-05-30.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-8g-5.1.1-35.3.1",
+    "foldername": "mfi_recomputer-orin-industrial",
     "sha256": "414DFE16703D0A2EE972DF1C77FCE2E8B44BC71726BB6EE4B1439C2D0F19A653"
   },
   {
@@ -379,7 +379,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EdypjC_kT7RAqqBHytE_KLwBLU6fEpoQ5Rv_MWYk-lMszQ?e=VV0U9A",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nano-8g-j201-6.2-36.4.3-2025-02-12.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-8g-6.2-36.4.3",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "7273143FCC46E2F7441BCF5FE6B4043CA6428E126C50373462EC3091959CE0AA"
   },
   {
@@ -388,7 +388,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EXRpfNGzXmdCi36MrQYtzvABYW0gWcLGshzVhBiodVtPWQ?e=pO824v",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nano-4g-j201-6.2-36.4.3-2025-02-12.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-4g-6.2-36.4.3",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "0C07EC7C852DD72A7E8034965A2741939B2DDA9C88AB9C6E4CB41E6264B95BDC"
   },
   {
@@ -397,7 +397,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQAJh3XDNNnbT7NU_WmR6d8-AV2KS89nk2raBrtbDX5lbRY",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nx-16g-industrial-5.1-35.5.0-2026-02-10.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-16g-5.1.3-35.5.0",
+    "foldername": "mfi_recomputer-orin-industrial",
     "sha256": "436017DA6FBA2EF910F5F6C5D80749FB53029EC5108A461101CA3A69C1F8CEC3"
   },
   {
@@ -406,7 +406,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCtvec1lvs2QarhdSgUfKcMAWqhS-w4PgOKdC4j8JpK8Nc",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nx-8g-industrial-5.1-35.5.0-2026-02-10.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-8g-5.1.3-35.5.0",
+    "foldername": "mfi_recomputer-orin-industrial",
     "sha256": "B8FFB1C7BF5B5436CCA6BA0E32E9A71752B25C1494527EC25129895A2FBC7D93"
   },
   {
@@ -415,7 +415,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCeUJ80_P5kQ7jhSD5i0fdMAZJXo5TQrPjAqjg0kzYxf-4",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nano-4g-industrial-5.1-35.5.0-2026-02-09.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-4g-5.1.3-35.5.0",
+    "foldername": "mfi_recomputer-orin-industrial",
     "sha256": "A238C5229219CCF1F6AC2B2E4D93A914E6B2E471F56C975990CC03BEEFC5F9DD"
   },
   {
@@ -424,7 +424,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDG2tQxCjRnS5QIrzk_K_NsAfvLk3XV-trSrk3qPEGGxcg",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nano-8g-industrial-5.1-35.5.0-2026-02-10.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-8g-5.1.3-35.5.0",
+    "foldername": "mfi_recomputer-orin-industrial",
     "sha256": "484CB81F399301B8A6FF61429E974AE790365B9498FB8B20DF02C603656CF6D0"
   },
   {
@@ -433,7 +433,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EeOq0sfMDhBEqZPX-ti_gJ0BzUdSGeFf5RrSdxFnQ70aNQ?e=GVr10a",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nano-8g-j201-6.1-36.4.0-2024-12-05.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-8g-6.1-36.4.0",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "547E541E40A133A2CDEB3FAC399850ABC108325BBF109771420DDBCAF19E5E29"
   },
   {
@@ -442,7 +442,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/Edt8dUapj7VCh5-X5ZgdeUIBjBSnx2wSweO-gjkMs1BxSw?e=3F1CCe",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nano-8g-j201-6.0-36.3.0-2025-09-23.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-8g-6.0-36.3.0",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "7221185ba7f499d837b046e6f8b73c1c9f4e28cc76eb2068719370e00dcd3f42"
   },
   {
@@ -451,7 +451,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EbQu844dGA5Fjn3n-320hmoBt6wngMrIv6fErKLEZI1GyQ?e=uSU6qb",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/ERgyc60CqY9Aog6BMW9-yqQBj8pMaakSFTzHHvb4edt_eg?e=9qFHKp",
     "filename": "mfi_recomputer-orin-nano-8g-industrial-5.1-35.3.1-2023-08-05.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-8g-5.1.1-35.3.1",
+    "foldername": "mfi_recomputer-orin-industrial",
     "sha256": "347AB7247ED83286BDFAEF84B49B84C5F5B871AEE68192339EDE4773149D8737"
   },
   {
@@ -460,7 +460,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EXK1GomjByJKnmt3OdE5Vq8BSqzYZm1MY_yD18YjmRplLw?e=dIWPKA",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nano-4g-j201-6.1-36.4.0-2024-12-05.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-4g-6.1-36.4.0",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "B7F400C225423C8BC4C00A5915C3C634D2D7B15145FE0735479E6AD7613D07E5"
   },
   {
@@ -469,7 +469,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EbKvTU_hdp9DjvFMMqi_RwkBC6LlpTtF_xfchhTtiV7fFg?e=UhHxxC",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nano-4g-j201-6.0-36.3.0-2025-09-23.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-4g-6.0-36.3.0",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "7b997786317b518f9762e0828a0ac411ef984bd9927a9eeb5f8a900b185627ba"
   },
   {
@@ -478,7 +478,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/ETnL5lrC6IBPqm6Lafx1nCMBJJjml1IrCagrHPGhxFpzxA?e=BBM0kl",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/Eb7J_TSNsDBCrvc1RbSOmnoBqmjR9jYhkvZpdQJOzkH5KA?e=h4r74v",
     "filename": "mfi_recomputer-orin-nano-4g-industrial-5.1-35.3.1-2023-08-05.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-4g-5.1.1-35.3.1",
+    "foldername": "mfi_recomputer-orin-industrial",
     "sha256": "860EC8EB3245CB91E7C5C321B26333B59456A3418731FEF73AE0188DF655EE46"
   },
   {
@@ -487,7 +487,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EfB-onLVAIxFreZTCSpejYIBPX42dZoKnKrDm8ZC27DI_w?e=fAOXZr",
     "mirrorlink": "",
     "filename": "mfi_recomputer-xavier-nx-16q-industrial-5.1-35.5.0-2025-05-30.tar.gz",
-    "foldername": "mfi_recomputer-industrial-xavier-nx-16g-5.1.3-35.5.0",
+    "foldername": "mfi_recomputer-xavier-nx-industrial",
     "sha256": "B54CF2545A8ED8BFE115C439B0B427112BD882F03292B9F5C03AB55746C707C1"
   },
   {
@@ -496,7 +496,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EeD01G8dJ8pIm187oS_VX-sBu3SmD4LhaBmwVz7X4-n_Gw?e=x9ULSq",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/Ef_fEAq0aA5JksfnEz62JKABfYTUzlTdOxkiKwoThp17xg?e=UlSs7A",
     "filename": "mfi_recomputer-xavier-nx-16g-industrial-5.1-35.3.1-2023-08-04.tar.gz",
-    "foldername": "mfi_recomputer-industrial-xavier-nx-16g-5.1.1-35.3.1",
+    "foldername": "mfi_recomputer-xavier-nx-industrial",
     "sha256": "821CF92AF1FE8A785689FAF4751615AA30E7F0770B4FA23327DFAF2C8B53FDD7"
   },
   {
@@ -505,7 +505,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EXmfIDIx80hCk61-dZogyUwBe6uOlz0U6tZEW3i7WC2JBw?e=BLjUW3",
     "mirrorlink": "",
     "filename": "mfi_recomputer-xavier-nx-8q-industrial-5.1-35.5.0-2025-05-30.tar.gz",
-    "foldername": "mfi_recomputer-industrial-xavier-nx-8g-5.1.3-35.5.0",
+    "foldername": "mfi_recomputer-xavier-nx-industrial",
     "sha256": "11BDB47D06CA8409CFCEA109B8BACD9BB79A54A275D2664D6CF492BFEAD31131"
   },
   {
@@ -514,7 +514,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EVYQRYavCVRJrHGz12qUPlIBdmK3hrjEyglRkuLhBSlYuA?e=SBnrTU",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EVVUAexfVKxDnjbUGtYrJhEB1He6ZXIAD4uriNP76fxbMg?e=kGYF6h",
     "filename": "mfi_recomputer-xavier-nx-8g-industrial-5.1-35.3.1-2023-08-04.tar.gz",
-    "foldername": "mfi_recomputer-industrial-xavier-nx-8g-5.1.1-35.3.1",
+    "foldername": "mfi_recomputer-xavier-nx-industrial",
     "sha256": "DAB8FC069E4C62434C77AE3A6BA13EEFB30003C9A14BFE82DE879B88ACDD85FA"
   },
   {
@@ -523,7 +523,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCcNYUtYA0RTL2GQwXFv35rAdWnduxknLXrUtQNxklpIZo",
     "mirrorlink": "",
     "filename": "mfi_reserver-agx-orin-64g-j501-gmsl-6.2-36.4.3-2026-05-06.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-64g-j501-6.2-36.4.3",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "F95E91C3BFB00D50EB999383F85949B4"
   },
   {
@@ -532,7 +532,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCcNYUtYA0RTL2GQwXFv35rAdWnduxknLXrUtQNxklpIZo",
     "mirrorlink": "",
     "filename": "mfi_reserver-agx-orin-64g-j501-gmsl-6.2-36.4.3-2026-05-06.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-64g-j501-gmsl-6.2-36.4.3",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "F95E91C3BFB00D50EB999383F85949B4"
   },
   {
@@ -541,7 +541,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDyK7rYgY27Tp9VL8LyzxBKAZA2UYwAXJuMUc4NFt6UlaY?e=KYBrId&download=1",
     "mirrorlink": "",
     "filename": "mfi_reserver-agx-orin-64g-j501-gmsl-7.2-39.2.0.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-64g-j501-gmsl-7.2-39.2.0",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "c0b36d75a25925d446df42d13047fa7025a256f674713b426f1fa4b2c2ff6497"
   },
   {
@@ -550,7 +550,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQClLB_mdGMPQpqEw1jxTRuFAYqxZRQJZIAtiYt7-clcocI",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fyoujiang%5Fyu%5Fszseeedstudio%5Fpartner%5Fonmschina%5Fcn%2FDocuments%2FJetson%2DImage%2FreServer%2DJ501%2Fjetpack6%2Fmfi%5Freserver%2Dagx%2Dorin%2D64g%2Dj501%2D6%2E0%2D36%2E3%2E0%2D2024%2D09%2D19%2Etar%2Egz&parent=%2Fpersonal%2Fyoujiang%5Fyu%5Fszseeedstudio%5Fpartner%5Fonmschina%5Fcn%2FDocuments%2FJetson%2DImage%2FreServer%2DJ501%2Fjetpack6&ga=1",
     "filename": "mfi_reserver-agx-orin-64g-j501-gmsl-6.0-36.3.0-2026-04-15.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-64g-j501-6.0-36.3.0",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "F95E91C3BFB00D50EB999383F85949B4"
   },
   {
@@ -559,7 +559,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQClLB_mdGMPQpqEw1jxTRuFAYqxZRQJZIAtiYt7-clcocI",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EUmpL5LNJDRLjoC6oQg6Vv4BgQ9eA4MUl4yE43fycz667w?e=Xw5nga",
     "filename": "mfi_reserver-agx-orin-64g-j501-gmsl-6.0-36.3.0-2026-04-15.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-64g-j501-gmsl-6.0-36.3.0",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "F95E91C3BFB00D50EB999383F85949B4"
   },
   {
@@ -568,7 +568,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDvJDte6YOfS5UI7C7ln0ryAVTRpxtGi9spgHOmEZG_sL8?e=jz5B4f",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/ESfErbFgQl9NudcbGZXL3LMB9wavWcQwjtW6wYYtfwkE3A?e=H5sR4J",
     "filename": "mfi_reserver-agx-orin-64g-j501-5.1-35.5.0-2025-07-25.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-64g-j501-5.1.3-35.5.0",
+    "foldername": "mfi_reserver-agx-orin-j501x",
     "sha256": "76abdd6de0a49bd95d57b361bebea59a6a05e56779c7ceb863ad178f3ed98aaf"
   },
   {
@@ -577,7 +577,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBh9HqX5MHBQZF0WLe01k7mAXYqzHd4YJXaDt4uS2VZ8T4?e=AX0KSd",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/Eccs1larF2FNhKi8MHred5kB4pQImN4ZHSgDM3BUDVzBtQ?e=reKIhD",
     "filename": "mfi_reserver-agx-orin-64g-j501-gmsl-5.1-35.5.0-2025-07-25.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-64g-j501-gmsl-5.1.3-35.5.0",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "49076bd4bb7179dfe38c25bd5831c03296bf26e86d67d9bca766a749a14257bd"
   },
   {
@@ -586,7 +586,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EfhMqk5d6tFKiDqbtyWKFdsBV-NLqs9L4NBY0dRC-Y_jHw?e=JQMYcn",
     "mirrorlink": "",
     "filename": "mfi_reserver-agx-orin-32g-j501-6.2-36.4.3-2025-04-02.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-32g-j501-6.2-36.4.3",
+    "foldername": "mfi_reserver-agx-orin-j501x",
     "sha256": "69CFD82D0C70B55D5BDD34E3EAF7AE8DDCE002CCCDBA3DCEE40F40CD8BBA0478"
   },
   {
@@ -595,7 +595,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/Edgau76MPUZAnuAixzf7TSUBGF2edqqdZO3mHRaZB_Gd7Q?e=omVwi3",
     "mirrorlink": "",
     "filename": "mfi_reserver-agx-orin-32g-j501-gmsl-6.2-36.4.3-2025-04-02.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-32g-j501-gmsl-6.2-36.4.3",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "3BAEB35868E4B187F4B7C35FA44D8E0BD9486161E14F9F073993216F83DFA0E4"
   },
   {
@@ -604,7 +604,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDx1wM2o-NNRJKtppr672mRAUZwUBxQFzYw-X2E5V-Lpak",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EeHcCFk-chtDnEzoXiwvxZwBQuK3I3mTOAJ8mnZJE-P2uA?e=X9g0HK",
     "filename": "mfi_reserver-agx-orin-32g-j501-gmsl-6.0-36.3.0-2026-04-15.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-32g-j501-6.0-36.3.0",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "8FA6E750C2C21678168DAE377E95CE6C"
   },
   {
@@ -613,7 +613,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDx1wM2o-NNRJKtppr672mRAUZwUBxQFzYw-X2E5V-Lpak",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EX5HoeV09eFKtWj9YhAfgZ8Bt2k9bxxxSO5-TQBZoGLB-Q?e=hvcfG1",
     "filename": "mfi_reserver-agx-orin-32g-j501-gmsl-6.0-36.3.0-2026-04-15.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-32g-j501-gmsl-6.0-36.3.0",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "8FA6E750C2C21678168DAE377E95CE6C"
   },
   {
@@ -622,7 +622,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQD3U5NHij5gR5r4FB_AzC9vAbb3ERak_RvvIMoow0-X2fM?e=Ddf7Zi",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/ERG3upqXAQNHsJP6ZvG2MAEBGsndVCgrLnhcKvtWoGA6tA?e=14KO6z",
     "filename": "mfi_reserver-agx-orin-32g-j501-5.1-35.5.0-2025-07-25.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-32g-j501-5.1.3-35.5.0",
+    "foldername": "mfi_reserver-agx-orin-j501x",
     "sha256": "c673dc8ae75addf8ca3224cf700be354eec0ca41cb5ecabb8953c276213a7119"
   },
   {
@@ -631,7 +631,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQD3ZjNepbc7SoC24H82Y4txAUhoSQIZ4l2ZcKGa3qgd9_E?e=bk1qc5",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/_layouts/15/onedrive.aspx?id=%2Fpersonal%2Fyoujiang%5Fyu%5Fszseeedstudio%5Fpartner%5Fonmschina%5Fcn%2FDocuments%2FJetson%2DImage%2FreServer%2DJ501%2Fmfi%5Freserver%2Dagx%2Dorin%2Dj501x%2Dgmsl%2Djp5%2D32g%2D20240625%2Etar%2Egz&parent=%2Fpersonal%2Fyoujiang%5Fyu%5Fszseeedstudio%5Fpartner%5Fonmschina%5Fcn%2FDocuments%2FJetson%2DImage%2FreServer%2DJ501&ga=1",
     "filename": "mfi_reserver-agx-orin-32g-j501-gmsl-5.1-35.5.0-2025-07-25.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-32g-j501-gmsl-5.1.3-35.5.0",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "425a931e65f2715d8486c68565ad711fd34b626ab023d025df2d84af81b62aa3"
   },
   {
@@ -640,7 +640,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDPhahyh_ouTbrvTiAKBGupAXDm22v6Q4n2z2RS_zMCTV8?e=XDQGp7&download=1",
     "mirrorlink": "",
     "filename": "mfi_reserver-agx-orin-32g-j501-gmsl-7.2-39.2.0.tar.gz",
-    "foldername": "mfi_reserver-agx-orin-32g-j501-gmsl-7.2-39.2.0",
+    "foldername": "mfi_reserver-agx-orin-j501x-gmsl",
     "sha256": "97440fd76aa51a00246a063624b7783a706d477ad5b3efd20fdd4793a8eff6f3"
   },
   {
@@ -649,7 +649,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EVOMzCf8ulxAgCOCN9jlsUcBNR29X1dB6ILeYngqVHtwVA?e=UVc1qc",
     "mirrorlink": "",
     "filename": "mfi_reserver-orin-nx-16g-j401-industrial-6.2-36.4.3-2025-08-14.tar.gz",
-    "foldername": "mfi_reserver-orin-nx-16g-j401-industrial-6.2-36.4.3",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "6610e81117704e6905aad78c4f3c57ac64c6c8e2d83494cda84ae9c18335a3cc"
   },
   {
@@ -658,7 +658,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EWbfqyoEzXBBsDycFgKH0lEB05TQNLcZidMt2Py2ZOtLdw?e=4etAqu",
     "mirrorlink": "",
     "filename": "mfi_reserver-orin-nx-16g-j401-industrial-6.1-36.4.0-2025-08-14.tar.gz",
-    "foldername": "mfi_reserver-orin-nx-16g-j401-industrial-6.1-36.4.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "e7ec68c6ccc37a5f159b9b9a931b474db93d34807500063056cd057f404c4fef"
   },
   {
@@ -667,7 +667,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EV0nlnSfW3NEmcDq4l3u1M4BrzThb0-y44qa4hGXk-XfWg?e=G9ub1C",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EdCn0yi0ArRKivHb3mKLrwcBmBEKXlGKLCnNkRQNzyylAw?e=QTnhQa",
     "filename": "mfi_reserver-orin-nx-16g-j401-industrial-6.0-36.3.0-2024-07-04.tar.gz",
-    "foldername": "mfi_reserver-orin-nx-16g-j401-industrial-6.0-36.3.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": ""
   },
   {
@@ -676,7 +676,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EWcp7ma66_9JmfEjnMrxbfEBZk7LxwoJ2YuN-LDWEITE_g?e=NuKvDr",
     "mirrorlink": "",
     "filename": "mfi_reserver-orin-nx-16g-industrial-5.1-35.5.0-2025-05-30.tar.gz",
-    "foldername": "mfi_reserver-orin-nx-16g-industrial-5.1-35.5.0",
+    "foldername": "mfi_reserver-orin-industrial",
     "sha256": ""
   },
   {
@@ -685,7 +685,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EWoMiCYaghJGsmgX8ki3lrwB67RFYkI9zvBW6t86w_7chg?e=afbbOs",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EWxVw3rZF-JPuKp0ksJZkGABWmsSxVizaJIqQBL5TDL1JA?e=4JJ2XV",
     "filename": "mfi_reserver-orin-nx-16g-industrial-5.1-35.3.1-2023-08-05.tar.gz",
-    "foldername": "mfi_reserver-orin-nx-16g-industrial-5.1-35.3.1",
+    "foldername": "mfi_reserver-orin-industrial",
     "sha256": ""
   },
   {
@@ -694,7 +694,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EeSEdyl9XTNEkea8ntTsqM8B8w_Hs8JV-toT71bgvR3V0A?e=9P4ZAw",
     "mirrorlink": "",
     "filename": "mfi_reserver-orin-nx-8g-j401-industrial-6.2-36.4.3-2025-08-14.tar.gz",
-    "foldername": "mfi_reserver-orin-nx-8g-j401-industrial-6.2-36.4.3",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "77fddcd4c6c683a2bbac24f494912683e39edbb76e6ca4680198a3641d9d57b3"
   },
   {
@@ -703,7 +703,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EekoAp4j8WJHi9xe-eoJTW4BH-qx2Sttmlh7uljQdNkGXw?e=g7ZNa1",
     "mirrorlink": "",
     "filename": "mfi_reserver-orin-nx-8g-j401-industrial-6.1-36.4.0-2025-08-14.tar.gz",
-    "foldername": "mfi_reserver-orin-nx-8g-j401-industrial-6.1-36.4.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "50a285019838d957913df412677c564a0003a16a06165dde0e865737c734bf8d"
   },
   {
@@ -712,7 +712,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EZlrBLKGf5VDiczIJaPNpNoBcby3urzv85oWmS34pKtcGg?e=u7aWDL",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EQJBb6D2ISBEnoUnUkqVEgkB9npGJ48jw5p2DXFIWaNJxA?e=lOJiFM",
     "filename": "mfi_reserver-orin-nx-8g-j401-industrial-6.0-36.3.0-2025-05-30.tar.gz",
-    "foldername": "mfi_reserver-orin-nx-8g-j401-industrial-6.0-36.3.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": ""
   },
   {
@@ -721,7 +721,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EcbD8zqcSTpAjBmjHZTAvU8BBd80FekQMV9jMD35xU4Arw?e=DNWcyn",
     "mirrorlink": "",
     "filename": "mfi_reserver-orin-nx-8g-industrial-5.1-35.5.0-2025-05-30.tar.gz",
-    "foldername": "mfi_reserver-orin-nx-8g-industrial-5.1-35.5.0",
+    "foldername": "mfi_reserver-orin-industrial",
     "sha256": ""
   },
   {
@@ -730,7 +730,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EY9t48fwnJVLraZyoVzYe2gB5RMb9FMXqKxVT9_WBFnnzQ?e=rcBfY5",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EW5Dood6aQ9DpT6ZaXWF50QBmyAyOowCktzqZj48sQeyhw?e=VVP56J",
     "filename": "mfi_reserver-orin-nx-8g-industrial-5.1-35.3.1-2023-08-04.tar.gz",
-    "foldername": "mfi_reserver-orin-nx-8g-industrial-5.1-35.3.1",
+    "foldername": "mfi_reserver-orin-industrial",
     "sha256": ""
   },
   {
@@ -739,7 +739,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EahC2mJQOQRBtoqG7fhuIecBSEo7w_Py8nGy_FB51QdtHg?e=W0U23d",
     "mirrorlink": "",
     "filename": "mfi_reserver-orin-nano-8g-j401-industrial-6.2-36.4.3-2025-08-14.tar.gz",
-    "foldername": "mfi_reserver-orin-nano-8g-j401-industrial-6.2-36.4.3",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "ce332f4747fb079c17df8307a33c2cb7b9843e4e5993f79961e0371381ec2f45"
   },
   {
@@ -748,7 +748,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EUnzsQBX-jxJkHZNxkYdoFsBN0coyFSY50_5LspOv8kfew?e=2baOzY",
     "mirrorlink": "",
     "filename": "mfi_reserver-orin-nano-8g-j401-industrial-6.1-36.4.0-2025-08-14.tar.gz",
-    "foldername": "mfi_reserver-orin-nano-8g-j401-industrial-6.1-36.4.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "43071585dc8c62fed34715e2fd362f91ff30274dd623d314317403fab12b9388"
   },
   {
@@ -757,7 +757,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EY0cen9MPIhJpM2LBfm2edEBZtw53n2C9PwqsY2XaiSH_w?e=LWQren",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EdqRMLVCzHtIkHUShgZ91xoBK367uzXyC_mTGQOzlfJhyQ?e=wgOhwj",
     "filename": "mfi_reserver-orin-nano-8g-j401-industrial-6.0-36.3.0-2024-07-03.tar.gz",
-    "foldername": "mfi_reserver-orin-nano-8g-j401-industrial-6.0-36.3.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": ""
   },
   {
@@ -766,7 +766,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/Eeg04qGBxQNOjC2Q0hvfvugBx_V05xFkYM5ThVH9ECMZ6A?e=8fDLxZ",
     "mirrorlink": "",
     "filename": "mfi_reserver-orin-nano-8g-industrial-5.1-35.5.0-2025-05-30.tar.gz",
-    "foldername": "mfi_reserver-orin-nano-8g-industrial-5.1-35.5.0",
+    "foldername": "mfi_reserver-orin-industrial",
     "sha256": ""
   },
   {
@@ -775,7 +775,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EY0cen9MPIhJpM2LBfm2edEBZtw53n2C9PwqsY2XaiSH_w?e=LWQren",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/Eb6xTuWGRdlDpJfgLSWS7S4BpnKYxkI9RKl6tJbU0xI4FQ?e=m84vbP",
     "filename": "mfi_reserver-orin-nano-8g-industrial-5.1-35.3.1-2023-08-03.tar.gz",
-    "foldername": "mfi_reserver-orin-nano-8g-industrial-5.1-35.3.1",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": ""
   },
   {
@@ -784,7 +784,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EQd4hYwgVPxEk8CtZgfU2SsBzn18zMuQOHXq45yq6gykYw?e=sAoguo",
     "mirrorlink": "",
     "filename": "mfi_reserver-industrial-orin-nano-4g-j401-6.2-36.4.3-2025-08-14.tar.gz",
-    "foldername": "mfi_reserver-industrial-orin-nano-4g-j401-6.2-36.4.3",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "372aff6199ea6d87f9191e59876705bda7c8e9dc1eaabf5f771da551266ed587"
   },
   {
@@ -793,7 +793,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/ET-LxPOYaNtIjoJQ4I-gKEcBxU-AmFX9R-mWPH1p-eyBdA?e=EpAopw",
     "mirrorlink": "",
     "filename": "mfi_reserver-industrial-orin-nano-4g-j401-6.1-36.4.0-2025-08-14.tar.gz",
-    "foldername": "mfi_reserver-industrial-orin-nano-4g-j401-6.1-36.4.",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "86b0804c1a487d21293c4c3d6261f35825095c70d0dac3261d341a49d2b01c22"
   },
   {
@@ -802,7 +802,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EQgrBDUICyZCnKBI_qVeupoBYqQJ1dP7_lcxUwxUphg6Qw?e=ObUzPI",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EXxmIAk7sGdOnPcaZHvz7ykB36pGkNwZscpdu3ZytrfD0Q?e=ElJ2bb",
     "filename": "mfi_reserver-industrial-orin-nano-4g-j401-6.0-36.3.0-2024-07-03.tar.gz",
-    "foldername": "mfi_reserver-industrial-orin-nano-4g-j401-6.0-36.3.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": ""
   },
   {
@@ -811,7 +811,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EVqo37I8yiNEjpo14kR5kYAB0ZhMNUhIN8X5pZCEjk4f6A?e=0XGC0W",
     "mirrorlink": "",
     "filename": "mfi_reserver-orin-nano-4g-industrial-5.1-35.5.0-2025-05-31.tar.gz",
-    "foldername": "mfi_reserver-orin-nano-4g-industrial-5.1-35.5.0",
+    "foldername": "mfi_reserver-orin-industrial",
     "sha256": ""
   },
   {
@@ -820,7 +820,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EeCYmkCdhqRGrh2idfcueV0B4btw0JAzCt8i7ePWZwSeng?e=XH9HDx",
     "mirrorlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/youjiang_yu_szseeedstudio_partner_onmschina_cn/EfzhFgx4V3NGu3q1MBtdqFkBdIxC0emeKmE22AHQL1GxhQ?e=KNHsQm",
     "filename": "mfi_reserver-orin-nano-4g-industrial-5.1-35.3.1-2023-08-05.tar.gz",
-    "foldername": "mfi_reserver-orin-nano-4g-industrial-5.1-35.3.1",
+    "foldername": "mfi_reserver-orin-industrial",
     "sha256": ""
   },
   {
@@ -829,7 +829,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQAUQ4ithrVMQLSE274ftNcLAdScXb2OFE8LXfabvKzaGS8",
     "mirrorlink": "",
     "filename": "mfi_recomputer-mini-agx-orin-64g-j501-6.2.1-36.4.4-2026-02-11.tar.gz",
-    "foldername": "mfi_recomputer-orin-robotics-j501",
+    "foldername": "mfi_recomputer-mini-agx-orin-j501x",
     "sha256": "F95E91C3BFB00D50EB999383F85949B4"
   },
   {
@@ -838,7 +838,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBvVrfoK43HRL2Y3PDLtz8wAUzka-auuvvWTx0J4QCrtwc",
     "mirrorlink": "",
     "filename": "mfi_recomputer-mini-agx-orin-32g-j501-6.2.1-36.4.4-2026-02-11.tar.gz",
-    "foldername": "mfi_recomputer-orin-robotics-j501",
+    "foldername": "mfi_recomputer-mini-agx-orin-j501x",
     "sha256": "8FA6E750C2C21678168DAE377E95CE6C"
   },
   {
@@ -865,7 +865,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQABvCSRcBTDT7su9QHy0B0IAXTPkkbd6751SUZ1GSnXaEc?e=bDMTGA",
     "mirrorlink": "",
     "filename": "mfi_orin-nano-devkit-super-36.4.3-2025-11-21.tar.gz",
-    "foldername": "mfi_orin-nano-devkit-super",
+    "foldername": "mfi_jetson-orin-nano-devkit-super",
     "sha256": "b3b23880aad514962cdf689f3f26362e373ce825f7d737adc8cba5b153cbaeaa"
   },
   {
@@ -883,7 +883,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/EWw6iP0DHf5Cl3YI2z3sHDoBl0JPabJHzEMjCItaHiOKVQ?e=fmpMfC",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nx-8g-j201-6.2-36.4.3-2025-06-23.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-8g-6.2-36.4.3",
+    "foldername": "mfi_recomputer-industrial-orin-j201",
     "sha256": "530f68c2a0bfda15b1e8211acb3905e55f28d041bb531dcfa278e7f9bbd4118e"
   },
   {
@@ -892,7 +892,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBGLAbtol-5Tabv8UHZ115dAdrFnpPWzEqPx9iEhKlzr3M?e=0kb05W&download=1",
     "mirrorlink": "",
     "filename": "mfi_seeed-agx-orin-64g-6.2.2-36.5.0-2026-06-01.tar.gz",
-    "foldername": "mfi_seeed-agx-orin-devkit",
+    "foldername": "mfi_seeed-agx-orin-kit",
     "sha256": ""
   },
   {
@@ -901,7 +901,7 @@
     "mainlink": "https://szseeedstudio-my.sharepoint.cn/:u:/g/personal/ai_robotics_szseeedstudio_partner_onmschina_cn/IQBJxRWLxRu-Q7OgIgrJDj6WAfB2zfFkiQ376GBAA3PiTNI?e=47Qe8u&download=1",
     "mirrorlink": "",
     "filename": "mfi_seeed-agx-orin-64g-kit.tar.gz",
-    "foldername": "mfi_seeed-agx-orin-64g-kit",
+    "foldername": "mfi_seeed-agx-orin-kit",
     "sha256": ""
   },
   {
@@ -910,7 +910,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQB38PmJccA9QIwcmEPXLMm-AUzEW_7Ym6j_WAptK-rieE4?e=YVtOfQ&download=1",
     "mirrorlink": "",
     "filename": "mfi_seeed-agx-orin-32g-6.2.2-36.5.0-2026-05-29.tar.gz",
-    "foldername": "mfi_seeed-agx-orin-devkit",
+    "foldername": "mfi_seeed-agx-orin-kit",
     "sha256": ""
   },
   {
@@ -964,7 +964,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDqVVHOlgc7T6b5LbNYFImdAaUr2OlKT1IkQKk2P89lCW8",
     "mirrorlink": "",
     "filename": "mfi_recomputer-robo-orin-nx-16g-j401-gmsl-7.2.0-39.2.0-2026-06-22.tar.gz",
-    "foldername": "mfi_recomputer-robo-orin",
+    "foldername": "mfi_recomputer-orin-robotics-j401-gmsl",
     "sha256": "6d9086d692a0f40fad02c75df1ff56ae\nd9b368320bb2bfe3a777692513529697"
   },
   {
@@ -973,7 +973,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBw84cKdsnuRYQLA1pkfg3mAY1x0HW0UMppZbnaDBaV6XI",
     "mirrorlink": "",
     "filename": "mfi_recomputer-robo-orin-nx-8g-j401-gmsl-7.2.0-39.2.0-2026-06-22.tar.gz",
-    "foldername": "mfi_recomputer-robo-orin",
+    "foldername": "mfi_recomputer-orin-robotics-j401-gmsl",
     "sha256": "2712fe373afb3dff8202cdd9288b266f\n080b76837eb13161918efd80111d9035"
   },
   {
@@ -982,7 +982,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBxz11HG6naSak2wIytiRbXAaqxhsgIWFaVR9H9GfGWqus",
     "mirrorlink": "",
     "filename": "mfi_recomputer-robo-orin-nano-8g-j401-gmsl-7.2.0-39.2.0-2026-06-22.tar.gz",
-    "foldername": "mfi_recomputer-robo-orin",
+    "foldername": "mfi_recomputer-orin-robotics-j401-gmsl",
     "sha256": "23b68b43e630d166e5079f72509c71ea\n0e13f76e372ddd06fe22df5494ad3f41"
   },
   {
@@ -991,7 +991,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCXU7mPG_OyR7z-VhF3E5j8AcmgsCPAZAuXSdKduZUKtHQ",
     "mirrorlink": "",
     "filename": "mfi_recomputer-robo-orin-nano-4g-j401-gmsl-7.2.0-39.2.0-2026-06-22.tar.gz",
-    "foldername": "mfi_recomputer-robo-orin",
+    "foldername": "mfi_recomputer-orin-robotics-j401-gmsl",
     "sha256": "6c499899d6c00a1661a48974d4dfc734\ne9cbfefc06fc9c5c02ac7040dd1f2eb8"
   },
   {
@@ -1000,7 +1000,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQD1BsWy20dpQ6-ucjqOUDqFAT4hAvTcstZkiuLG5zDv5HQ",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nx-16g-j401-7.2.0-39.2.0-2026-06-18.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "bbaae572ddcfb745a9ce519ade817bf238a9cd9be8c0177bbef6ada353f89878"
   },
   {
@@ -1009,7 +1009,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQAOmjI0fvPXRKZq51PiF7vaAekVzzuOQVqNLI_81mT1PqM",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nx-8g-j401-7.2.0-39.2.0-2026-06-18.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "bbaae572ddcfb745a9ce519ade817bf238a9cd9be8c0177bbef6ada353f89878"
   },
   {
@@ -1018,7 +1018,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBjTuQE8nJZQKuHW0S-d_yvAY31NHNqYIV31T5nmyUXUJM",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nano-8g-j401-7.2.0-39.2.0-2026-06-18.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "35c75bf18416287b4ae2e450f3207b3fd33d765832cd6f1ed86d62d354775a81"
   },
   {
@@ -1027,7 +1027,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCG0vZAYpXDTJBrWKaXycEaAc85mqMbAdHQlh5o0tFrXAE",
     "mirrorlink": "",
     "filename": "mfi_recomputer-orin-nano-4g-j401-7.2.0-39.2.0-2026-06-18.tar.gz",
-    "foldername": "mfi_recomputer-orin",
+    "foldername": "mfi_recomputer-orin-j401",
     "sha256": "ee0959c32df50ed41ed7d2940344c69d93b5212b6222fb6451af7b71bad7749e"
   },
   {
@@ -1036,7 +1036,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQBfReHmaDICTY_-byQpDlSOAXzoeJxfBtyuMYKgIKn5pqo?e=kum4Aa",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nx-16g-7.2.0-39.2.0-2026-06-24.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-16g-7.2.0-39.2.0",
+    "foldername": "mfi_recomputer-industrial-orin-j401",
     "sha256": "51035f2fee6a383a973250f1efcc2ea77c083dc4f3e7661541c5fdc579bc9f9d"
   },
   {
@@ -1045,7 +1045,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQC2tUVw9b3HTqtmb7QI6Bi5AZS9iz9O9lXJyPlI07R5XUY?e=yY7o3T",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nx-8g-7.2.0-39.2.0-2026-06-24.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nx-8g-7.2.0-39.2.0",
+    "foldername": "mfi_recomputer-industrial-orin-j401",
     "sha256": "dd03129ba599101972eb2ea75eaa2e5e3b203d04130dbf6aaf4683461587945f"
   },
   {
@@ -1054,7 +1054,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQClwzLEoHNhR5r0RVE9G5H8Aa6Tc4-uBwOJNP-eDi4gSMI?e=8v78Ro",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nano-8g-7.2.0-39.2.0-2026-06-24.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-8g-7.2.0-39.2.0",
+    "foldername": "mfi_recomputer-industrial-orin-j401",
     "sha256": "2bacc1a2577819630702901f2200e2e38a905eb292a71e63532b5056a9e73f87"
   },
   {
@@ -1063,7 +1063,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQD1SrMagx31RoPYJRTfH0anAS_G9TCSJckK1pV_DdYFFPU?e=K0QfUg",
     "mirrorlink": "",
     "filename": "mfi_recomputer-industrial-orin-nano-4g-7.2.0-39.2.0-2026-06-24.tar.gz",
-    "foldername": "mfi_recomputer-industrial-orin-nano-4g-7.2.0-39.2.0",
+    "foldername": "mfi_recomputer-industrial-orin-j401",
     "sha256": "b0a1466b3b0c7582a9d398109f53e50792a6526fc51b5b1b9ddb1c04bdb52692"
   },
   {
@@ -1072,7 +1072,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCZEEr-Co7XSJmdL_F1Rvo9AbidOmBTdQjSspf6EXRcU9s?e=39pbm6",
     "mirrorlink": "",
     "filename": "mfi_recomputer-mini-agx-orin-j501x-64g-7.2.0-39.2.0-2026-06-25.tar.gz",
-    "foldername": "mfi_recomputer-orin-robotics-j501",
+    "foldername": "mfi_recomputer-mini-agx-orin-j501x",
     "sha256": "36e2616404f9451a043797968e87755b4dc654a5683cd70c7e223cc80910ac0a"
   },
   {
@@ -1081,7 +1081,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQCepjaEexEOSb_ula7wMpDlAX61iyLzJ1B1RTHpY32mPIQ?e=sOyPdU",
     "mirrorlink": "",
     "filename": "mfi_recomputer-mini-agx-orin-j501x-32g-7.2.0-39.2.0-2026-06-25.tar.gz",
-    "foldername": "mfi_recomputer-orin-robotics-j501",
+    "foldername": "mfi_recomputer-mini-agx-orin-j501x",
     "sha256": "05d082994fd1b2ae85c5c666a621b5a6e8ec178db5ce64cca516c837acca7552"
   },
   {
@@ -1108,7 +1108,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQDWd-W-rHfES4JiXSPXUWJ4AQbt4APS-jeWDtskFAZb6kw?e=XaI195",
     "mirrorlink": "",
     "filename": "mfi_reserver-industrial-orin-nx-8g-7.2.0-39.2.0-2026-06-24.tar.gz",
-    "foldername": "mfi_reserver-industrial-orin-nx-8g-7.2.0-39.2.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "b687dc99d86d9e9a9c071b39d3062e68d8e7f542d58fcb7e8117db21b18d9c11"
   },
   {
@@ -1117,7 +1117,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQA_GpwpaczHTbTaXQEsNAreAVBjoiwpi7dtiz4kiOZRlIo?e=ZKa4sL",
     "mirrorlink": "",
     "filename": "mfi_reserver-industrial-orin-nano-4g-7.2.0-39.2.0-2026-06-24.tar.gz",
-    "foldername": "mfi_reserver-industrial-orin-nano-4g-7.2.0-39.2.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "86ad9eec225bab64adccfb3d9ce5678f85fb7f4881fe589df9e74334fb477acc"
   },
   {
@@ -1126,7 +1126,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQB5T6WBaPY7Q5vjG9Q_u2uJAW2zWj9vOYU3GGT_R5lqSzE?e=gmOKa7",
     "mirrorlink": "",
     "filename": "mfi_reserver-industrial-orin-nano-8g-7.2.0-39.2.0-2026-06-24.tar.gz",
-    "foldername": "mfi_reserver-industrial-orin-nano-8g-7.2.0-39.2.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "d805862bd75bb8d2f0970fb72c336d30a69c7e3daa84dcecce83806e42b794e1"
   },
   {
@@ -1135,7 +1135,7 @@
     "mainlink": "https://seeedstudio88-my.sharepoint.com/:u:/g/personal/youjiang_yu_seeedstudio88_onmicrosoft_com/IQB2YV-odVTxTZGy3D-1hPMEAXOH0iN6v_IAmHIUVZFymiE?e=cgN4kc",
     "mirrorlink": "",
     "filename": "mfi_reserver-industrial-orin-nx-16g-7.2.0-39.2.0-2026-06-24.tar.gz",
-    "foldername": "mfi_reserver-industrial-orin-nx-16g-7.2.0-39.2.0",
+    "foldername": "mfi_reserver-industrial-orin-j401",
     "sha256": "fcf2eb2d0977856cc8e74aa1483397b61eff588fdae00145c67a9ed7953beba7"
   },
   {

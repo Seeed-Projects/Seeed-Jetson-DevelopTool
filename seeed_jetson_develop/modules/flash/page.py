@@ -1854,8 +1854,7 @@ def build_page() -> QWidget:
     def _on_rec_next():
         if not last_detect_state.get("found"):
             _show_no_recovery_warning()
-            return
-        _start_flash()
+        _flash_go_next_step()
 
     def _start_flash():
         product = _current_flash_product_key()
