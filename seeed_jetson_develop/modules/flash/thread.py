@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import re
+import time
 import platform
+import threading
+from collections import deque
 
 from qtpy.QtCore import QThread, Signal
 
@@ -160,6 +163,8 @@ class FlashThread(QThread):
     progress_log = Signal(str)
     # Large firmware packages can exceed 2GB, so use Python objects to avoid Qt int overflow.
     download_progress = Signal(object, object)
+    # (stage: str, cur: int, total: int) — 用于 verify / extract 阶段的 ETA 计算
+    stage_eta = Signal(str, object, object)
     finished = Signal(bool, str)
 
     def __init__(
@@ -187,8 +192,16 @@ class FlashThread(QThread):
         self._cancel = False
         self._flash_progress = _FlashProgressEstimator()
         self._last_log_pct = -1
+        self._last_dl_msg_time = 0.0
+        self._last_verify_pct = -1
+        self._last_verify_val = -1
         self._last_extract_pct = -1
         self._finalizing_emitted = False
+        # 通用阶段滑动窗口（下载/解压共用），用于计算网速和 ETA
+        self._stage_windows = {
+            "download": {"samples": deque(), "last_time": 0.0, "lock": threading.Lock()},
+            "extract":  {"samples": deque(), "last_time": 0.0, "lock": threading.Lock()},
+        }
 
     def _tr(self, key: str, default: str, **kwargs) -> str:
         text = t(key, lang=self.lang, **kwargs)
@@ -196,6 +209,59 @@ class FlashThread(QThread):
 
     def cancel(self):
         self._cancel = True
+
+    def _calc_stage_speed_eta(self, stage: str, cur: int, total: int) -> tuple[str, str]:
+        """滑动窗口均速法计算阶段 ETA 和速度。
+        返回 (eta_text, speed_text)，采样在每次调用时进行（限频 0.5s）。
+        断开重连后自动清空旧样本，避免 dt 包含断开时间导致速度偏低。
+        """
+        if total <= 0:
+            return "", ""
+        win = self._stage_windows.get(stage)
+        if not win:
+            return "", ""
+        now = time.monotonic()
+        with win["lock"]:
+            # 检测断开重连：cur 回退（下载重启）或时间间隔 >10s（网络中断）
+            if win["samples"]:
+                last_t, last_cur = win["samples"][-1]
+                if cur < last_cur or now - last_t > 10:
+                    win["samples"].clear()
+            if now - win["last_time"] >= 0.5 or not win["samples"]:
+                win["samples"].append((now, cur))
+                win["last_time"] = now
+                while win["samples"] and now - win["samples"][0][0] > 30:
+                    win["samples"].popleft()
+            samples = win["samples"]
+            if len(samples) < 2:
+                return self._tr("flash.status.eta_calculating", "calculating..."), ""
+            t0, v0 = samples[0]
+            t1, v1 = samples[-1]
+            dt = t1 - t0
+            if dt < 0.5:
+                return self._tr("flash.status.eta_calculating", "calculating..."), ""
+            speed = (v1 - v0) / dt
+            if speed <= 0:
+                return self._tr("flash.status.eta_calculating", "calculating..."), ""
+
+            # 网速文本
+            if speed >= 1024 ** 3:
+                speed_text = f"{speed / 1024 ** 3:.1f} GB/s"
+            elif speed >= 1024 ** 2:
+                speed_text = f"{speed / 1024 ** 2:.1f} MB/s"
+            else:
+                speed_text = f"{speed / 1024:.0f} KB/s"
+
+            # ETA 文本
+            remaining = max(0, total - cur)
+            eta_secs = remaining / speed
+            if eta_secs < 60:
+                eta_text = f"{eta_secs:.0f}s"
+            elif eta_secs < 3600:
+                eta_text = f"{eta_secs // 60:.0f}m {eta_secs % 60:.0f}s"
+            else:
+                eta_text = f"{eta_secs // 3600:.0f}h {(eta_secs % 3600) // 60:.0f}m"
+            return eta_text, speed_text
 
     def run(self):
         try:
@@ -288,44 +354,114 @@ class FlashThread(QThread):
 
     def _on_dl(self, stage, cur, total):
         if stage == "download":
-            self.download_progress.emit(cur, total)
             if total:
                 display_cur = max(0, min(cur, total))
                 pct = int(display_cur / total * 100)
-                # 每变化 2% 才打印一次，避免刷屏
-                if pct >= self._last_log_pct + 2 or pct == 100:
+                # 断开重连后 pct 回退时重置日志阈值，确保进度文本重新从 0% 开始
+                if pct < self._last_log_pct:
+                    self._last_log_pct = -1
+                # 进度条和场景动画：每次回调都更新（实时）
+                self.progress_val.emit(int(pct * 0.5))
+                self.download_progress.emit(cur, total)
+                # 速度/ETA：每次回调都计算（内部 0.5s 限频采样）
+                eta, speed_text = self._calc_stage_speed_eta("download", display_cur, total)
+
+                def _fmt(b):
+                    if b >= 1024 ** 3: return f"{b / 1024 ** 3:.2f} GB"
+                    if b >= 1024 ** 2: return f"{b / 1024 ** 2:.1f} MB"
+                    return f"{b / 1024:.0f} KB"
+                remaining = max(0, total - display_cur)
+                now = time.monotonic()
+
+                # 状态标签：每 0.5 秒更新一次（实时显示速度和 ETA）
+                # 首次回调（_last_dl_msg_time=0）和完成时也立即发射
+                if now - self._last_dl_msg_time >= 0.5 or pct == 100:
+                    self._last_dl_msg_time = now
+                    status_text = self._tr(
+                        "flash.status.downloading_with_total",
+                        "Downloading firmware... {downloaded} / {total} ({pct}%) {speed} ETA {eta}",
+                        downloaded=_fmt(display_cur),
+                        total=_fmt(total),
+                        pct=pct,
+                        speed=speed_text,
+                        eta=eta,
+                    )
+                    self.progress_msg.emit(status_text)
+
+                # 日志：每 5% 或首次或完成时记录（避免刷屏）
+                if pct >= self._last_log_pct + 5 or pct == 100 or self._last_log_pct < 0:
                     self._last_log_pct = pct
-                    def _fmt(b):
-                        if b >= 1024 ** 3: return f"{b / 1024 ** 3:.2f} GB"
-                        if b >= 1024 ** 2: return f"{b / 1024 ** 2:.1f} MB"
-                        return f"{b / 1024:.0f} KB"
-                    remaining = max(0, total - display_cur)
                     log_line = self._tr(
                         "flash.thread.download_progress",
-                        "[Download] {cur} / {total} ({pct}%)  Remaining {remaining}",
+                        "[Download] {cur} / {total} ({pct}%)  Remaining {remaining} {speed} ETA {eta}",
                         cur=_fmt(display_cur),
                         total=_fmt(total),
                         pct=pct,
                         remaining=_fmt(remaining),
+                        speed=speed_text,
+                        eta=eta,
                     )
                     self.progress_log.emit(log_line)
         elif stage == "verify":
             if total:
-                self.progress_val.emit(int(50 + (cur / total) * 10))
+                pct = int(cur / total * 100)
+                # 只在百分比变化时发射 progress_val，避免每 4KB 一次的过频发射
+                # （12GB 文件 ≈ 300 万次回调 → 最多 100 次发射）
+                if pct != self._last_verify_val:
+                    self._last_verify_val = pct
+                    self.progress_val.emit(int(50 + (cur / total) * 10))
+                # 校验阶段不显示 ETA（SHA256 速度恒定，耗时短），但显示进度
+                if pct >= self._last_verify_pct + 10 or pct == 100:
+                    self._last_verify_pct = pct
+                    def _fmt_v(b):
+                        if b >= 1024 ** 3: return f"{b / 1024 ** 3:.2f} GB"
+                        if b >= 1024 ** 2: return f"{b / 1024 ** 2:.1f} MB"
+                        return f"{b / 1024:.0f} KB"
+                    status_text = self._tr(
+                        "flash.status.verifying",
+                        "Verifying SHA256... {downloaded} / {total} ({pct}%)",
+                        downloaded=_fmt_v(cur),
+                        total=_fmt_v(total),
+                        pct=pct,
+                    )
+                    self.progress_msg.emit(status_text)
         elif stage == "extract":
             if total:
                 pct = int(cur / total * 100)
                 self.progress_val.emit(int(60 + (cur / total) * 20))
+                self.stage_eta.emit(stage, cur, total)
+                # 每次调用都采样，计算解压速度和 ETA
+                eta, speed_text = self._calc_stage_speed_eta("extract", cur, total)
                 if pct >= self._last_extract_pct + 5 or pct == 100:
                     self._last_extract_pct = pct
+                    def _fmt_ext(b):
+                        if b >= 1024 ** 3: return f"{b / 1024 ** 3:.2f} GB"
+                        if b >= 1024 ** 2: return f"{b / 1024 ** 2:.1f} MB"
+                        return f"{b / 1024:.0f} KB"
+                    # 通过 progress_msg 发送完整状态文本（含速度和 ETA）到前端标签
+                    status_text = self._tr(
+                        "flash.status.extracting_with_eta",
+                        "Extracting firmware... {downloaded} / {total} ({pct}%) {speed} ETA {eta}",
+                        downloaded=_fmt_ext(cur),
+                        total=_fmt_ext(total),
+                        pct=pct,
+                        speed=speed_text,
+                        eta=eta,
+                    )
+                    self.progress_msg.emit(status_text)
+                    # 日志行
                     log_line = self._tr(
                         "flash.log.extracting_pct",
-                        "[Extract] {pct}%",
+                        "[Extract] {pct}% {speed} ETA {eta}",
                         pct=pct,
+                        speed=speed_text,
+                        eta=eta,
                     )
                     self.progress_log.emit(log_line)
             else:
-                # indeterminate — cur is checkpoint count (each = 500 tar records)
+                # WSL 解压无法预知总量，使用不确定进度模式
+                self.progress_val.emit(-1)
+                # cur is checkpoint count (each = 500 tar records)
                 files_approx = cur * 500
                 if files_approx >= self._last_extract_pct + 500 or cur == 1:
                     self._last_extract_pct = files_approx
@@ -340,7 +476,9 @@ class FlashThread(QThread):
             self.progress_log.emit(line)
             pct = self._flash_progress.update(line)
             if pct is not None:
-                self.progress_val.emit(pct)
+                # 将估算器 0-100 进度映射到 80-100 区间，
+                # 避免烧录阶段进度条从 extract 的 80% 倒退
+                self.progress_val.emit(80 + int(pct * 0.2))
                 if pct >= 99 and not self._finalizing_emitted:
                     self._finalizing_emitted = True
                     self.progress_msg.emit(

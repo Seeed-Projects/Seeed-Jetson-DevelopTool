@@ -287,12 +287,13 @@ class JetsonFlasher:
         return first.startswith(b"<!doctype html") or first.startswith(b"<html")
 
     def _candidate_urls(self):
-        """生成可尝试的下载地址（主链路 + 镜像 + download=1 变体）。"""
+        """生成可尝试的下载地址（主链路 + 镜像 + download=1 变体）。
+        SharePoint 链接的 download=1 变体优先（raw 必定返回 HTML 网页）。"""
         urls = []
         for raw in [self.firmware_info.get("mainlink"), self.firmware_info.get("mirrorlink")]:
             if not raw:
                 continue
-            for url in [raw, self._with_download_flag(raw)]:
+            for url in [self._with_download_flag(raw), raw]:
                 if url and url not in urls:
                     urls.append(url)
         return urls
@@ -507,13 +508,22 @@ class JetsonFlasher:
         self._check_cancel()
 
         # ── 1. HEAD 请求探测服务器能力 ──────────────────────────────────────
+        self._emit_log(self._fmt("flash.flasher.connecting"))
         try:
             head = requests.head(url, timeout=(10, 30), allow_redirects=True)
             total_size = int(head.headers.get("content-length", 0))
             accept_ranges = head.headers.get("accept-ranges", "").lower() == "bytes"
-        except Exception:
+            self._emit_log(self._fmt("flash.flasher.head_ok",
+                                     size_mb=total_size // 1024 // 1024 if total_size else 0,
+                                     range_support="yes" if accept_ranges else "no"))
+        except Exception as e:
             total_size = 0
             accept_ranges = False
+            self._emit_log(self._fmt("flash.flasher.head_failed", error=e))
+
+        # HEAD 成功后立即发射初始进度，让前端马上显示 0% 和 "计算中..."
+        if total_size:
+            self._emit_progress("download", 0, total_size)
 
         # 服务器支持 Range 且文件足够大时启用多线程分片下载
         MIN_MULTIPART_SIZE = 32 * 1024 * 1024   # 32 MB 以上才分片
@@ -521,10 +531,10 @@ class JetsonFlasher:
         use_multipart = accept_ranges and total_size >= MIN_MULTIPART_SIZE
 
         if use_multipart:
-            print(self._fmt("flash.flasher.multipart_enabled", parts=NUM_PARTS, size_mb=total_size // 1024 // 1024))
+            self._emit_log(self._fmt("flash.flasher.multipart_enabled", parts=NUM_PARTS, size_mb=total_size // 1024 // 1024))
             self._download_multipart(url, filepath, filename, total_size, NUM_PARTS)
         else:
-            print(self._fmt("flash.flasher.singlethread"))
+            self._emit_log(self._fmt("flash.flasher.singlethread"))
             self._download_single(url, filepath, filename)
 
     def _download_single(self, url, filepath, filename):
@@ -535,13 +545,13 @@ class JetsonFlasher:
         headers = {}
         if resume_pos > 0:
             headers["Range"] = f"bytes={resume_pos}-"
-            print(self._fmt("flash.flasher.resume", pos=resume_pos))
+            self._emit_log(self._fmt("flash.flasher.resume", pos=resume_pos))
 
         response = requests.get(url, stream=True, timeout=(15, 600),
                                 allow_redirects=True, headers=headers)
 
         if resume_pos > 0 and response.status_code == 200:
-            print(self._fmt("flash.flasher.no_resume"))
+            self._emit_log(self._fmt("flash.flasher.no_resume"))
             resume_pos = 0
             tmp_path.unlink(missing_ok=True)
 
@@ -613,9 +623,10 @@ class JetsonFlasher:
                 return
 
             headers = {"Range": f"bytes={byte_start}-{end}"}
-            max_retries = 3
+            max_retries = 5
             # 记录本次尝试开始前该分片贡献的字节数（用于重试时修正计数器）
             committed = resume
+            expected = end - start + 1
 
             for attempt in range(max_retries):
                 try:
@@ -623,6 +634,13 @@ class JetsonFlasher:
                     resp = requests.get(url, stream=True, timeout=(15, 600),
                                         allow_redirects=True, headers=headers)
                     resp.raise_for_status()
+
+                    # 请求了 Range 却未返回 206（服务器忽略 Range，返回整文件）：
+                    # 字节会从文件起点开始写入，造成各分片错位 → 必须重试或报错
+                    if resp.status_code != 206:
+                        raise OSError(
+                            f"part{idx}: server returned {resp.status_code} for Range request "
+                            f"(expected 206, Range ignored)")
 
                     with open(part_file, "ab" if committed > 0 else "wb") as f:
                         for chunk in resp.iter_content(chunk_size=1024 * 1024):
@@ -634,6 +652,15 @@ class JetsonFlasher:
                                     snap = total_written_bytes
                                 self._emit_progress("download", snap, total_size)
                                 committed += len(chunk)
+
+                    # 校验本分片完整性：SharePoint/OneDrive CDN 常中途掐断长连接，
+                    # requests.iter_content 在 socket 提前关闭时往往不抛异常、
+                    # 直接结束迭代，导致该分片落地字节数不足
+                    got = part_file.stat().st_size
+                    if got < expected:
+                        raise OSError(
+                            f"part{idx} short read: got {got} of {expected} bytes "
+                            f"(stream ended prematurely)")
                     return  # 成功
                 except InterruptedError:
                     raise
@@ -669,7 +696,7 @@ class JetsonFlasher:
             raise Exception(self._fmt("flash.flasher.part_failed", detail=', '.join(f'part{i}: {e}' for i, e in failed)))
 
         # merge parts
-        print(self._fmt("flash.flasher.merge_parts"))
+        self._emit_log(self._fmt("flash.flasher.merge_parts"))
         tmp_path = filepath.with_suffix(filepath.suffix + ".part")
         with open(tmp_path, "wb") as out:
             for idx, start, end, part_file in parts:
@@ -681,8 +708,16 @@ class JetsonFlasher:
         if actual_size < 1024 * 1024:
             raise ValueError(self._fmt("flash.flasher.merge_too_small", size=actual_size))
 
+        # 合并后大小必须与 HEAD 探测到的总大小完全一致。
+        # 任何不一致都说明有分片缺失或冗余，此时绝不能替换成正式文件，
+        # 否则会得到一个尺寸不对的残包，后续解压必然 CRC 失败。
+        if total_size and actual_size != total_size:
+            tmp_path.unlink(missing_ok=True)
+            raise ValueError(self._fmt("flash.flasher.merge_size_mismatch",
+                                       actual=actual_size, expected=total_size))
+
         tmp_path.replace(filepath)
-        print(self._fmt("flash.flasher.download_complete_size", size_mb=actual_size // 1024 // 1024))
+        self._emit_log(self._fmt("flash.flasher.download_complete_size", size_mb=actual_size // 1024 // 1024))
     
     def firmware_cached(self) -> bool:
         """检查固件压缩包是否已缓存（文件存在且大小正常）。"""
@@ -851,13 +886,13 @@ class JetsonFlasher:
         if not force_redownload and filepath.exists():
             size = filepath.stat().st_size
             if size > 1024 * 1024:
-                print(self._fmt("flash.flasher.firmware_exists", path=filepath))
+                self._emit_log(self._fmt("flash.flasher.firmware_exists", path=filepath))
                 return True
-            print(self._fmt("flash.flasher.file_too_small_redownload", size=size, path=filepath))
+            self._emit_log(self._fmt("flash.flasher.file_too_small_redownload", size=size, path=filepath))
             filepath.unlink()
 
         if force_redownload and filepath.exists():
-            print(self._fmt("flash.flasher.force_redownload", path=filepath))
+            self._emit_log(self._fmt("flash.flasher.force_redownload", path=filepath))
             filepath.unlink()
             part_path = filepath.with_suffix(filepath.suffix + ".part")
             if part_path.exists():
@@ -866,12 +901,12 @@ class JetsonFlasher:
             for part_file in self.download_dir.glob(filepath.name + ".part[0-9]*"):
                 part_file.unlink(missing_ok=True)
         
-        print(self._fmt("flash.flasher.downloading", filename=filename))
+        self._emit_log(self._fmt("flash.flasher.downloading", filename=filename))
         urls = self._candidate_urls()
 
         last_error = None
         for idx, url in enumerate(urls, start=1):
-            print(self._fmt("flash.flasher.download_url", idx=idx, total=len(urls), url=url))
+            self._emit_log(self._fmt("flash.flasher.download_url", idx=idx, total=len(urls), url=url))
             self._emit_progress("download", 0, 0)
             try:
                 self._download_from_url(url, filepath, filename)
@@ -880,9 +915,9 @@ class JetsonFlasher:
                 raise
             except Exception as e:
                 last_error = e
-                print(self._fmt("flash.flasher.url_failed", error=e))
+                self._emit_log(self._fmt("flash.flasher.url_failed", error=e))
 
-        print(self._fmt("flash.flasher.download_failed", error=last_error))
+        self._emit_log(self._fmt("flash.flasher.download_failed", error=last_error))
         return False
     
     def verify_firmware(self):
