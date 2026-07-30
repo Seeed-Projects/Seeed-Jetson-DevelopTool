@@ -11,7 +11,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from qtpy.QtCore import Qt, QTimer
+from qtpy.QtCore import Qt, QTimer, QObject, Slot
 from qtpy.QtGui import QPixmap, QTextCursor, QDesktopServices, QTextOption
 from qtpy.QtWidgets import (
     QApplication, QBoxLayout, QCheckBox, QComboBox, QDialog,
@@ -1069,6 +1069,38 @@ def build_page() -> QWidget:
         flash_log.insertPlainText(text + "\n")
         flash_log.ensureCursorVisible()
 
+    class _FlashBridge(QObject):
+        """Bridge worker-thread signals to the main thread.
+
+        FlashThread signals are emitted from a background thread. Connecting
+        them directly to plain Python callables causes those callables to run
+        in the worker thread, which is unsafe for QTextEdit and other GUI
+        updates. This QObject lives in the main thread, so its slots are
+        automatically invoked via the main thread's event loop.
+        """
+
+        @Slot(str)
+        def on_msg(self, msg: str):
+            _on_flash_msg(msg)
+
+        @Slot(int)
+        def on_progress(self, value: int):
+            _on_flash_progress(value)
+
+        @Slot(object, object)
+        def on_download_progress(self, downloaded, total):
+            _on_download_progress(downloaded, total)
+
+        @Slot(str)
+        def on_log(self, line: str):
+            _flash_log_append(line)
+
+        @Slot(bool, str)
+        def on_done(self, ok: bool, msg: str):
+            _on_flash_done(ok, msg)
+
+    _flash_bridge = _FlashBridge()
+
     def _save_flash_log():
         text = flash_log.toPlainText().strip()
         if not text:
@@ -1925,11 +1957,11 @@ def build_page() -> QWidget:
         thread = FlashThread(product, l4t, skip_verify_cb.isChecked(), download_only,
                              force_redownload=force_redownload, prepare_only=prepare_only,
                              flash_only=flash_only, lang=_state["lang"])
-        thread.progress_msg.connect(_on_flash_msg)
-        thread.progress_val.connect(_on_flash_progress)
-        thread.progress_log.connect(_flash_log_append)
-        thread.download_progress.connect(_on_download_progress)
-        thread.finished.connect(_on_flash_done)
+        thread.progress_msg.connect(_flash_bridge.on_msg)
+        thread.progress_val.connect(_flash_bridge.on_progress)
+        thread.progress_log.connect(_flash_bridge.on_log)
+        thread.download_progress.connect(_flash_bridge.on_download_progress)
+        thread.finished.connect(_flash_bridge.on_done)
         _state["flash_thread"] = thread
         thread.start()
 
