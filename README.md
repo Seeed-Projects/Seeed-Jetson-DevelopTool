@@ -16,6 +16,12 @@ Seeed Jetson Develop Tool is a desktop client for Seeed Jetson developers. It br
 
 ![UI Preview](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
+## Demo Video
+
+Click the image below to watch the usage video on YouTube:
+
+[![Seeed Jetson Develop Tool Usage Demo](https://img.youtube.com/vi/SjXyQ3abxms/0.jpg)](https://www.youtube.com/watch?v=SjXyQ3abxms)
+
 ## What It Does
 
 | Module | Purpose |

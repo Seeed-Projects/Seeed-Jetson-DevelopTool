@@ -16,6 +16,12 @@ Seeed Jetson Develop Tool 是面向 Seeed Jetson 开发者的桌面客户端。�
 
 ![UI 预览](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
+## 使用视频
+
+点击下图即可在 YouTube 上观看使用演示：
+
+[![Seeed Jetson Develop Tool 使用演示](https://img.youtube.com/vi/SjXyQ3abxms/0.jpg)](https://www.youtube.com/watch?v=SjXyQ3abxms)
+
 ## 这个客户端能做什么
 
 | 模块 | 用途 |
