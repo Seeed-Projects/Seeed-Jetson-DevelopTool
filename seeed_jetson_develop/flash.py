@@ -12,7 +12,6 @@ import time
 import platform
 import shutil
 import stat
-import tarfile
 from pathlib import Path
 from typing import Callable
 import requests
@@ -474,33 +473,24 @@ class JetsonFlasher:
             raise WslFlashError(message)
 
     def _extract_via_tarfile(self, filepath: Path, extract_dir: Path):
-        """Extract using Python tarfile (Linux/native path only)."""
-        import sys
-        old_limit = sys.getrecursionlimit()
-        sys.setrecursionlimit(max(old_limit, 5000))
-        try:
-            with tarfile.open(filepath, "r:*") as tar:
-                members = tar.getmembers()
-                total_bytes = sum(m.size for m in members if m.isfile())
-                extracted_bytes = 0
-                total_members = max(1, len(members))
+        """Extract on Linux via `sudo tar xpf` so root ownership/setuid are preserved.
 
-                for idx, member in enumerate(members, start=1):
-                    self._check_cancel()
-                    # path traversal guard
-                    base = str(extract_dir.resolve())
-                    target = str((extract_dir / member.name).resolve())
-                    if target != base and not target.startswith(base + os.sep):
-                        raise ValueError(self._fmt("flash.flasher.unsafe_path", path=member.name))
-                    tar.extract(member, path=extract_dir, set_attrs=True)
-                    if member.isfile():
-                        extracted_bytes += max(0, member.size)
-                    if total_bytes > 0:
-                        self._emit_progress("extract", extracted_bytes, total_bytes)
-                    else:
-                        self._emit_progress("extract", idx, total_members)
-        finally:
-            sys.setrecursionlimit(old_limit)
+        Python tarfile as a normal user remaps owners to the current uid; setuid
+        binaries like mount then demote root inside the initrd-flash NFS chroot
+        and APP mount fails with "must be superuser to use mount".
+        """
+        self._emit_progress("extract", 0, 0)
+        result = subprocess.run(
+            ["sudo", "tar", "xpf", str(filepath), "-C", str(extract_dir)],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if result.returncode != 0:
+            detail = (result.stderr or result.stdout or "").strip()
+            raise RuntimeError(detail or f"sudo tar xpf failed (exit {result.returncode})")
+        self._emit_progress("extract", 1, 1)
 
     def _download_from_url(self, url, filepath, filename):
         """从指定 URL 下载到目标文件，支持多线程分片并行下载和断点续传。"""
