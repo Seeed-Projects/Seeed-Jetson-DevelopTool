@@ -807,16 +807,25 @@ class JetsonFlasher:
         """删除目录，自动处理 rootfs 等需要 root 权限的子目录。
         先尝试普通删除，失败则用 sudo rm -rf。
         """
-        def _retry_remove(func, target, _exc):
+        # shutil's fd-safe rmtree may invoke onexc with os.open/os.lstat/etc.
+        # Those cannot be retried as func(path); only unlink/rmdir take one path arg.
+        _retryable = (os.unlink, os.rmdir, os.remove)
+
+        def _onexc(func, target, exc):
+            if func not in _retryable:
+                raise exc
             try:
                 os.chmod(target, stat.S_IWRITE)
             except Exception:
                 pass
-            func(target)
+            try:
+                func(target)
+            except OSError:
+                raise exc
 
         try:
-            shutil.rmtree(path, onerror=_retry_remove)
-        except PermissionError:
+            shutil.rmtree(path, onexc=_onexc)
+        except OSError:
             if not _is_linux_host():
                 raise
             print(self._fmt("flash.flasher.rmtree_sudo", path=path))
@@ -935,14 +944,15 @@ class JetsonFlasher:
             print(self._fmt("flash.flasher.already_extracted", path=existing))
             return True
 
-        # 当前 workspace 按产品/版本隔离，重新解压前清空整个 extracted，避免旧 foldername 残留。
-        if extract_dir.exists():
-            self._wsl_rmtree(extract_dir)
-        extract_dir.mkdir(parents=True, exist_ok=True)
-
         print(self._fmt("flash.flasher.extracting", filename=filename))
 
         try:
+            # 当前 workspace 按产品/版本隔离，重新解压前清空整个 extracted，避免旧 foldername 残留。
+            # Keep clear+mkdir inside try so permission errors surface as extract failures.
+            if extract_dir.exists():
+                self._wsl_rmtree(extract_dir)
+            extract_dir.mkdir(parents=True, exist_ok=True)
+
             if not (filename.endswith('.tar.gz') or filename.endswith('.tar')):
                 print(self._fmt("flash.flasher.unsupported_format", filename=filename))
                 return False
