@@ -1,6 +1,6 @@
 # Codex Skills Index
 
-Total: 94
+Total: 95
 
 - `SKILLS/codex/ai-nvr/AGENTS.md`
 - `SKILLS/codex/allxon-ota-update/AGENTS.md`
@@ -25,6 +25,7 @@ Total: 94
 - `SKILLS/codex/deploy-riva-llama2/AGENTS.md`
 - `SKILLS/codex/disk-encryption/AGENTS.md`
 - `SKILLS/codex/diy-bsp-build/AGENTS.md`
+- `SKILLS/codex/hybrid-bsp-dk-to-recomputer/AGENTS.md`
 - `SKILLS/codex/ethercat-communication/AGENTS.md`
 - `SKILLS/codex/ethercat-setup/AGENTS.md`
 - `SKILLS/codex/finetune-llm-llama-factory/AGENTS.md`

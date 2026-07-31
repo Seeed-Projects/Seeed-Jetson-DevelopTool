@@ -150,6 +150,7 @@ _WIKI_URL_MAP: dict[str, str] = {
     # System Tuning
     "disk-encryption":              "https://wiki.seeedstudio.com/how_to_encrypt_the_disk_for_jetson/",
     "bsp-source-build":             "https://wiki.seeedstudio.com/how_to_build_the_source_code_project_for_seeed_jetson_bsp/",
+    "hybrid-bsp-dk-to-recomputer":  "https://wiki.seeedstudio.com/cn/make_diy_bsp_from_orin_nano_devkit_to_recomputer_classic_and_super/",
     "ko-module-build":              "https://wiki.seeedstudio.com/how_to_build_the_ko_module_for_seeed_jetson/",
     "ethercat-communication":       "https://wiki.seeedstudio.com/how_to_establish_the_ethercat_on_jetson/",
     "ethercat-setup":               "https://wiki.seeedstudio.com/how_to_establish_the_ethercat_on_jetson/",
@@ -235,7 +236,9 @@ def _parse_skill_md(md_file: Path, slug: str, source: str = "openclaw", fast: bo
 
         # category from slug keywords
         sl = slug.lower()
-        if any(k in sl for k in ("wifi","driver","fix","repair","usb-timeout","uuid","recomp")):
+        if any(k in sl for k in ("power","swap","fan","cache","log","backup","encrypt","disk","bsp","ko-module","diy-bsp","hybrid-bsp","spi","ethercat")):
+            cat = CATEGORY_SYSTEM_TUNING
+        elif any(k in sl for k in ("wifi","driver","fix","repair","usb-timeout","uuid","recomp")):
             cat = CATEGORY_DRIVER_REPAIR
         elif any(k in sl for k in ("yolo","yolov","vision","deepstream","nvblox","depth","detect","track","vlm","nvstreamer","maskcam","dashcam","traffic","zero-shot","efficient-vision","no-code","roboflow")):
             cat = CATEGORY_VISION_YOLO
@@ -245,8 +248,6 @@ def _parse_skill_md(md_file: Path, slug: str, source: str = "openclaw", fast: bo
             cat = CATEGORY_APP_ENV_DEPLOY
         elif any(k in sl for k in ("vnc","ssh","remote","vscode","proxy","neqto","allxon","ota","update","network")):
             cat = CATEGORY_NETWORK_REMOTE
-        elif any(k in sl for k in ("power","swap","fan","cache","log","backup","encrypt","disk","bsp","ko-module","diy-bsp","spi","ethercat")):
-            cat = CATEGORY_SYSTEM_TUNING
         else:
             cat = CATEGORY_REFERENCE
         return Skill(
