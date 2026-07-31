@@ -803,8 +803,7 @@ class JetsonFlasher:
                 removed.append(str(extract_dir))
         return removed
 
-    @staticmethod
-    def _rmtree_privileged(path: Path):
+    def _rmtree_privileged(self, path: Path):
         """删除目录，自动处理 rootfs 等需要 root 权限的子目录。
         先尝试普通删除，失败则用 sudo rm -rf。
         """
