@@ -1,6 +1,6 @@
 # OpenClaw Source Skills Index
 
-Total: 90
+Total: 91
 
 - `SKILLS/openclaw/ai-nvr/SKILL.md`
 - `SKILLS/openclaw/allxon-ota-update/SKILL.md`
@@ -25,6 +25,7 @@ Total: 90
 - `SKILLS/openclaw/deploy-riva-llama2/SKILL.md`
 - `SKILLS/openclaw/disk-encryption/SKILL.md`
 - `SKILLS/openclaw/diy-bsp-build/SKILL.md`
+- `SKILLS/openclaw/hybrid-bsp-dk-to-recomputer/SKILL.md`
 - `SKILLS/openclaw/ethercat-communication/SKILL.md`
 - `SKILLS/openclaw/ethercat-setup/SKILL.md`
 - `SKILLS/openclaw/finetune-llm-llama-factory/SKILL.md`

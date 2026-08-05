@@ -1,6 +1,6 @@
 # Claude Skills Index
 
-Total: 94
+Total: 95
 
 - `SKILLS/claude/ai-nvr/CLAUDE.md`
 - `SKILLS/claude/allxon-ota-update/CLAUDE.md`
@@ -25,6 +25,7 @@ Total: 94
 - `SKILLS/claude/deploy-riva-llama2/CLAUDE.md`
 - `SKILLS/claude/disk-encryption/CLAUDE.md`
 - `SKILLS/claude/diy-bsp-build/CLAUDE.md`
+- `SKILLS/claude/hybrid-bsp-dk-to-recomputer/CLAUDE.md`
 - `SKILLS/claude/ethercat-communication/CLAUDE.md`
 - `SKILLS/claude/ethercat-setup/CLAUDE.md`
 - `SKILLS/claude/finetune-llm-llama-factory/CLAUDE.md`
