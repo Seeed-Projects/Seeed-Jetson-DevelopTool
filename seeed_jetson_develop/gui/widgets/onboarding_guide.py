@@ -613,7 +613,7 @@ class StepPage(QWidget):
             content_layout.addWidget(lbl)
             self._desc_labels.append(lbl)
 
-        # 提示标签
+        # 提示标签 — emoji 与正文拆开，避免 Noto Color Emoji 撑乱中文行高
         tip_key = f"onboarding.step{self.step_index}.tip"
         tip_text = t(tip_key, lang=self._lang)
         self._tip_icon_lbl = None
@@ -632,15 +632,27 @@ class StepPage(QWidget):
                 }}
             """)
             tip_layout = QHBoxLayout(tip_container)
-            tip_layout.setContentsMargins(pt(14), pt(8), pt(14), pt(8))
-            tip_lbl = make_label(tip_text, size=11, color=C_GREEN)
+            tip_layout.setContentsMargins(pt(14), pt(10), pt(14), pt(10))
+            tip_layout.setSpacing(pt(8))
+            tip_icon, tip_body = self._split_tip_text(tip_text)
+            if tip_icon:
+                tip_icon_lbl = make_label(tip_icon, size=13, color=C_GREEN)
+                tip_icon_lbl.setAlignment(Qt.AlignCenter)
+                tip_icon_lbl.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+                tip_layout.addWidget(tip_icon_lbl, 0, Qt.AlignVCenter)
+                self._tip_icon_lbl = tip_icon_lbl
+            tip_lbl = make_label(
+                tip_body if tip_icon else tip_text,
+                size=11,
+                color=C_GREEN,
+                wrap=True,
+            )
             tip_lbl.setWordWrap(True)
-            tip_lbl.setAlignment(Qt.AlignCenter)
-            tip_lbl.setMinimumWidth(_onb(340, 460))
-            tip_lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
-            if PLATFORM.is_windows:
-                tip_lbl.setMaximumWidth(_onb(360, 500))
-            tip_layout.addWidget(tip_lbl)
+            tip_lbl.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            # Minimum: sizeHint is the floor — prevents the scene stretch from
+            # crushing tip text into overlapping glyphs.
+            tip_lbl.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+            tip_layout.addWidget(tip_lbl, 1)
             content_layout.addWidget(tip_container, alignment=Qt.AlignCenter)
             self._tip_container = tip_container
             self._tip_lbl = tip_lbl

@@ -11,7 +11,7 @@ import traceback
 from pathlib import Path
 
 from qtpy.QtCore import Qt, QPoint, QRect, QEvent, QTimer, QtMsgType, qInstallMessageHandler, QPropertyAnimation, QEasingCurve
-from qtpy.QtGui import QColor, QPixmap, QPainter
+from qtpy.QtGui import QColor, QPixmap, QPainter, QCursor
 from qtpy.QtWidgets import (
     QApplication, QMainWindow, QWidget, QFrame,
     QVBoxLayout, QHBoxLayout,
@@ -198,6 +198,7 @@ class MainWindowV2(QMainWindow):
         self._resize_edge = None   # 当前拖拽的边缘方向
         self._resize_start_pos = None
         self._resize_start_geom = None
+        self._resize_cursor_overridden = False
         self._normal_geometry = None
         self._nav_btns = []
         self._current_page = 0
@@ -276,7 +277,9 @@ class MainWindowV2(QMainWindow):
         body_layout.addWidget(self._build_sidebar())
 
         content_area = QWidget()
+        content_area.setObjectName("ContentArea")
         content_area.setStyleSheet(f"background:{C_BG};")
+        content_area.setMouseTracking(True)
         content_layout = QVBoxLayout(content_area)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(0)
@@ -308,35 +311,43 @@ class MainWindowV2(QMainWindow):
 
         body_layout.addWidget(content_area, 1)
         root_layout.addWidget(body, 1)
+        self._content_area = content_area
 
         # 内容区背景装饰动画层（不在 layout 中，安全）
         from .widgets.content_bg_anim import ContentBackground
         self._content_bg = ContentBackground(content_area)
-        self._content_bg.setGeometry(0, 0, content_area.width(), content_area.height())
-        self._content_bg.show()
-        # 把背景层放到最底层
         self._content_bg.lower()
 
         # 页面切换扫描线过场（在 stack 上方，不在 layout 中）
         from .widgets.scan_line_overlay import ScanLineOverlay
         self._scan_overlay = ScanLineOverlay(content_area)
-        self._scan_overlay.setGeometry(self.stack.geometry())
+        self._scan_overlay.set_target(self.stack)
         self._scan_overlay.hide()
+        self._sync_content_overlays()
+        content_area.installEventFilter(self)
+        self.stack.installEventFilter(self)
 
         self._set_page(0)
         self._floating_ai = FloatingAIAssistant(self, system_prompt=build_ai_system_prompt())
         self._apply_runtime_language()
 
+    def _sync_content_overlays(self):
+        """Keep decorative overlays matched to the live content/stack geometry."""
+        area = getattr(self, "_content_area", None)
+        if area is None:
+            return
+        if hasattr(self, "_content_bg") and self._content_bg is not None:
+            self._content_bg.setGeometry(0, 0, max(0, area.width()), max(0, area.height()))
+            self._content_bg.lower()
+        if hasattr(self, "_scan_overlay") and self._scan_overlay is not None:
+            geo = self.stack.geometry()
+            if geo.width() <= 0 or geo.height() <= 0:
+                geo = QRect(0, 0, area.width(), area.height())
+            self._scan_overlay.setGeometry(geo)
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        # 更新背景装饰层大小
-        if hasattr(self, '_content_bg') and self._content_bg.parent():
-            pw = self._content_bg.parent().width()
-            ph = self._content_bg.parent().height()
-            self._content_bg.setGeometry(0, 0, pw, ph)
-        # 更新扫描线覆盖层大小
-        if hasattr(self, '_scan_overlay') and self._scan_overlay.parent():
-            self._scan_overlay.setGeometry(self.stack.geometry())
+        self._sync_content_overlays()
 
     # ── 标题栏 - 带底部微光分隔线 ───────────────────────
     def _build_titlebar(self):
@@ -494,24 +505,42 @@ class MainWindowV2(QMainWindow):
         self._drag_pos = global_pos - self.frameGeometry().topLeft()
 
     def _get_resize_edge(self, pos):
-        """检测鼠标是否在窗口边缘（用于 resize），返回方向字符串或 None"""
+        """Detect window-edge / corner hit zone for frameless resize.
+
+        Corners use a larger square so diagonal resize is easy to grab even
+        when child widgets cover the client area.
+        """
         if self.isMaximized():
             return None
-        m = 10  # 边缘检测宽度 px，加大方便触发
+        edge = 8
+        corner = 18
         x, y = pos.x(), pos.y()
         w, h = self.width(), self.height()
-        left   = x < m
-        right  = x > w - m
-        top    = y < m
-        bottom = y > h - m
-        if top and left:     return "tl"
-        if top and right:    return "tr"
-        if bottom and left:  return "bl"
-        if bottom and right: return "br"
-        if left:   return "l"
-        if right:  return "r"
-        if top:    return "t"
-        if bottom: return "b"
+        if w < 2 * corner or h < 2 * corner:
+            return None
+
+        near_l = x <= corner
+        near_r = x >= w - corner
+        near_t = y <= corner
+        near_b = y >= h - corner
+
+        # Prefer corners (diagonal) over single-axis edges.
+        if near_t and near_l:
+            return "tl"
+        if near_t and near_r:
+            return "tr"
+        if near_b and near_l:
+            return "bl"
+        if near_b and near_r:
+            return "br"
+        if x <= edge:
+            return "l"
+        if x >= w - edge:
+            return "r"
+        if y <= edge:
+            return "t"
+        if y >= h - edge:
+            return "b"
         return None
 
     _EDGE_CURSORS = {
@@ -521,69 +550,160 @@ class MainWindowV2(QMainWindow):
         "tr": Qt.SizeBDiagCursor, "bl": Qt.SizeBDiagCursor,
     }
 
+    def _window_pos_from_event(self, ev):
+        """Map a mouse event to main-window coordinates."""
+        try:
+            gp = ev.globalPosition().toPoint()
+        except AttributeError:
+            gp = ev.globalPos()
+        return self.mapFromGlobal(gp), gp
+
+    def _apply_resize_delta(self, global_pos):
+        delta = global_pos - self._resize_start_pos
+        g = self._resize_start_geom
+        x, y, w, h = g.x(), g.y(), g.width(), g.height()
+        dx, dy = delta.x(), delta.y()
+        min_w, min_h = self.minimumWidth(), self.minimumHeight()
+        edge = self._resize_edge
+        if "r" in edge:
+            w = max(min_w, w + dx)
+        if "b" in edge:
+            h = max(min_h, h + dy)
+        if "l" in edge:
+            new_w = max(min_w, w - dx)
+            x = x + (w - new_w)
+            w = new_w
+        if "t" in edge:
+            new_h = max(min_h, h - dy)
+            y = y + (h - new_h)
+            h = new_h
+        self.setGeometry(x, y, w, h)
+
+    def _set_resize_cursor(self, edge):
+        cursor = self._EDGE_CURSORS.get(edge)
+        if cursor is None:
+            if self._resize_cursor_overridden:
+                QApplication.restoreOverrideCursor()
+                self._resize_cursor_overridden = False
+            return
+        if self._resize_cursor_overridden:
+            QApplication.changeOverrideCursor(cursor)
+        else:
+            QApplication.setOverrideCursor(cursor)
+            self._resize_cursor_overridden = True
+
+    def _clear_resize_cursor(self):
+        if getattr(self, "_resize_cursor_overridden", False):
+            QApplication.restoreOverrideCursor()
+            self._resize_cursor_overridden = False
+
     def mousePressEvent(self, ev):
         if ev.button() == Qt.LeftButton:
             edge = self._get_resize_edge(ev.pos())
             if edge:
                 self._resize_edge = edge
-                self._resize_start_pos = ev.globalPos()
+                try:
+                    self._resize_start_pos = ev.globalPosition().toPoint()
+                except AttributeError:
+                    self._resize_start_pos = ev.globalPos()
                 self._resize_start_geom = self.geometry()
+                self._set_resize_cursor(edge)
                 ev.accept()
                 return
         super().mousePressEvent(ev)
 
     def mouseMoveEvent(self, ev):
         if self._resize_edge and self._resize_start_pos:
-            delta = ev.globalPos() - self._resize_start_pos
-            g = self._resize_start_geom
-            x, y, w, h = g.x(), g.y(), g.width(), g.height()
-            dx, dy = delta.x(), delta.y()
-            min_w, min_h = self.minimumWidth(), self.minimumHeight()
-            edge = self._resize_edge
-            if "r" in edge: w = max(min_w, w + dx)
-            if "b" in edge: h = max(min_h, h + dy)
-            if "l" in edge:
-                new_w = max(min_w, w - dx)
-                x = x + (w - new_w)
-                w = new_w
-            if "t" in edge:
-                new_h = max(min_h, h - dy)
-                y = y + (h - new_h)
-                h = new_h
-            self.setGeometry(x, y, w, h)
+            try:
+                gp = ev.globalPosition().toPoint()
+            except AttributeError:
+                gp = ev.globalPos()
+            self._apply_resize_delta(gp)
             ev.accept()
             return
-        # 更新鼠标形状
         edge = self._get_resize_edge(ev.pos())
         if edge:
-            self.setCursor(self._EDGE_CURSORS[edge])
+            self._set_resize_cursor(edge)
         else:
-            self.unsetCursor()
+            self._clear_resize_cursor()
         super().mouseMoveEvent(ev)
 
     def mouseReleaseEvent(self, ev):
         self._resize_edge = None
         self._resize_start_pos = None
         self._resize_start_geom = None
-        self.unsetCursor()
+        self._clear_resize_cursor()
         super().mouseReleaseEvent(ev)
 
     def eventFilter(self, src, ev):
         if self._lang == "en" and ev.type() == QEvent.Show and src is self:
             QTimer.singleShot(0, self._apply_runtime_language)
+
+        # Keep overlays sized when content area / stack layout changes.
+        if src in (getattr(self, "_content_area", None), getattr(self, "stack", None)):
+            if ev.type() in (QEvent.Resize, QEvent.Show, QEvent.LayoutRequest):
+                QTimer.singleShot(0, self._sync_content_overlays)
+
+        # App-wide frameless resize: child widgets otherwise swallow BR corner.
+        et = ev.type()
+        if et in (QEvent.MouseMove, QEvent.MouseButtonPress, QEvent.MouseButtonRelease):
+            if isinstance(src, QWidget) and (src is self or self.isAncestorOf(src)):
+                # Never steal events from the floating AI ball / panel.
+                ai = getattr(self, "_floating_ai", None)
+                if ai is not None:
+                    ball = getattr(ai, "_ball", None)
+                    panel = getattr(ai, "_panel", None)
+                    if src is ball or src is panel or getattr(ai, "_dragging", False):
+                        return super().eventFilter(src, ev)
+                local, gp = self._window_pos_from_event(ev)
+                if et == QEvent.MouseButtonPress and ev.button() == Qt.LeftButton:
+                    edge = self._get_resize_edge(local)
+                    if edge:
+                        self._resize_edge = edge
+                        self._resize_start_pos = gp
+                        self._resize_start_geom = self.geometry()
+                        self._set_resize_cursor(edge)
+                        return True
+                elif et == QEvent.MouseMove and self._resize_edge and self._resize_start_pos:
+                    self._apply_resize_delta(gp)
+                    return True
+                elif et == QEvent.MouseMove and not self._resize_edge:
+                    edge = self._get_resize_edge(local)
+                    if edge:
+                        self._set_resize_cursor(edge)
+                    else:
+                        self._clear_resize_cursor()
+                elif et == QEvent.MouseButtonRelease and self._resize_edge:
+                    self._resize_edge = None
+                    self._resize_start_pos = None
+                    self._resize_start_geom = None
+                    self._clear_resize_cursor()
+                    return True
+
         if src is getattr(self, "_titlebar", None):
             if ev.type() == QEvent.MouseButtonDblClick:
                 self._toggle_max(); return True
             if ev.type() == QEvent.MouseButtonPress and ev.button() == Qt.LeftButton:
+                # Don't start window-drag when grabbing the top resize edge.
+                local, _gp = self._window_pos_from_event(ev)
+                if self._get_resize_edge(local):
+                    return False
                 self._drag = True
                 if not self.isMaximized():
                     self._normal_geometry = self.geometry()
-                self._drag_pos = ev.globalPos() - self.frameGeometry().topLeft()
+                try:
+                    self._drag_pos = ev.globalPosition().toPoint() - self.frameGeometry().topLeft()
+                except AttributeError:
+                    self._drag_pos = ev.globalPos() - self.frameGeometry().topLeft()
                 return True
             if ev.type() == QEvent.MouseMove and self._drag:
                 if self.isMaximized():
-                    self._restore_from_maximized_for_drag(ev.globalPos())
-                self.move(ev.globalPos() - self._drag_pos); return True
+                    self._restore_from_maximized_for_drag(ev.globalPos() if hasattr(ev, "globalPos") else ev.globalPosition().toPoint())
+                try:
+                    gp = ev.globalPosition().toPoint()
+                except AttributeError:
+                    gp = ev.globalPos()
+                self.move(gp - self._drag_pos); return True
             if ev.type() == QEvent.MouseButtonRelease:
                 self._drag = False; return True
         return super().eventFilter(src, ev)
