@@ -826,7 +826,7 @@ class AIChatPanel(QWidget):
 # ── 浮动 AI 球 ────────────────────────────────────────────────────────────────
 
 class FloatingAIAssistant(QObject):
-    """Edge-docked floating ball (加速球): peek-hide, hover-reveal, free drag.
+    """Edge-docked floating ball: peek-hide, hover-reveal, free drag.
 
     The ball may be docked on the left sidebar edge or the right content edge.
     """
