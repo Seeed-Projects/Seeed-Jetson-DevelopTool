@@ -18,7 +18,7 @@ from qtpy.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
     QLabel, QPushButton, QTextEdit, QScrollArea, QProgressBar,
     QMessageBox, QFrame, QSizePolicy, QButtonGroup, QRadioButton,
-    QDialog, QLineEdit, QCheckBox,
+    QDialog, QLineEdit, QCheckBox, QAbstractScrollArea,
 )
 
 from seeed_jetson_develop.core.runner import get_runner, SSHRunner
@@ -40,6 +40,60 @@ from seeed_jetson_develop.data_update import load_json_data
 _DATA_DIR = Path(__file__).resolve().parent / "data"
 _OTA_PATHS_FILE = _DATA_DIR / "ota_paths.json"
 _CACHE_DIR = Path.home() / ".cache" / "seeed-jetson" / "ota"
+
+
+class _AdaptiveStackedWidget(QStackedWidget):
+    """Stack whose height follows the *current* page only.
+
+    QStackedLayout's sizeHint/minimumSize are still max(all pages). That leaks
+    into QLayout.totalSizeHint() and keeps QScrollArea permanently tall (and
+    leaves a vertical gap). Fix: zero-height non-current pages + fixed height
+    pinned to the current page's sizeHint.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+
+    def sizeHint(self):
+        w = self.currentWidget()
+        return w.sizeHint() if w is not None else super().sizeHint()
+
+    def minimumSizeHint(self):
+        return self.sizeHint()
+
+    def sync_height(self):
+        idx = self.currentIndex()
+        for i in range(self.count()):
+            w = self.widget(i)
+            if w is None:
+                continue
+            # Non-current pages must not inflate QStackedLayout minimumSize.
+            w.setMaximumHeight(16777215 if i == idx else 0)
+        current = self.currentWidget()
+        h = current.sizeHint().height() if current is not None else 0
+        self.setFixedHeight(max(0, h))
+        self.updateGeometry()
+
+    def setCurrentIndex(self, index: int):
+        super().setCurrentIndex(index)
+        self.sync_height()
+
+    def setCurrentWidget(self, widget: QWidget):
+        super().setCurrentWidget(widget)
+        self.sync_height()
+
+
+def _pin_height(widget: QWidget) -> QWidget:
+    """Keep widget at its sizeHint height — do not absorb leftover layout space."""
+    widget.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Maximum)
+    return widget
+
+
+def _pack_top(layout: QVBoxLayout) -> QVBoxLayout:
+    """Keep children packed to the top; leftover space stays below, not between."""
+    layout.setAlignment(Qt.AlignTop)
+    return layout
 
 
 def _at(key: str, **kwargs) -> str:
@@ -337,13 +391,16 @@ def build_page() -> QWidget:
     # ── Scrollable body ──
     scroll = QScrollArea()
     scroll.setWidgetResizable(True)
+    scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     scroll.setFrameShape(QScrollArea.NoFrame)
     scroll.setStyleSheet("background:transparent; border:none;")
     scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
     inner = QWidget()
     inner.setStyleSheet("background:transparent;")
+    inner.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     inner_lay = QVBoxLayout(inner)
+    inner_lay.setAlignment(Qt.AlignTop)
     inner_lay.setContentsMargins(pt(28), pt(24), pt(28), pt(24))
     inner_lay.setSpacing(pt(20))
 
@@ -352,7 +409,7 @@ def build_page() -> QWidget:
     _step_labels: list[QLabel] = []
     _step_arrows: list[QLabel] = []
 
-    wizard_card = _card(12)
+    wizard_card = _pin_height(_card(12))
     wizard_lay = QHBoxLayout(wizard_card)
     wizard_lay.setSpacing(0)
     wizard_lay.setContentsMargins(pt(16), pt(12), pt(16), pt(12))
@@ -422,7 +479,7 @@ def build_page() -> QWidget:
     inner_lay.addWidget(wizard_card)
 
     # ── Content stack ──
-    content_stack = QStackedWidget()
+    content_stack = _AdaptiveStackedWidget()
     content_stack.setStyleSheet("background:transparent; border:none;")
 
     _state = {
@@ -441,14 +498,14 @@ def build_page() -> QWidget:
     # ═══════════════════════════════════════════════════════════════════════
     #  Step 0: Select Device (like Flash)
     # ═══════════════════════════════════════════════════════════════════════
-    step0 = QWidget()
+    step0 = _pin_height(QWidget())
     step0.setStyleSheet("background:transparent;")
-    s0_lay = QVBoxLayout(step0)
+    s0_lay = _pack_top(QVBoxLayout(step0))
     s0_lay.setContentsMargins(0, 0, 0, 0)
     s0_lay.setSpacing(pt(16))
 
-    device_card = _card(12)
-    device_lay = QVBoxLayout(device_card)
+    device_card = _pin_height(_card(12))
+    device_lay = _pack_top(QVBoxLayout(device_card))
     device_lay.setSpacing(pt(12))
 
     device_title = _lbl(_at("ota.device.title"), 14, C_TEXT, bold=True)
@@ -469,16 +526,17 @@ def build_page() -> QWidget:
     dev_img.setFixedSize(pt(160), pt(100))
     dev_img.setAlignment(Qt.AlignCenter)
     dev_img.setStyleSheet(f"background:{C_CARD_LIGHT}; border-radius:8px;")
-    dev_info_col = QVBoxLayout()
+    dev_info_col = _pack_top(QVBoxLayout())
     dev_info_col.setSpacing(pt(8))
-    dev_name_lbl = _lbl("", 14, C_TEXT, bold=True)
-    dev_versions_lbl = _lbl("", 12, C_TEXT2)
+    dev_name_lbl = _pin_height(_lbl("", 14, C_TEXT, bold=True))
+    dev_versions_lbl = _pin_height(_lbl("", 12, C_TEXT2))
     dev_versions_lbl.setWordWrap(True)
-    dev_ota_hint = _lbl("", 12, C_ORANGE)
+    dev_ota_hint = _pin_height(_lbl("", 12, C_ORANGE))
     dev_ota_hint.setWordWrap(True)
     dev_info_col.addWidget(dev_name_lbl)
     dev_info_col.addWidget(dev_versions_lbl)
     dev_info_col.addWidget(dev_ota_hint)
+    dev_info_col.addStretch(1)
     dev_info_row.addWidget(dev_img)
     dev_info_row.addLayout(dev_info_col, 1)
     device_lay.addLayout(dev_info_row)
@@ -496,14 +554,14 @@ def build_page() -> QWidget:
     # ═══════════════════════════════════════════════════════════════════════
     #  Step 1: Connect & Detect
     # ═══════════════════════════════════════════════════════════════════════
-    step1 = QWidget()
+    step1 = _pin_height(QWidget())
     step1.setStyleSheet("background:transparent;")
-    s1_lay = QVBoxLayout(step1)
+    s1_lay = _pack_top(QVBoxLayout(step1))
     s1_lay.setContentsMargins(0, 0, 0, 0)
     s1_lay.setSpacing(pt(16))
 
-    conn_card = _card(12)
-    conn_lay = QVBoxLayout(conn_card)
+    conn_card = _pin_height(_card(12))
+    conn_lay = _pack_top(QVBoxLayout(conn_card))
     conn_lay.setSpacing(pt(12))
 
     conn_title = _lbl(_at("ota.connect.title"), 14, C_TEXT, bold=True)
@@ -517,9 +575,9 @@ def build_page() -> QWidget:
     conn_lay.addWidget(conn_btn, alignment=Qt.AlignLeft)
     s1_lay.addWidget(conn_card)
 
-    detect_card = _card(12)
+    detect_card = _pin_height(_card(12))
     detect_card.setVisible(False)
-    detect_lay = QVBoxLayout(detect_card)
+    detect_lay = _pack_top(QVBoxLayout(detect_card))
     detect_lay.setSpacing(pt(12))
 
     detect_title = _lbl(_at("ota.connect.detect_title"), 14, C_TEXT, bold=True)
@@ -570,14 +628,14 @@ def build_page() -> QWidget:
     # ═══════════════════════════════════════════════════════════════════════
     #  Step 2: Download & Pre-check
     # ═══════════════════════════════════════════════════════════════════════
-    step2 = QWidget()
+    step2 = _pin_height(QWidget())
     step2.setStyleSheet("background:transparent;")
-    s2_lay = QVBoxLayout(step2)
+    s2_lay = _pack_top(QVBoxLayout(step2))
     s2_lay.setContentsMargins(0, 0, 0, 0)
     s2_lay.setSpacing(pt(16))
 
-    download_card = _card(12)
-    dl_lay = QVBoxLayout(download_card)
+    download_card = _pin_height(_card(12))
+    dl_lay = _pack_top(QVBoxLayout(download_card))
     dl_lay.setSpacing(pt(12))
 
     dl_title = _lbl(_at("ota.download.title"), 14, C_TEXT, bold=True)
@@ -616,8 +674,8 @@ def build_page() -> QWidget:
     s2_lay.addWidget(download_card)
 
     # ── Cache management card ──
-    cache_card = _card(12)
-    cache_lay = QVBoxLayout(cache_card)
+    cache_card = _pin_height(_card(12))
+    cache_lay = _pack_top(QVBoxLayout(cache_card))
     cache_lay.setSpacing(pt(12))
 
     cache_title = _lbl(_at("ota.cache.title"), 14, C_TEXT, bold=True)
@@ -666,8 +724,8 @@ def build_page() -> QWidget:
 
     cache_clear_btn.clicked.connect(_on_clear_cache)
 
-    precheck_card = _card(12)
-    pre_lay = QVBoxLayout(precheck_card)
+    precheck_card = _pin_height(_card(12))
+    pre_lay = _pack_top(QVBoxLayout(precheck_card))
     pre_lay.setSpacing(pt(12))
 
     pre_title = _lbl(_at("ota.precheck.title"), 14, C_TEXT, bold=True)
@@ -735,14 +793,14 @@ def build_page() -> QWidget:
     # ═══════════════════════════════════════════════════════════════════════
     #  Step 3: Execute OTA
     # ═══════════════════════════════════════════════════════════════════════
-    step3 = QWidget()
+    step3 = _pin_height(QWidget())
     step3.setStyleSheet("background:transparent;")
-    s3_lay = QVBoxLayout(step3)
+    s3_lay = _pack_top(QVBoxLayout(step3))
     s3_lay.setContentsMargins(0, 0, 0, 0)
     s3_lay.setSpacing(pt(16))
 
-    exec_card = _card(12)
-    exec_lay = QVBoxLayout(exec_card)
+    exec_card = _pin_height(_card(12))
+    exec_lay = _pack_top(QVBoxLayout(exec_card))
     exec_lay.setSpacing(pt(12))
 
     exec_title = _lbl(_at("ota.execute.title"), 14, C_TEXT, bold=True)
@@ -799,7 +857,11 @@ def build_page() -> QWidget:
 
     content_stack.addWidget(step3)
 
-    inner_lay.addWidget(content_stack, 1)
+    # Stack keeps current-step height; leftover viewport space goes below, not
+    # into cards (Preferred children would otherwise split that height evenly).
+    inner_lay.addWidget(content_stack, 0)
+    inner_lay.addStretch(1)
+    content_stack.sync_height()
     scroll.setWidget(inner)
     root.addWidget(scroll, 1)
 
@@ -807,9 +869,20 @@ def build_page() -> QWidget:
     #  Interactions
     # ═══════════════════════════════════════════════════════════════════════
 
+    def _refresh_stack_geometry():
+        """Re-pin stack height and let the scroll area shrink after tall steps."""
+        content_stack.sync_height()
+        inner.setMinimumHeight(0)
+        inner_lay.activate()
+        # QScrollArea does not always shrink its widget when content gets shorter.
+        scroll.setWidgetResizable(False)
+        inner.adjustSize()
+        scroll.setWidgetResizable(True)
+
     def _goto_step(idx: int):
         content_stack.setCurrentIndex(idx)
         _set_wizard_step(idx)
+        _refresh_stack_geometry()
         if idx == 3:
             s3_prev.setEnabled(True)
 
@@ -918,6 +991,7 @@ def build_page() -> QWidget:
             conn_info.setText(_at("ota.connect.no_ssh"))
             conn_btn.setVisible(True)
             detect_card.setVisible(False)
+        _refresh_stack_geometry()
 
     def _detect_device():
         runner = get_runner()
@@ -1068,6 +1142,7 @@ def build_page() -> QWidget:
             exec_status.setText(_at("ota.execute.failed"))
             exec_status.setStyleSheet(f"color:{C_RED}; font-size:{pt(12)}px;")
             _log_append(_at("ota.execute.error", msg=msg))
+        _refresh_stack_geometry()
 
     def _collect_ota_inputs() -> tuple[dict, dict, list[str]] | None:
         """Collect and validate OTA inputs. Returns (path, payload, backup_files) or None."""
@@ -1106,6 +1181,7 @@ def build_page() -> QWidget:
         s3_cancel.setEnabled(True)
         s3_retry.setVisible(False)
         done_widget.setVisible(False)
+        _refresh_stack_geometry()
         exec_log.clear()
         progress.setValue(0)
         # Reset download progress tracking state for a fresh run.

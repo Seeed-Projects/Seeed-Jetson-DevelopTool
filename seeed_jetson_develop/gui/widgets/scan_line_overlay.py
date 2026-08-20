@@ -7,7 +7,7 @@ ScanLineOverlay — 页面切换扫描线过场动画
 原理：QTimer(16ms) → update() → paintEvent 根据 progress 绘制光带位置。
 不涉及 QGraphicsEffect / Layout 操作，100% 安全。
 """
-from qtpy.QtCore import Qt, QTimer
+from qtpy.QtCore import Qt, QTimer, QEvent
 from qtpy.QtGui import QColor, QPainter, QLinearGradient, QPen
 from qtpy.QtWidgets import QWidget
 
@@ -17,8 +17,7 @@ class ScanLineOverlay(QWidget):
 
     用法：
         overlay = ScanLineOverlay(parent=stacked_widget.parent())
-        overlay.setGeometry(stacked_widget.geometry())
-        overlay.start()
+        overlay.start()  # geometry follows parent/stack on resize
     """
 
     def __init__(self, parent=None):
@@ -26,14 +25,48 @@ class ScanLineOverlay(QWidget):
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.setStyleSheet("background:transparent;")
         self._progress = 0.0
+        self._step = 16 / 350
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
+        self._target = None
         self.hide()
+        if parent is not None:
+            parent.installEventFilter(self)
+
+    def set_target(self, widget: QWidget | None):
+        """Optional widget whose geometry (in parent coords) should be matched."""
+        if self._target is not None:
+            try:
+                self._target.removeEventFilter(self)
+            except RuntimeError:
+                pass
+        self._target = widget
+        if widget is not None:
+            widget.installEventFilter(self)
+        self._sync_geometry()
+
+    def eventFilter(self, obj, event):
+        if event.type() in (QEvent.Resize, QEvent.Show, QEvent.Move):
+            if obj is self.parent() or obj is self._target:
+                self._sync_geometry()
+        return super().eventFilter(obj, event)
+
+    def _sync_geometry(self):
+        parent = self.parentWidget()
+        if parent is None:
+            return
+        if self._target is not None:
+            geo = self._target.geometry()
+            if geo.width() > 0 and geo.height() > 0:
+                self.setGeometry(geo)
+                return
+        self.setGeometry(0, 0, max(0, parent.width()), max(0, parent.height()))
 
     def start(self, duration_ms: int = 350):
         """启动扫描线动画。duration_ms: 扫描线从左到右的总时长。"""
+        self._sync_geometry()
         self._progress = 0.0
-        self._step = 16 / duration_ms  # 每帧进度增量
+        self._step = 16 / max(1, duration_ms)
         self.show()
         self.raise_()
         self._timer.start(16)
@@ -57,7 +90,8 @@ class ScanLineOverlay(QWidget):
             return
 
         x = int(w * self._progress)
-        band_w = min(200, w // 3)
+        # Band width scales with viewport so the sweep stays proportional.
+        band_w = max(80, min(280, w // 4))
 
         # 光带渐变（宽色散）
         grad = QLinearGradient(x - band_w, 0, x + band_w, 0)

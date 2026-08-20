@@ -6,7 +6,10 @@ import logging
 import os
 import re
 
-from qtpy.QtCore import Qt, QThread, Signal, QTimer, QObject, QEvent, QPoint, QRect
+from qtpy.QtCore import (
+    Qt, QThread, Signal, QTimer, QObject, QEvent, QPoint, QRect,
+    QPropertyAnimation, QEasingCurve,
+)
 from qtpy.QtWidgets import (
     QWidget,
     QFrame,
@@ -823,29 +826,48 @@ class AIChatPanel(QWidget):
 # ── 浮动 AI 球 ────────────────────────────────────────────────────────────────
 
 class FloatingAIAssistant(QObject):
+    """Edge-docked floating ball: peek-hide, hover-reveal, free drag.
+
+    The ball may be docked on the left sidebar edge or the right content edge.
+    """
+
+    _PEEK_RATIO = 0.32
+    _HOVER_PAD = 36
+    _HIDE_DELAY_MS = 900
+    _SLIDE_MS = 220
+
     def __init__(self, host: QWidget, system_prompt: str = "", title: str = "AI Bot"):
         super().__init__(host)
-        self._host       = host
-        self._title      = title
-        self._system     = system_prompt or build_ai_system_prompt()
-        self._ball_w     = _pt(92)
-        self._ball_h     = _pt(56)
-        self._panel_w    = _pt(420)
-        self._panel_h    = _pt(560)
-        self._margin     = _pt(24)
-        self._gap        = _pt(14)
-        self._top_safe   = _pt(84)
-        self._dragging   = False
+        self._host = host
+        self._title = title
+        self._system = system_prompt or build_ai_system_prompt()
+        self._ball_w = _pt(112)
+        self._ball_h = _pt(72)
+        self._panel_w = _pt(420)
+        self._panel_h = _pt(560)
+        self._margin = _pt(16)
+        self._gap = _pt(14)
+        self._top_safe = _pt(84)
+        self._dragging = False
         self._drag_moved = False
         self._drag_offset = QPoint()
-        self._ball_pos   = QPoint()
-        self._expanded   = False
+        self._ball_pos = QPoint()
+        self._expanded = False
+        self._dock_side = "left"
+        self._peeking = True
+        self._hovering = False
+        self._initialized = False
+        self._slide_anim: QPropertyAnimation | None = None
+
+        self._hide_timer = QTimer(self)
+        self._hide_timer.setSingleShot(True)
+        self._hide_timer.timeout.connect(self._start_peek)
+
         self._build_ui()
         self._host.installEventFilter(self)
         self._ball.installEventFilter(self)
-        self._snap_to_corner()
-        self._update_positions()
         self._connect_bus()
+        QTimer.singleShot(0, self._bootstrap_position)
 
     def _build_ui(self):
         from seeed_jetson_develop.core.runner import get_runner, SSHRunner
@@ -912,7 +934,20 @@ class FloatingAIAssistant(QObject):
         from seeed_jetson_develop.gui.widgets.breathing_button import BreathingButton
         self._ball = BreathingButton("AI Bot", self._host)
         self._ball.setFixedSize(self._ball_w, self._ball_h)
+        self._ball.setCursor(Qt.SizeAllCursor)
+        self._ball.setToolTip("拖动可移动 · 靠近边缘会收起 · 点击打开")
+        self._ball.setAttribute(Qt.WA_Hover, True)
+        self._ball.show()
         self._ball.raise_()
+        self._ball.start()
+        # Need host mouse moves for proximity reveal while peeked.
+        try:
+            self._host.setMouseTracking(True)
+        except Exception:
+            pass
+        cw = self._host.centralWidget() if hasattr(self._host, "centralWidget") else None
+        if cw is not None:
+            cw.setMouseTracking(True)
 
     def _connect_bus(self):
         try:
@@ -929,29 +964,150 @@ class FloatingAIAssistant(QObject):
     def _on_device_disconnected(self, _ip: str):
         self._chat.set_runner(None)
 
+    def _safe_ball_rect(self) -> QRect:
+        """Whole window — left sidebar is a valid dock target."""
+        left = self._margin
+        top = self._top_safe
+        right = max(left, self._host.width() - self._margin - self._ball_w)
+        bottom = max(top, self._host.height() - self._margin - self._ball_h)
+        return QRect(left, top, max(1, right - left + 1), max(1, bottom - top + 1))
+
+    def _clamp_y(self, y: int) -> int:
+        rect = self._safe_ball_rect()
+        return min(max(y, rect.top()), rect.bottom())
+
+    def _edge_x(self, side: str, peek: bool) -> int:
+        host_w = self._host.width()
+        peek_px = max(_pt(28), int(self._ball_w * self._PEEK_RATIO))
+        if side == "left":
+            return -self._ball_w + peek_px if peek else self._margin
+        return host_w - peek_px if peek else host_w - self._margin - self._ball_w
+
+    def _docked_pos(self, peek: bool | None = None) -> QPoint:
+        if peek is None:
+            peek = self._peeking
+        return QPoint(self._edge_x(self._dock_side, peek), self._clamp_y(self._ball_pos.y()))
+
+    def _bootstrap_position(self):
+        if self._host.width() < 100 or self._host.height() < 100:
+            QTimer.singleShot(50, self._bootstrap_position)
+            return
+        self._dock_side = "left"
+        self._peeking = True
+        self._ball_pos = QPoint(
+            self._edge_x("left", True),
+            self._clamp_y(self._host.height() - self._margin - self._ball_h),
+        )
+        self._initialized = True
+        self._ball.move(self._ball_pos)
+        self._ball.raise_()
+
+    def _animate_to(self, pos: QPoint, duration: int | None = None):
+        duration = self._SLIDE_MS if duration is None else duration
+        if self._slide_anim is not None:
+            self._slide_anim.stop()
+            self._slide_anim.deleteLater()
+            self._slide_anim = None
+        self._ball_pos = QPoint(pos)
+        anim = QPropertyAnimation(self._ball, b"pos", self)
+        anim.setDuration(duration)
+        anim.setStartValue(self._ball.pos())
+        anim.setEndValue(pos)
+        anim.setEasingCurve(QEasingCurve.OutCubic)
+        anim.start()
+        self._slide_anim = anim
+
+    def _start_peek(self):
+        if self._dragging or self._expanded or self._hovering:
+            return
+        self._peeking = True
+        self._animate_to(self._docked_pos(True))
+
+    def _reveal(self):
+        if self._dragging:
+            return
+        self._hide_timer.stop()
+        need = self._peeking or abs(self._ball.pos().x() - self._edge_x(self._dock_side, False)) > 2
+        if need:
+            self._peeking = False
+            self._animate_to(self._docked_pos(False))
+
+    def _near_ball(self, host_pos: QPoint) -> bool:
+        pad = self._HOVER_PAD
+        geo = self._ball.geometry().adjusted(-pad, -pad, pad, pad)
+        if geo.contains(host_pos):
+            return True
+        if not self._peeking:
+            return False
+        y0 = self._clamp_y(self._ball_pos.y()) - pad
+        y1 = y0 + self._ball_h + pad * 2
+        if not (y0 <= host_pos.y() <= y1):
+            return False
+        if self._dock_side == "right":
+            return host_pos.x() >= self._host.width() - self._HOVER_PAD * 2
+        return host_pos.x() <= self._HOVER_PAD * 2
+
     def eventFilter(self, obj, event):
-        if obj is self._host and event.type() in {QEvent.Resize, QEvent.Show}:
-            self._constrain_ball()
-            self._update_positions()
+        et = event.type()
+
+        if obj is self._host:
+            if et in {QEvent.Resize, QEvent.Show}:
+                if self._initialized:
+                    self._ball_pos = self._docked_pos(self._peeking and not self._expanded)
+                    self._update_positions()
+                return False
+            if et == QEvent.MouseMove and not self._dragging:
+                try:
+                    gp = event.globalPosition().toPoint()
+                except AttributeError:
+                    gp = event.globalPos()
+                local = self._host.mapFromGlobal(gp)
+                near = self._near_ball(local)
+                if near and not self._hovering:
+                    self._hovering = True
+                    self._reveal()
+                elif not near and self._hovering:
+                    self._hovering = False
+                    if not self._expanded:
+                        self._hide_timer.start(self._HIDE_DELAY_MS)
+
         elif obj is self._ball:
-            if event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-                self._dragging   = True
+            if et == QEvent.Enter:
+                self._hovering = True
+                self._reveal()
+            elif et == QEvent.Leave and not self._dragging:
+                self._hovering = False
+                if not self._expanded:
+                    self._hide_timer.start(self._HIDE_DELAY_MS)
+            elif et == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                self._dragging = True
                 self._drag_moved = False
                 self._drag_offset = event.pos()
+                self._peeking = False
+                self._hide_timer.stop()
+                if self._slide_anim is not None:
+                    self._slide_anim.stop()
+                self._ball.grabMouse()
+                self._ball.start()
                 return True
-            if event.type() == QEvent.MouseMove and self._dragging:
+            elif et == QEvent.MouseMove and self._dragging:
                 new_pos = self._ball.mapToParent(event.pos() - self._drag_offset)
                 if (new_pos - self._ball_pos).manhattanLength() > 3:
                     self._drag_moved = True
                 self._set_ball_pos(new_pos)
                 return True
-            if event.type() == QEvent.MouseButtonRelease and self._dragging:
+            elif et == QEvent.MouseButtonRelease and self._dragging:
                 self._dragging = False
+                try:
+                    self._ball.releaseMouse()
+                except RuntimeError:
+                    pass
                 if self._drag_moved:
-                    self._snap_to_side()
+                    self._snap_to_side(animate=True)
                 else:
                     self.toggle_panel()
                 return True
+
         return super().eventFilter(obj, event)
 
     def toggle_panel(self):
@@ -965,6 +1121,9 @@ class FloatingAIAssistant(QObject):
         runner = get_runner()
         self._chat.set_runner(runner if isinstance(runner, SSHRunner) else None)
         self._expanded = True
+        self._peeking = False
+        self._hide_timer.stop()
+        self._ball_pos = self._docked_pos(False)
         self._panel.show()
         self._update_positions()
         self._panel.raise_()
@@ -986,40 +1145,39 @@ class FloatingAIAssistant(QObject):
         self._expanded = False
         self._panel.hide()
         self._ball.raise_()
+        self._hide_timer.start(self._HIDE_DELAY_MS)
 
     def _set_ball_pos(self, pos: QPoint):
         rect = self._safe_ball_rect()
-        x = min(max(pos.x(), rect.left()), rect.right())
+        x = min(max(pos.x(), -self._ball_w // 2), self._host.width() - self._ball_w // 2)
         y = min(max(pos.y(), rect.top()), rect.bottom())
         self._ball_pos = QPoint(x, y)
-        self._update_positions()
+        self._ball.move(self._ball_pos)
+        self._ball.raise_()
+        if self._expanded:
+            self._update_positions()
 
-    def _snap_to_corner(self):
-        rect = self._safe_ball_rect()
-        self._ball_pos = QPoint(rect.left(), rect.bottom())
-
-    def _snap_to_side(self):
-        rect = self._safe_ball_rect()
+    def _snap_to_side(self, animate: bool = True):
         center_x = self._ball_pos.x() + self._ball_w / 2
-        target_x = rect.left() if center_x < self._host.width() / 2 else rect.right()
-        self._ball_pos = QPoint(target_x, min(max(self._ball_pos.y(), rect.top()), rect.bottom()))
-        self._update_positions()
+        self._dock_side = "left" if center_x < self._host.width() / 2 else "right"
+        self._peeking = True
+        target = self._docked_pos(True)
+        if animate:
+            self._animate_to(target)
+        else:
+            self._ball_pos = target
+            self._ball.move(target)
+        self._hovering = False
 
     def _constrain_ball(self):
-        if self._ball_pos.isNull():
-            self._snap_to_corner()
+        if not self._initialized:
             return
-        self._set_ball_pos(self._ball_pos)
-
-    def _safe_ball_rect(self) -> QRect:
-        left   = self._margin
-        top    = self._top_safe
-        right  = max(left, self._host.width()  - self._margin - self._ball_w)
-        bottom = max(top,  self._host.height() - self._margin - self._ball_h)
-        return QRect(left, top, max(1, right - left + 1), max(1, bottom - top + 1))
+        self._ball_pos = self._docked_pos(self._peeking and not self._expanded)
+        self._update_positions()
 
     def _update_positions(self):
-        self._ball.move(self._ball_pos)
+        if not self._dragging:
+            self._ball.move(self._ball_pos)
         self._ball.raise_()
         if not self._expanded:
             return
@@ -1035,15 +1193,15 @@ class FloatingAIAssistant(QObject):
         ph = max(_pt(300), min(self._panel_h, avail_h))
         self._panel.resize(pw, ph)
 
-        if ball_x + (self._ball_w // 2) >= host_w / 2:
+        if self._dock_side == "right" or ball_x + (self._ball_w // 2) >= host_w / 2:
             panel_x = ball_x + self._ball_w - pw
         else:
             panel_x = ball_x
         panel_y = ball_y - ph - self._gap
 
         panel_x = max(self._margin, min(panel_x, host_w - pw - self._margin))
-        min_y   = self._top_safe
-        max_y   = max(min_y, host_h - ph - self._ball_h - self._gap - self._margin)
+        min_y = self._top_safe
+        max_y = max(min_y, host_h - ph - self._ball_h - self._gap - self._margin)
         panel_y = max(min_y, min(panel_y, max_y))
 
         self._panel.move(panel_x, panel_y)

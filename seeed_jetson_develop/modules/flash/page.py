@@ -463,7 +463,9 @@ def build_page() -> QWidget:
     flash_left_stack = QStackedWidget()
     flash_left_stack.setContentsMargins(0, 0, 0, 0)
     flash_left_stack.setMinimumWidth(0)
-    flash_left_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.MinimumExpanding)
+    # Preferred: column height follows content so the outer page scroll can
+    # reveal bottom actions when the window is at minimum height.
+    flash_left_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     flash_left_stack.setFrameShape(QFrame.NoFrame)
     flash_left_stack.setLineWidth(0)
     flash_left_stack.setStyleSheet("QStackedWidget { background:transparent; border:none; margin:0; padding:0; }")
@@ -471,11 +473,15 @@ def build_page() -> QWidget:
     # Left page 0: device selection — wrapped in a scroll area
     left_page0_inner = QWidget()
     left_page0_inner.setStyleSheet("background:transparent;")
+    left_page0_inner.setMinimumWidth(0)
+    left_page0_inner.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     left_col = QVBoxLayout(left_page0_inner)
     left_col.setContentsMargins(0, 0, pt(4), 0)
     left_col.setSpacing(pt(20))
 
     dev_card = make_card(12)
+    dev_card.setMinimumWidth(0)
+    dev_card.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     dev_lay = QVBoxLayout(dev_card)
     dev_lay.setContentsMargins(pt(24), pt(20), pt(24), pt(20))
     dev_lay.setSpacing(pt(16))
@@ -489,15 +495,13 @@ def build_page() -> QWidget:
     prod_name_lbl = make_label(_ft("flash.device.product"), 12, C_TEXT2)
     prod_row.addWidget(prod_name_lbl)
     prod_row.addStretch()
-    jetpack_badge_w = pt(126)
     flash_product_combo = DropdownButton(max_popup_height=pt(320))
-    flash_product_combo.setMinimumWidth(pt(260))
+    # Full remaining row width — long product names need the space (no JetPack spacer).
+    flash_product_combo.setMinimumWidth(0)
+    flash_product_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     for product_key in sorted(products.keys(), key=_product_display_name_with_module):
         flash_product_combo.addItem(_product_display_name_with_module(product_key), product_key)
-    prod_row.addWidget(flash_product_combo)
-    prod_jetpack_placeholder = QWidget()
-    prod_jetpack_placeholder.setFixedWidth(jetpack_badge_w)
-    prod_row.addWidget(prod_jetpack_placeholder)
+    prod_row.addWidget(flash_product_combo, 1)
     dev_lay.addLayout(prod_row)
 
     l4t_row = QHBoxLayout()
@@ -505,9 +509,10 @@ def build_page() -> QWidget:
     l4t_row.addWidget(l4t_name_lbl)
     l4t_row.addStretch()
     flash_l4t_combo = DropdownButton(max_popup_height=pt(200))
-    flash_l4t_combo.setMinimumWidth(pt(260))
-    l4t_row.addWidget(flash_l4t_combo)
-    # JetPack version display badge
+    flash_l4t_combo.setMinimumWidth(0)
+    flash_l4t_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+    l4t_row.addWidget(flash_l4t_combo, 1)
+    # JetPack version display badge — width follows text; may move below L4T when tight.
     flash_jetpack_lbl = QLabel()
     flash_jetpack_lbl.setStyleSheet(f"""
         background: rgba(141, 194, 31, 0.15);
@@ -518,14 +523,25 @@ def build_page() -> QWidget:
         font-weight: 600;
     """)
     flash_jetpack_lbl.setAlignment(Qt.AlignCenter)
-    flash_jetpack_lbl.setFixedSize(jetpack_badge_w, pt(26))
+    flash_jetpack_lbl.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Fixed)
+    flash_jetpack_lbl.setMinimumHeight(pt(26))
     l4t_row.addWidget(flash_jetpack_lbl)
     dev_lay.addLayout(l4t_row)
 
-    # Device image
+    # Dedicated row used only in compact mode so "JetPack x.y" is never clipped.
+    jetpack_row = QHBoxLayout()
+    jetpack_row.setContentsMargins(0, 0, 0, 0)
+    jetpack_row.addStretch(1)
+    jetpack_row_host = QWidget()
+    jetpack_row_host.setStyleSheet("background:transparent;")
+    jetpack_row_host.setLayout(jetpack_row)
+    jetpack_row_host.hide()
+    dev_lay.addWidget(jetpack_row_host)
+    _jetpack_inline = {"value": True}
+
+    # Device image — sized by _update_adaptive_layout to never exceed half-column width.
     flash_device_img = QLabel()
-    flash_device_img.setFixedSize(780 if PLATFORM.win_min_w > 1024 else 720, 540 if PLATFORM.win_min_w > 1024 else 480)
-    flash_device_img.setMinimumSize(pt(160), pt(100))
+    flash_device_img.setMinimumSize(pt(100), pt(64))
     flash_device_img.setAlignment(Qt.AlignCenter)
     flash_device_img.setScaledContents(False)
     flash_device_img.setStyleSheet(f"""
@@ -541,6 +557,8 @@ def build_page() -> QWidget:
     # Product info
     flash_info = QLabel(_ft("flash.product_summary.waiting"))
     flash_info.setWordWrap(True)
+    flash_info.setMinimumWidth(0)
+    flash_info.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     flash_info.setTextFormat(Qt.RichText)
     flash_info.setTextInteractionFlags(Qt.TextBrowserInteraction)
     flash_info.setOpenExternalLinks(False)
@@ -595,7 +613,8 @@ def build_page() -> QWidget:
     left_page0.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     left_page0.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
     left_page0.setFrameShape(QFrame.NoFrame)
-    left_page0.setMinimumHeight(pt(540))
+    left_page0.setMinimumHeight(0)
+    left_page0.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     left_page0.setStyleSheet(
         "QScrollArea { background:transparent; border:none; }"
         "QScrollBar:vertical { background:transparent; width:6px; border-radius:3px; }"
@@ -618,7 +637,8 @@ def build_page() -> QWidget:
     rec_guide_scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     rec_guide_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     rec_guide_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    rec_guide_scroll.setMinimumHeight(pt(280))
+    rec_guide_scroll.setMinimumHeight(pt(120))
+    rec_guide_scroll.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     rec_guide_scroll.setStyleSheet("background:transparent; border:none;")
 
     rec_guide_content = QWidget()
@@ -741,7 +761,7 @@ def build_page() -> QWidget:
     flash_right_panel = QWidget()
     flash_right_panel.setStyleSheet("background:transparent;")
     flash_right_panel.setMinimumWidth(0)
-    flash_right_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.MinimumExpanding)
+    flash_right_panel.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     right_col = QVBoxLayout(flash_right_panel)
     right_col.setContentsMargins(0, 0, 0, 0)
     right_col.setSpacing(pt(20))
@@ -749,7 +769,7 @@ def build_page() -> QWidget:
     flash_step_stack = QStackedWidget()
     flash_step_stack.setContentsMargins(0, 0, 0, 0)
     flash_step_stack.setMinimumWidth(0)
-    flash_step_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.MinimumExpanding)
+    flash_step_stack.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     flash_step_stack.setFrameShape(QFrame.NoFrame)
     flash_step_stack.setLineWidth(0)
     flash_step_stack.setStyleSheet("QStackedWidget { background:transparent; border:none; margin:0; padding:0; }")
@@ -775,8 +795,8 @@ def build_page() -> QWidget:
     task_lay.addWidget(flash_progress)
 
     flash_prepare_scene = FlashAnimationWidget()
-    flash_prepare_scene.setFixedHeight(160)
-    flash_prepare_scene.setMinimumHeight(160)
+    flash_prepare_scene.setFixedHeight(120)
+    flash_prepare_scene.setMinimumHeight(80)
     task_lay.addWidget(flash_prepare_scene)
 
     btn_row = QHBoxLayout()
@@ -969,8 +989,8 @@ def build_page() -> QWidget:
     run_lay.addWidget(flash_run_progress)
 
     flash_scene = FlashAnimationWidget()
-    flash_scene.setFixedHeight(160)
-    flash_scene.setMinimumHeight(160)
+    flash_scene.setFixedHeight(120)
+    flash_scene.setMinimumHeight(80)
     run_lay.addWidget(flash_scene)
 
     run_btn_row = QHBoxLayout()
@@ -1002,7 +1022,7 @@ def build_page() -> QWidget:
     done_lay.addWidget(flash_done_status_lbl)
 
     flash_done_scene = FlashAnimationWidget()
-    flash_done_scene.setFixedHeight(160)
+    flash_done_scene.setFixedHeight(120)
     flash_done_scene.setMinimumWidth(0)
     flash_done_scene.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
     flash_done_scene.set_mode("success")
@@ -1043,10 +1063,10 @@ def build_page() -> QWidget:
     flash_log.setWordWrapMode(QTextOption.WrapAnywhere)
     flash_log.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     flash_log.setMinimumWidth(0)
-    flash_log.setMinimumHeight(200)
-    flash_log.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
+    flash_log.setMinimumHeight(pt(100))
+    flash_log.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     log_lay_inner.addWidget(flash_log)
-    right_col.addWidget(log_card, 1)
+    right_col.addWidget(log_card)
 
     flash_cols.addWidget(flash_right_panel, 1)
     flash_cols.setStretch(0, 1)
@@ -1057,6 +1077,9 @@ def build_page() -> QWidget:
     flash_cols_host.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     flash_cols_host.setLayout(flash_cols)
     inner_lay.addWidget(flash_cols_host)
+    # Keep a little breathing room under the columns so bottom actions aren't
+    # flush against the window edge when scrolled to the end.
+    inner_lay.addSpacing(pt(12))
     inner_lay.addStretch()
 
     scroll.setWidget(inner)
@@ -1126,25 +1149,99 @@ def build_page() -> QWidget:
             _state["active_status_label"].setText(_ft("flash.status.cancelling"))
             _flash_log_append(_ft("flash.log.cancel_requested"))
 
+    def _fit_jetpack_badge():
+        """Size badge to full text — never clip 'JetPack x.y'."""
+        if not flash_jetpack_lbl.text():
+            return
+        flash_jetpack_lbl.setMinimumWidth(0)
+        flash_jetpack_lbl.setMaximumWidth(16777215)
+        hint = flash_jetpack_lbl.sizeHint()
+        w = max(hint.width() + pt(4), pt(100))
+        h = max(hint.height(), pt(26))
+        flash_jetpack_lbl.setFixedSize(w, h)
+
+    def _place_jetpack_badge(inline: bool):
+        """Keep badge beside L4T when roomy; move under L4T when the column is tight."""
+        in_l4t = l4t_row.indexOf(flash_jetpack_lbl) >= 0
+        in_stack = jetpack_row.indexOf(flash_jetpack_lbl) >= 0
+        if inline and in_l4t:
+            _jetpack_inline["value"] = True
+            jetpack_row_host.hide()
+            _fit_jetpack_badge()
+            return
+        if (not inline) and in_stack:
+            _jetpack_inline["value"] = False
+            jetpack_row_host.show()
+            _fit_jetpack_badge()
+            return
+        for lay in (l4t_row, jetpack_row):
+            idx = lay.indexOf(flash_jetpack_lbl)
+            if idx >= 0:
+                lay.takeAt(idx)
+        _jetpack_inline["value"] = inline
+        if inline:
+            l4t_row.addWidget(flash_jetpack_lbl)
+            jetpack_row_host.hide()
+        else:
+            jetpack_row.addWidget(flash_jetpack_lbl)
+            jetpack_row_host.show()
+        _fit_jetpack_badge()
+
     def _update_adaptive_layout():
         width = flash_cols_host.width() or page.width()
+        height = page.height() or 0
         compact_visual = width < 1100
+        short_window = height > 0 and height < 780
+        tight_width = width > 0 and width < 920
         if flash_cols.direction() != QBoxLayout.LeftToRight:
             flash_cols.setDirection(QBoxLayout.LeftToRight)
         flash_cols.setStretch(0, 1)
         flash_cols.setStretch(1, 1)
-        if compact_visual:
-            flash_device_img.setFixedSize(pt(300), pt(189))
-            flash_prepare_scene.setFixedHeight(160)
-            flash_scene.setFixedHeight(160)
-            flash_done_scene.setFixedHeight(160)
+
+        # Cap each column so neither paints over the other when mins fight.
+        spacing = flash_cols.spacing()
+        col_w = max(pt(200), (max(width, 1) - spacing) // 2) if width > 0 else pt(400)
+        flash_left_stack.setMaximumWidth(col_w)
+        flash_right_panel.setMaximumWidth(col_w)
+        flash_left_stack.setMinimumWidth(0)
+        flash_right_panel.setMinimumWidth(0)
+
+        # Badge needs ~126px; stack under L4T when half-column can't fit combo + badge.
+        stack_jetpack = tight_width or col_w < pt(420)
+
+        if short_window or compact_visual:
+            card_pad = pt(14) if tight_width else pt(18)
+            scene_h = 100 if short_window else 120
+            flash_prepare_scene.setFixedHeight(scene_h)
+            flash_scene.setFixedHeight(scene_h)
+            flash_done_scene.setFixedHeight(scene_h)
+            flash_log.setMinimumHeight(pt(80) if short_window else pt(100))
+            inner_lay.setContentsMargins(pt(16) if tight_width else pt(20), pt(12),
+                                        pt(16) if tight_width else pt(20), pt(16))
+            inner_lay.setSpacing(pt(12) if tight_width else pt(14))
+            flash_cols.setSpacing(pt(12) if tight_width else pt(16))
+            dev_lay.setContentsMargins(card_pad, pt(14), card_pad, pt(14))
+            _place_jetpack_badge(inline=not stack_jetpack)
+            # Image width follows available column, never forces overflow.
+            img_budget = max(pt(100), col_w - card_pad * 2 - pt(8))
+            prefer = pt(200) if short_window or tight_width else pt(260)
+            img_w = min(prefer, img_budget)
+            img_h = max(pt(64), int(img_w * 0.63))
+            flash_device_img.setFixedSize(img_w, img_h)
         else:
             flash_device_img.setFixedSize(pt(480), pt(300))
             flash_prepare_scene.setFixedHeight(180)
             flash_scene.setFixedHeight(180)
             flash_done_scene.setFixedHeight(180)
+            flash_log.setMinimumHeight(pt(160))
+            inner_lay.setContentsMargins(pt(28), pt(24), pt(28), pt(24))
+            inner_lay.setSpacing(pt(24))
+            flash_cols.setSpacing(pt(20))
+            dev_lay.setContentsMargins(pt(24), pt(20), pt(24), pt(20))
+            _place_jetpack_badge(inline=True)
+            flash_left_stack.setMaximumWidth(16777215)
+            flash_right_panel.setMaximumWidth(16777215)
         _rescale_device_image()
-        flash_log.setMinimumHeight(pt(120) if compact_visual else pt(200))
 
     def _rescale_device_image():
         pix = _state.get("device_pixmap")
@@ -1283,6 +1380,7 @@ def build_page() -> QWidget:
         if jetpack:
             flash_jetpack_lbl.setText(f"JetPack {jetpack}")
             flash_jetpack_lbl.setVisible(True)
+            _fit_jetpack_badge()
         else:
             flash_jetpack_lbl.setText("")
             flash_jetpack_lbl.setVisible(False)

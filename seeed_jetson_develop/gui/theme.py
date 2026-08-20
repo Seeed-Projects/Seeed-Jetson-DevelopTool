@@ -134,18 +134,40 @@ def build_mono_font(point_size: int | None = None) -> QFont:
 def _emoji_font_stack() -> str:
     base = pick_font_family(UI_FONT_CANDIDATES)
     if sys.platform != "win32":
-        return f'"Noto Color Emoji", {base}'
+        # UI font first so CJK/Latin metrics stay correct; emoji falls back.
+        return f"{base}, \"Noto Color Emoji\""
     return base
 
 
+def _is_emoji_only(text: str) -> bool:
+    """True when text has no meaningful non-emoji characters left."""
+    import re
+    remainder = re.sub(
+        r"[\U0001F000-\U0001FFFF\u2600-\u27BF\u2300-\u23FF\u2B50\s]+",
+        "",
+        text or "",
+    )
+    return len(remainder) == 0
+
+
 def _set_emoji_font(lbl: QLabel, size: int | None = None):
-    """为包含 emoji 的 QLabel 设置彩色 emoji 字体（不影响布局）。"""
+    """Enable color emoji without replacing the UI font for mixed text.
+
+    Setting the whole QLabel to \"Noto Color Emoji\" breaks CJK layout
+    (overlapping / squashed glyphs). Use a family fallback chain instead.
+    """
     if sys.platform == "win32":
         return
-    emoji_font = QFont("Noto Color Emoji")
+    text = lbl.text() or ""
+    ui = pick_font_family(UI_FONT_CANDIDATES)
+    font = lbl.font()
+    if _is_emoji_only(text):
+        font.setFamilies(["Noto Color Emoji", ui])
+    else:
+        font.setFamilies([ui, "Noto Color Emoji"])
     if size is not None:
-        emoji_font.setPointSize(size)
-    lbl.setFont(emoji_font)
+        font.setPixelSize(pt(size))
+    lbl.setFont(font)
 
 
 # ── 通用组件工厂 ──────────────────────────────────────────────────────────────
@@ -161,10 +183,7 @@ def set_emoji_font_for_label(lbl: QLabel, size_pt: int | None = None):
         return
     text = lbl.text()
     if text and _has_emoji(text):
-        f = QFont("Noto Color Emoji")
-        if size_pt is not None:
-            f.setPointSize(size_pt)
-        lbl.setFont(f)
+        _set_emoji_font(lbl, size_pt)
 
 
 def make_label(text: str, size: int = 13, color: str = C_TEXT,
@@ -1470,6 +1489,7 @@ class DropdownButton(QWidget):
     def _set_current(self, text: str):
         self._current = text
         self._btn.setText(f"  {text}  ▾")
+        self._btn.setToolTip(text)
         if not self.signalsBlocked():
             self.currentTextChanged.emit(text)
 
@@ -1530,15 +1550,32 @@ class DropdownButton(QWidget):
         for i in range(self._list.count()):
             self._list.item(i).setSelected(self._list.item(i).text() == self._current)
 
-        # 定位到按钮正下方
+        # 定位到按钮正下方；弹层按最长项加宽，避免产品名被裁切
         btn_global = self._btn.mapToGlobal(self._btn.rect().bottomLeft())
-        w = max(self._btn.width(), pt(260))
+        fm = self._list.fontMetrics() if self._list is not None else self._btn.fontMetrics()
+        content_w = 0
+        for label in self._items:
+            content_w = max(content_w, fm.horizontalAdvance(label))
+        # item padding L/R + scrollbar + frame
+        content_w += pt(12) * 2 + pt(6) + 16
+        screen = None
+        try:
+            screen = self.window().screen() if self.window() else None
+        except Exception:
+            screen = None
+        max_w = screen.availableGeometry().width() - 48 if screen is not None else pt(720)
+        w = max(self._btn.width(), content_w, pt(280))
+        w = min(w, max_w)
         h = min(self._max_h, self._list.sizeHintForRow(0) * len(self._items) + 12)
         self._popup.setFixedWidth(w)
         self._popup.setFixedHeight(h)
 
-        # 滑入动画：从上方 10px 处滑落到最终位置
+        # Keep popup on-screen when wider than the button.
         final_pos = btn_global
+        if screen is not None:
+            right_limit = screen.availableGeometry().right() - 8
+            if final_pos.x() + w > right_limit:
+                final_pos = QPoint(max(8, right_limit - w), final_pos.y())
         start_pos = QPoint(final_pos.x(), final_pos.y() - 10)
         self._popup.move(start_pos)
         self._popup.show()

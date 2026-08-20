@@ -11,7 +11,7 @@ ContentBackground — 内容区背景装饰动画
 """
 import math
 
-from qtpy.QtCore import Qt, QTimer
+from qtpy.QtCore import Qt, QTimer, QEvent
 from qtpy.QtGui import QColor, QPainter, QLinearGradient, QPen
 from qtpy.QtWidgets import QWidget
 
@@ -21,7 +21,7 @@ class ContentBackground(QWidget):
 
     用法：
         bg = ContentBackground(parent=content_area)
-        bg.setGeometry(0, 0, content_area.width(), content_area.height())
+        # geometry auto-syncs to parent on resize
         bg.show()
     """
 
@@ -33,8 +33,26 @@ class ContentBackground(QWidget):
         self._timer.start(16)
         # 鼠标事件穿透到下层 widget
         self.setAttribute(Qt.WA_TransparentForMouseEvents)
-        self.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.setStyleSheet("background:transparent;")
+        if parent is not None:
+            parent.installEventFilter(self)
+            self._fill_parent()
+
+    def eventFilter(self, obj, event):
+        if obj is self.parent() and event.type() in (QEvent.Resize, QEvent.Show):
+            self._fill_parent()
+        return super().eventFilter(obj, event)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._fill_parent()
+
+    def _fill_parent(self):
+        parent = self.parentWidget()
+        if parent is None:
+            return
+        self.setGeometry(0, 0, max(0, parent.width()), max(0, parent.height()))
+        self.lower()
 
     def _tick(self):
         try:
@@ -50,10 +68,15 @@ class ContentBackground(QWidget):
         if w < 10 or h < 10:
             return
 
-        # ── 1. 水平扫描线（带绿色光晕） ──
+        # Scale decorations lightly with viewport size so they don't look
+        # glued to a fixed design resolution after window resize.
+        glow_h = max(40, min(96, h // 12))
+        spacing = max(36, min(72, w // 24))
+        corner_len = max(16, min(36, min(w, h) // 36))
+        margin = max(12, min(24, min(w, h) // 48))
+
+        # ── 1. 水平扫描线（带绿色光晕）—— 始终横贯整宽 ──
         scan_y = int(h * self._time)
-        # 光晕层
-        glow_h = 60
         grad = QLinearGradient(0, scan_y - glow_h // 2, 0, scan_y + glow_h // 2)
         grad.setColorAt(0, QColor(141, 194, 31, 0))
         grad.setColorAt(0.5, QColor(141, 194, 31, 10))
@@ -61,7 +84,6 @@ class ContentBackground(QWidget):
         p.setPen(Qt.NoPen)
         p.setBrush(grad)
         p.drawRect(0, scan_y - glow_h // 2, w, glow_h)
-        # 核心线
         p.setPen(QPen(QColor(141, 194, 31, 18), 1))
         p.drawLine(0, scan_y, w, scan_y)
 
@@ -71,21 +93,19 @@ class ContentBackground(QWidget):
         p.drawLine(0, scan_y2, w, scan_y2)
 
         # ── 3. 网格点阵 ──
-        spacing = 50
         dot_alpha = 6
         p.setPen(Qt.NoPen)
         p.setBrush(QColor(141, 194, 31, dot_alpha))
         offset_x = int(self._time * spacing)
-        for x in range(-spacing, w + spacing, spacing):
-            for y in range(0, h, spacing):
-                px = (x + offset_x) % (w + spacing) - spacing // 2
+        period = max(spacing, 1)
+        for x in range(-period, w + period, period):
+            for y in range(0, h, period):
+                px = (x + offset_x) % (w + period) - period // 2
                 p.drawEllipse(px, y, 1, 1)
 
         # ── 4. 四角 L 形装饰线（缓慢脉动） ──
-        corner_len = 24
         corner_alpha = int(20 + 15 * math.sin(self._time * math.pi * 2))
         p.setPen(QPen(QColor(141, 194, 31, corner_alpha), 1))
-        margin = 16
         # 左上
         p.drawLine(margin, margin, margin + corner_len, margin)
         p.drawLine(margin, margin, margin, margin + corner_len)
@@ -101,14 +121,16 @@ class ContentBackground(QWidget):
 
         # ── 5. 底部微妙波浪线 ──
         p.setPen(QPen(QColor(141, 194, 31, 6), 1))
-        wave_y = h - 40
+        wave_y = h - max(24, min(56, h // 16))
+        amp = max(4, min(10, h // 80))
         points = []
-        for x in range(0, w, 4):
-            y = wave_y + 6 * math.sin((x + self._time * 200) * 0.02)
+        step = max(3, w // 280)
+        for x in range(0, w + step, step):
+            y = wave_y + amp * math.sin((x + self._time * 200) * 0.02)
             points.append((x, y))
         for i in range(len(points) - 1):
             p.drawLine(int(points[i][0]), int(points[i][1]),
-                       int(points[i+1][0]), int(points[i+1][1]))
+                       int(points[i + 1][0]), int(points[i + 1][1]))
 
     def start(self):
         self._timer.start(16)
