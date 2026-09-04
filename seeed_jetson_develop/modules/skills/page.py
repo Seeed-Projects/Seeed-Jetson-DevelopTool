@@ -1,6 +1,10 @@
 """Skills center page."""
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
+
 from qtpy.QtCore import Qt, QThread, Signal, QTimer, QPoint, QRect
 from qtpy.QtGui import QTextCursor
 from qtpy.QtWidgets import (
@@ -29,6 +33,7 @@ def _can_execute_from_current_env(parent: QWidget) -> bool:
 from seeed_jetson_develop.modules.skills.engine import (
     load_all_variants, Skill, CATEGORY_ICONS, normalize_category,
 )
+from seeed_jetson_develop.core.config import get_npm_registry
 from seeed_jetson_develop.gui.ai_chat import _DEFAULT_SYSTEM
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding
 from seeed_jetson_develop.gui.runtime_i18n import apply_dialog_language as _apply_dlg_lang
@@ -483,6 +488,455 @@ class _DocDialog(QDialog):
         self.move(x, y)
 
 
+import subprocess, re as _re, shutil, sys
+from qtpy.QtWidgets import QCheckBox, QListWidget, QListWidgetItem
+
+
+def _find_npx() -> str | None:
+    """Find npx executable path. On Windows, shutil.which finds npx.cmd."""
+    return shutil.which("npx")
+
+
+# ── NVIDIA Skills list cache ───────────────────────────────────────────────
+_NVIDIA_SKILLS_CACHE_PATH = Path.home() / ".config" / "seeed-jetson-tool" / "nvidia_skills_cache.json"
+
+
+def _load_skills_cache() -> list | None:
+    """Load cached NVIDIA skills list."""
+    try:
+        data = json.loads(_NVIDIA_SKILLS_CACHE_PATH.read_text(encoding="utf-8"))
+        if isinstance(data, list) and data:
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def _save_skills_cache(skills: list):
+    """Save NVIDIA skills list to local cache."""
+    try:
+        _NVIDIA_SKILLS_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _NVIDIA_SKILLS_CACHE_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps(skills, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(_NVIDIA_SKILLS_CACHE_PATH)
+    except Exception:
+        pass
+
+
+
+def _get_installed_nvidia_skills() -> set[str]:
+    """Return names of NVIDIA skills already installed via npx skills add."""
+    installed = set()
+    for base in (".claude/skills", ".agents/skills"):
+        d = Path(base)
+        if d.exists():
+            for child in d.iterdir():
+                if child.is_dir() and (child / "SKILL.md").exists():
+                    installed.add(child.name)
+    return installed
+
+
+# ── NVIDIA Skills fetch/install (via npx skills CLI) ──
+
+class _NvidiaListThread(QThread):
+    """Fetch available NVIDIA skills list via `npx skills add nvidia/skills --list`."""
+    log    = Signal(str)
+    done   = Signal(list)   # [(name, description), ...]
+    failed = Signal(str)
+
+    def __init__(self):
+        super().__init__()
+        self._proc = None
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+        if self._proc:
+            try:
+                self._proc.terminate()
+            except Exception:
+                pass
+
+    def run(self):
+        self.log.emit("\n⏳ Running: npx skills add nvidia/skills --list ...\n")
+        npx = _find_npx()
+        if not npx:
+            self.failed.emit("npx not found. Install Node.js LTS first (https://nodejs.org).")
+            return
+        try:
+            env = os.environ.copy()
+            env["NPM_CONFIG_REGISTRY"] = get_npm_registry()
+            self._proc = subprocess.Popen(
+                [npx, "skills", "add", "nvidia/skills", "--list", "--yes"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace",
+                env=env,
+            )
+            out_lines = []
+            for line in self._proc.stdout:
+                if self._cancelled:
+                    break
+                out_lines.append(line)
+                self.log.emit(line.rstrip("\n"))
+            if self._cancelled:
+                self.failed.emit("Cancelled by user.")
+                return
+            self._proc.wait(timeout=180)
+            out = "".join(out_lines)
+            skills = self._parse(out)
+            if skills:
+                self.log.emit(f"\nFound {len(skills)} skills\n")
+                self.done.emit(skills)
+            else:
+                self.failed.emit("No skills parsed from output. Is npx/node installed?")
+        except subprocess.TimeoutExpired:
+            self.failed.emit("Timed out after 180s. Check network connection.")
+        except FileNotFoundError:
+            self.failed.emit("npx not found. Install Node.js LTS first (https://nodejs.org).")
+        except Exception as e:
+            self.failed.emit(f"Error: {e}")
+
+    # Strip ANSI escape sequences (SGR colors, cursor moves, erase, etc.)
+    _ANSI_RE = _re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+    @classmethod
+    def _strip_ansi(cls, text: str) -> str:
+        """Remove ANSI color codes from npx skills output."""
+        return cls._ANSI_RE.sub("", text)
+
+    # Accept both Unicode box-drawing (│) and ASCII pipe (|)
+    _PIPE = "│|"
+    _NAME_RE = _re.compile(r"^[│|]\s+([a-z0-9][a-z0-9_-]+)\s*$")
+    _DESC_RE = _re.compile(r"^[│|]\s+(.+)$")
+
+    @classmethod
+    def _parse(cls, text: str) -> list:
+        """Parse `npx skills add nvidia/skills --list` output.
+
+        The real CLI prints Unicode box-drawing characters (│) and separates
+        each skill with blank │ lines, e.g.:
+            │    skill-name
+            │
+            │      description
+            │
+        """
+        skills = []
+        lines = text.splitlines()
+        i = 0
+        while i < len(lines):
+            line = cls._strip_ansi(lines[i].strip())
+            m = cls._NAME_RE.match(line)
+            if m and i + 1 < len(lines):
+                name = m.group(1)
+                # skip blank │/| lines to find the description
+                for j in range(i + 1, min(i + 5, len(lines))):
+                    desc_line = cls._strip_ansi(lines[j].strip())
+                    dm = cls._DESC_RE.match(desc_line)
+                    if dm:
+                        desc = dm.group(1).strip()
+                        if name not in ("Available", "Skills", "Source", "Found"):
+                            skills.append((name, desc))
+                        i = j
+                        break
+                else:
+                    i += 1
+                continue
+            i += 1
+        return skills
+
+
+class _NvidiaInstallThread(QThread):
+    """Install a single NVIDIA skill via `npx skills add nvidia/skills --skill <name> --yes`."""
+    log   = Signal(str)
+    done  = Signal(str, bool)  # name, success
+
+    def __init__(self, skill_name: str):
+        super().__init__()
+        self._name = skill_name
+        self._proc = None
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+        if self._proc:
+            try:
+                self._proc.terminate()
+            except Exception:
+                pass
+
+    def run(self):
+        self.log.emit(f"\n⏳ Installing: {self._name}\n")
+        npx = _find_npx()
+        if not npx:
+            self.log.emit(f"✗ npx not found\n")
+            self.done.emit(self._name, False)
+            return
+        try:
+            env = os.environ.copy()
+            env["NPM_CONFIG_REGISTRY"] = get_npm_registry()
+            self._proc = subprocess.Popen(
+                [npx, "skills", "add", "nvidia/skills", "--skill", self._name, "--yes"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace",
+                env=env,
+            )
+            out_lines = []
+            for line in self._proc.stdout:
+                if self._cancelled:
+                    break
+                out_lines.append(line)
+                self.log.emit(line.rstrip("\n"))
+            if self._cancelled:
+                self.log.emit(f"✗ {self._name} cancelled\n")
+                self.done.emit(self._name, False)
+                return
+            self._proc.wait(timeout=180)
+            out = "".join(out_lines)
+            ok = "Installation complete" in out or self._proc.returncode == 0
+            status = "installed" if ok else "failed"
+            self.log.emit(f"{'✓' if ok else '✗'} {self._name} {status}\n")
+            self.done.emit(self._name, ok)
+        except Exception as e:
+            self.log.emit(f"✗ Error installing {self._name}: {e}\n")
+            self.done.emit(self._name, False)
+
+class _NvidiaSkillsDialog(QDialog):
+    """Dialog to browse and install NVIDIA skills from nvidia/skills repo."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("NVIDIA Skills")
+        self.setMinimumSize(640, 560)
+        self._list_thread = None
+        self._install_threads = []
+        self._installed = set()
+        self._newly_installed: list[str] = []
+        self._all_skills: dict[str, str] = {}
+        self._build_ui()
+        self._start_fetch()
+
+    def _build_ui(self):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(10)
+
+        # Header
+        hdr = QLabel("Browse and install skills from NVIDIA/skills repo")
+        hdr.setStyleSheet(f"font-size:14px; font-weight:bold; color:{C_TEXT};")
+        lay.addWidget(hdr)
+
+        # Search
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("🔍 Search skills...")
+        self._search.setStyleSheet(input_qss(radius=20, font_size=12))
+        self._search.setFixedHeight(_pt(36))
+        self._search.textChanged.connect(self._filter_list)
+        lay.addWidget(self._search)
+
+        # Skills list
+        self._list = QListWidget()
+        self._list.setStyleSheet(
+            f"QListWidget {{ background:transparent; border:1px solid rgba(255,255,255,0.06);"
+            f" border-radius:8px; color:{C_TEXT2}; font-size:{_pt(12)}px; }}"
+            f"QListWidget::item {{ padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.03); }}"
+            f"QListWidget::item:selected {{ background:rgba(122,179,23,0.10); }}"
+        )
+        lay.addWidget(self._list, 1)
+
+        # Log area
+        self._log = QTextEdit()
+        self._log.setReadOnly(True)
+        self._log.setMaximumHeight(140)
+        self._log.setStyleSheet(
+            f"QTextEdit {{ background:rgba(0,0,0,0.15); border:1px solid rgba(255,255,255,0.04);"
+            f" border-radius:8px; color:{C_TEXT3}; font-size:{_pt(11)}px; font-family:monospace; }}"
+        )
+        lay.addWidget(self._log)
+
+        # Buttons
+        btn_row = QHBoxLayout()
+        self._btn_refresh = _btn("Refresh List")
+        self._btn_refresh.clicked.connect(self._start_fetch)
+        self._btn_install = _btn("Install Selected", primary=True)
+        self._btn_install.clicked.connect(self._install_selected)
+        self._btn_close = _btn("Close")
+        self._btn_close.clicked.connect(self.accept)
+        btn_row.addWidget(self._btn_refresh)
+        btn_row.addStretch()
+        btn_row.addWidget(self._btn_install)
+        btn_row.addWidget(self._btn_close)
+        lay.addLayout(btn_row)
+
+    def _start_fetch(self):
+        self._list.clear()
+        self._btn_install.setEnabled(False)
+        self._btn_refresh.setEnabled(False)
+        self._log.clear()
+        cached = _load_skills_cache()
+        if cached:
+            self._log.append("⏳ Loading NVIDIA skills from local cache...\n")
+            self._on_list_done(cached)
+            self._log.append(f"✓ Loaded from cache {len(cached)} skills\n")
+            return
+        self._btn_refresh.setText("Fetching...")
+        self._list_thread = _NvidiaListThread()
+        self._list_thread.log.connect(self._log.append)
+        self._list_thread.done.connect(self._on_list_done)
+        self._list_thread.failed.connect(self._on_list_failed)
+        self._list_thread.start()
+
+    def _on_list_done(self, skills: list):
+        _save_skills_cache(skills)
+        self._all_skills = {name: desc for name, desc in skills}
+        installed = _get_installed_nvidia_skills()
+        for name, desc in skills:
+            is_installed = name in installed
+            item = QListWidgetItem()
+            widget = QWidget()
+            wl = QHBoxLayout(widget)
+            wl.setContentsMargins(8, 4, 8, 4)
+            cb = QCheckBox()
+            cb.setStyleSheet(f"QCheckBox {{ color:{C_TEXT}; }}")
+            if is_installed:
+                cb.setChecked(True)
+                cb.setEnabled(False)
+            info = QVBoxLayout()
+            info.setSpacing(2)
+            name_text = name + ("  ✓" if is_installed else "")
+            lbl_name = QLabel(name_text)
+            lbl_name.setStyleSheet(
+                f"font-weight:bold; color:{C_GREEN if is_installed else C_TEXT}; font-size:{_pt(12)}px;"
+            )
+            lbl_desc = QLabel(desc[:100] + "..." if len(desc) > 100 else desc)
+            lbl_desc.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px;")
+            lbl_desc.setWordWrap(True)
+            info.addWidget(lbl_name)
+            info.addWidget(lbl_desc)
+            wl.addWidget(cb)
+            wl.addLayout(info, 1)
+            item.setSizeHint(widget.sizeHint())
+            self._list.addItem(item)
+            self._list.setItemWidget(item, widget)
+        self._btn_refresh.setEnabled(True)
+        self._btn_refresh.setText("Refresh List")
+        self._btn_install.setEnabled(True)
+        self._log.append(f"\n{len(skills)} skills available. Check the ones you want, then click Install.\n")
+
+    def _on_list_failed(self, msg: str):
+        self._log.append(f"\n✗ {msg}\n")
+        self._btn_refresh.setEnabled(True)
+        self._btn_refresh.setText("Refresh List")
+
+    def _filter_list(self, text: str):
+        text = text.lower().strip()
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            widget = self._list.itemWidget(item)
+            if widget:
+                labels = widget.findChildren(QLabel)
+                name = labels[0].text().lower() if labels else ""
+                desc = labels[1].text().lower() if len(labels) > 1 else ""
+                item.setHidden(text not in name and text not in desc)
+
+    def _install_selected(self):
+        selected = []
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            widget = self._list.itemWidget(item)
+            if widget:
+                cb = widget.findChild(QCheckBox)
+                if cb and cb.isChecked():
+                    labels = widget.findChildren(QLabel)
+                    name = labels[0].text() if labels else ""
+                    if name and name not in self._installed:
+                        selected.append(name)
+        if not selected:
+            self._log.append("No new skills selected.\n")
+            return
+        self._btn_install.setEnabled(False)
+        self._btn_install.setText(f"安装中 (0/{len(selected)})")
+        self._newly_installed = []
+        self._install_queue = selected
+        self._install_idx = 0
+        self._install_next()
+
+    def _install_next(self):
+        if self._install_idx >= len(self._install_queue):
+            self._btn_install.setEnabled(True)
+            self._btn_install.setText("Install Selected")
+            self._log.append(f"\nInstall complete. {len(self._installed)} skills installed.\n")
+            if self._newly_installed:
+                installed = self._newly_installed[:]
+                self._newly_installed = []
+                self._show_usage_dialog(installed)
+            return
+        name = self._install_queue[self._install_idx]
+        self._btn_install.setText(f"安装中 ({self._install_idx}/{len(self._install_queue)})")
+        t = _NvidiaInstallThread(name)
+        t.log.connect(self._log.append)
+        t.done.connect(self._on_install_done)
+        self._install_threads.append(t)
+        t.start()
+
+    def _on_install_done(self, name: str, success: bool):
+        if success:
+            self._installed.add(name)
+            self._newly_installed.append(name)
+        self._install_idx += 1
+        self._install_next()
+
+    def _show_usage_dialog(self, names: list[str]):
+        """Show a dialog telling the user how to use installed NVIDIA skills."""
+        dlg = _NvidiaSkillUsageDialog(names, self._all_skills, parent=self)
+        _apply_dlg_lang(dlg, self)
+        dlg.exec_()
+
+
+class _NvidiaSkillUsageDialog(QDialog):
+    """Dialog shown after installing NVIDIA skills with usage hints."""
+
+    def __init__(self, names: list[str], skill_descs: dict[str, str], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("NVIDIA Skills Installed")
+        self.setMinimumSize(520, 320)
+        self._build_ui(names, skill_descs)
+
+    def _build_ui(self, names: list[str], skill_descs: dict[str, str]):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(16, 16, 16, 16)
+        lay.setSpacing(12)
+
+        title = QLabel("The following NVIDIA Skills have been installed:")
+        title.setStyleSheet(f"font-size:14px; font-weight:bold; color:{C_TEXT};")
+        lay.addWidget(title)
+
+        hint = QLabel("Describe your need in any AI dialog to trigger the skill, e.g.:\n"
+                      '"I want to use DeepStream for object detection", "Help me debug Jetson memory".')
+        hint.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px;")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+
+        list_widget = QListWidget()
+        list_widget.setStyleSheet(
+            f"QListWidget {{ background:transparent; border:1px solid rgba(255,255,255,0.06);"
+            f" border-radius:8px; color:{C_TEXT2}; font-size:{_pt(12)}px; }}"
+            f"QListWidget::item {{ padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.03); }}"
+        )
+        for name in names:
+            desc = skill_descs.get(name, "")
+            item = QListWidgetItem(f"{name}\n{desc}")
+            item.setToolTip(desc)
+            list_widget.addItem(item)
+        lay.addWidget(list_widget, 1)
+
+        btn = _btn("Got it", primary=True)
+        btn.clicked.connect(self.accept)
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        btn_row.addWidget(btn)
+        lay.addLayout(btn_row)
+
+
 from seeed_jetson_develop.gui.widgets.page_base import PageBase
 
 _ALL_CATEGORY = "all"
@@ -495,6 +949,7 @@ _CAT_TO_KEY = {
     "ai_llm": "skills.category.ai_llm",
     "vision_yolo": "skills.category.vision_yolo",
     "driver_repair": "skills.category.driver_repair",
+    "nvidia_skills": "skills.category.nvidia_skills",
 }
 
 
@@ -557,6 +1012,11 @@ class SkillsPage(PageBase):
         self._banner_sub = _lbl(_t("skills.loading"), 11, C_TEXT3)
         tc.addWidget(self._banner_sub)
         bl.addLayout(tc, 1)
+        nvidia_btn = _btn("⚡ 获取 NVIDIA Skills", primary=True)
+        nvidia_btn.setFixedHeight(_pt(36))
+        nvidia_btn.setCursor(Qt.PointingHandCursor)
+        nvidia_btn.clicked.connect(self._open_nvidia_skills)
+        bl.addWidget(nvidia_btn)
         lay.addWidget(banner)
 
         # Search box
@@ -730,6 +1190,14 @@ class SkillsPage(PageBase):
         self._rebuild()
 
     # Dialogs
+    def _open_nvidia_skills(self):
+        """Open dialog to browse and install NVIDIA skills from GitHub."""
+        dlg = _NvidiaSkillsDialog(parent=self)
+        _apply_dlg_lang(dlg, self)
+        dlg.exec_()
+        # Reload skills after install
+        self._start_load()
+
 
     def _open_install(self, skill: Skill):
         if not _can_execute_from_current_env(self):

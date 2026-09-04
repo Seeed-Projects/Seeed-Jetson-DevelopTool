@@ -15,7 +15,8 @@ from qtpy.QtCore import Qt, QRect, QPoint, QPointF, QTimer
 from qtpy.QtGui import QColor, QFont, QFontDatabase, QLinearGradient, QPainter, QPen
 from qtpy.QtWidgets import (
     QApplication, QDialog, QFrame, QGraphicsDropShadowEffect,
-    QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QScrollArea, QWidget, QVBoxLayout,
+    QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton,
+    QScrollArea, QSizePolicy, QTextEdit, QWidget, QVBoxLayout,
 )
 
 
@@ -659,6 +660,192 @@ def make_input_field(placeholder: str = "", multiline: bool = False) -> "QWidget
     return w
 
 
+# ── StepIndicator: reusable step progress bar ───────────────────────────────
+class StepIndicator(QWidget):
+    """Numbered step indicator with circles, labels, and arrows.
+
+    Matches the Flash page wizard style: 36px circles, horizontal
+    circle + text layout, three states (active / done / pending).
+
+    Usage::
+        indicator = StepIndicator(["Device", "Connect", "Download", "Execute"])
+        indicator.set_current(2)  # step 3 active, steps 1-2 done
+    """
+
+    def __init__(self, step_names: list[str], parent=None):
+        super().__init__(parent)
+        self._circles: list[QLabel] = []
+        self._labels: list[QLabel] = []
+        self._arrows: list[QLabel] = []
+        self._current = 0
+        self._build(step_names)
+
+    def _build(self, names: list[str]):
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(pt(24), pt(20), pt(24), pt(20))
+        outer.setSpacing(0)
+
+        row = QHBoxLayout()
+        row.setSpacing(pt(10))
+
+        for idx, name in enumerate(names):
+            item = QWidget()
+            item.setStyleSheet("background:transparent; border:none;")
+            item.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            item_lay = QHBoxLayout(item)
+            item_lay.setContentsMargins(0, 0, 0, 0)
+            item_lay.setSpacing(pt(12))
+
+            circle = QLabel(f"{idx + 1}")
+            circle.setFixedSize(pt(36), pt(36))
+            circle.setAlignment(Qt.AlignCenter)
+            item_lay.addWidget(circle)
+            self._circles.append(circle)
+
+            lbl = QLabel(name)
+            lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+            lbl.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+            item_lay.addWidget(lbl, 1)
+            self._labels.append(lbl)
+
+            row.addWidget(item, 1)
+
+            if idx < len(names) - 1:
+                arrow = QLabel("\u203a")
+                arrow.setAlignment(Qt.AlignCenter)
+                arrow.setFixedSize(pt(28), pt(36))
+                arrow.setStyleSheet(
+                    f"color:{C_TEXT3}; font-size:{pt(21)}px; font-weight:600;"
+                    " background:transparent; border:none; padding:0;"
+                )
+                row.addWidget(arrow)
+                self._arrows.append(arrow)
+
+        outer.addLayout(row)
+        self._apply()
+
+    def _apply(self):
+        for i, (c, l) in enumerate(zip(self._circles, self._labels)):
+            if i < self._current:
+                # done
+                c.setStyleSheet(f"""
+                    background: rgba(122,179,23,0.24);
+                    color: {C_GREEN};
+                    border: 1px solid rgba(122,179,23,0.28);
+                    border-radius: {pt(18)}px;
+                    font-weight: 700;
+                    font-size: {pt(13)}pt;
+                """)
+                l.setStyleSheet(
+                    f"color:{C_TEXT2}; font-size:{pt(12)}pt; font-weight:500;"
+                    " background:transparent; border:none;"
+                )
+            elif i == self._current:
+                # active
+                c.setStyleSheet(f"""
+                    background: {C_GREEN};
+                    color: #071200;
+                    border: none;
+                    border-radius: {pt(18)}px;
+                    font-weight: 700;
+                    font-size: {pt(13)}pt;
+                """)
+                l.setStyleSheet(
+                    f"color:{C_GREEN}; font-size:{pt(12)}pt; font-weight:700;"
+                    " background:transparent; border:none;"
+                )
+            else:
+                # pending
+                c.setStyleSheet(f"""
+                    background: transparent;
+                    color: {C_TEXT3};
+                    border: 1px solid rgba(255,255,255,0.10);
+                    border-radius: {pt(18)}px;
+                    font-weight: 700;
+                    font-size: {pt(13)}pt;
+                """)
+                l.setStyleSheet(
+                    f"color:{C_TEXT3}; font-size:{pt(12)}pt; font-weight:500;"
+                    " background:transparent; border:none;"
+                )
+        for a in self._arrows:
+            a.setStyleSheet(
+                f"color:{C_TEXT3}; font-size:{pt(21)}px; font-weight:600;"
+                " background:transparent; border:none; padding:0;"
+            )
+        if 0 <= self._current - 1 < len(self._arrows):
+            self._arrows[self._current - 1].setStyleSheet(
+                f"color:{C_GREEN}; font-size:{pt(21)}px; font-weight:600;"
+                " background:transparent; border:none; padding:0;"
+            )
+
+    def set_current(self, idx: int):
+        """Set the active step (0-based). Steps before ``idx`` are marked done."""
+        self._current = max(0, min(idx, len(self._circles) - 1))
+        self._apply()
+
+
+# ── StatusBadge: colored status label ───────────────────────────────────────
+
+STATUS_COLORS = {
+    "ok":      C_GREEN,
+    "warn":    C_ORANGE,
+    "error":   C_RED,
+    "info":    C_BLUE,
+    "default": C_TEXT2,
+}
+
+
+class StatusBadge(QLabel):
+    """Label that switches color by status keyword.
+
+    Usage::
+        badge = StatusBadge("Ready")
+        badge.set_status("ok", "Connected")
+        badge.set_status("warn", "Version mismatch")
+    """
+
+    def __init__(self, text: str = "", status: str = "default", parent=None):
+        super().__init__(text, parent)
+        self._status = status
+        self._apply()
+
+    def set_status(self, status: str, text: str | None = None):
+        """Update status color and optionally text.
+
+        ``status`` must be one of: ok, warn, error, info, default.
+        """
+        self._status = status
+        if text is not None:
+            self.setText(text)
+        self._apply()
+
+    def _apply(self):
+        color = STATUS_COLORS.get(self._status, C_TEXT2)
+        self.setStyleSheet(f"color:{color}; font-size:{pt(12)}px;")
+
+
+# ── make_log_view: unified log text area ────────────────────────────────────
+
+def make_log_view(read_only: bool = True, min_height: int = 180,
+                  text_color: str = C_GREEN) -> QTextEdit:
+    """Create a styled QTextEdit for log output.
+
+    All log areas across the app should use this for visual consistency.
+    """
+    te = QTextEdit()
+    te.setReadOnly(read_only)
+    te.setStyleSheet(
+        f"QTextEdit {{"
+        f" background:{C_CARD_LIGHT}; border:none; border-radius:8px;"
+        f" color:{text_color};"
+        f" font-family:'JetBrains Mono','Consolas','Courier New',monospace;"
+        f" font-size:{pt(11)}px; padding:10px;"
+        f"}}"
+    )
+    te.setMinimumHeight(pt(min_height))
+    return te
+
 def input_qss(radius: int = 8, font_size: int = 12) -> str:
     """返回统一的 QLineEdit 样式字符串，供各模块内联 setStyleSheet 使用。
     使用深色背景 + 明显边框，确保输入框在深色主题下清晰可辨。
@@ -795,6 +982,28 @@ QCheckBox::indicator:checked {{
     image: none;
 }}
 
+/* 单选按钮 */
+QRadioButton {{
+    color: {C_TEXT2};
+    spacing: 10px;
+    font-size: {pt(12)}px;
+}}
+QRadioButton::indicator {{
+    width: 18px; height: 18px;
+    border-radius: 9px;
+    background: {C_CARD_LIGHT};
+    border: 1px solid rgba(255,255,255,0.10);
+}}
+QRadioButton::indicator:hover {{
+    border-color: rgba(141,194,31,0.40);
+    background: #1E2B3C;
+}}
+QRadioButton::indicator:checked {{
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+        stop:0 #A0D428, stop:1 #7AB317);
+    border-color: rgba(0,0,0,0.3);
+    image: none;
+}}
 /* 进度条 - 带光泽渐变 */
 QProgressBar {{
     background: rgba(0,0,0,0.30);

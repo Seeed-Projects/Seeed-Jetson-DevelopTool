@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import locale
 import os
 import logging
 from pathlib import Path
@@ -361,3 +362,50 @@ def get_effective_https_proxy() -> str | None:
     """
     proxies = get_proxy_settings()
     return proxies.get("https") or proxies.get("all")
+
+# ── npm registry (used by npx when installing NVIDIA skills) ───────────────
+DEFAULT_NPM_REGISTRY = "https://registry.npmjs.org/"
+DEFAULT_NPM_REGISTRY_CN = "https://registry.npmmirror.com/"
+
+
+def _is_chinese_locale() -> bool:
+    """Return True if the OS default locale is Chinese (any region)."""
+    try:
+        # getdefaultlocale() is deprecated but still returns POSIX names
+        # like 'zh_CN' on Windows, while getlocale() may return the
+        # localized display name (e.g. 'Chinese (Simplified)_China').
+        for loc in (locale.getdefaultlocale()[0], locale.getlocale()[0]):
+            if loc:
+                low = loc.lower()
+                if low.startswith("zh") or "chinese" in low:
+                    return True
+    except Exception:
+        pass
+    return False
+
+
+def get_npm_registry() -> str:
+    """Return the npm registry URL to use for npx installs.
+
+    Priority:
+      1. Explicit ``npm_registry`` config value (e.g. set via settings).
+      2. Chinese system locale -> npmmirror.com.
+      3. Fallback -> official npm registry.
+    """
+    cfg = load()
+    explicit = cfg.get("npm_registry", "auto")
+    if explicit and explicit.lower() != "auto":
+        return explicit
+    if _is_chinese_locale():
+        return DEFAULT_NPM_REGISTRY_CN
+    return DEFAULT_NPM_REGISTRY
+
+
+def set_npm_registry(url: str | None):
+    """Persist npm registry preference.  ``None`` resets to auto."""
+    data = load()
+    if url is None:
+        data.pop("npm_registry", None)
+    else:
+        data["npm_registry"] = url
+    save(data)

@@ -34,6 +34,7 @@ from seeed_jetson_develop.gui.theme import (
     show_info_message as _show_info_message,
     show_warning_message as _show_warning_message,
     ShinyProgressBar, input_qss,
+    StepIndicator, StatusBadge, make_log_view,
 )
 from seeed_jetson_develop.data_update import load_json_data
 
@@ -402,80 +403,23 @@ def build_page() -> QWidget:
     inner_lay = QVBoxLayout(inner)
     inner_lay.setAlignment(Qt.AlignTop)
     inner_lay.setContentsMargins(pt(28), pt(24), pt(28), pt(24))
-    inner_lay.setSpacing(pt(20))
+    inner_lay.setSpacing(pt(24))
 
     # ── Wizard step indicator ──
-    _step_circles: list[QLabel] = []
-    _step_labels: list[QLabel] = []
-    _step_arrows: list[QLabel] = []
-
     wizard_card = _pin_height(_card(12))
-    wizard_lay = QHBoxLayout(wizard_card)
-    wizard_lay.setSpacing(0)
-    wizard_lay.setContentsMargins(pt(16), pt(12), pt(16), pt(12))
-
     step_names = [
         _at("ota.step.device"),
         _at("ota.step.connect"),
         _at("ota.step.download"),
         _at("ota.step.execute"),
     ]
-
-    def _apply_step_style(circle: QLabel, lbl: QLabel, state: str):
-        if state == "done":
-            circle.setStyleSheet(
-                f"background:{C_GREEN}; color:#fff; border-radius:10px; "
-                f"font-size:11px; font-weight:700; padding:2px 6px;"
-            )
-            lbl.setStyleSheet(f"color:{C_GREEN}; font-size:12px; font-weight:600;")
-        elif state == "active":
-            circle.setStyleSheet(
-                f"background:{C_GREEN}; color:#fff; border-radius:10px; "
-                f"font-size:11px; font-weight:700; padding:2px 6px;"
-            )
-            lbl.setStyleSheet(f"color:{C_TEXT}; font-size:12px; font-weight:600;")
-        else:
-            circle.setStyleSheet(
-                f"background:{C_BG_DEEP}; color:{C_TEXT3}; border-radius:10px; "
-                f"font-size:11px; font-weight:700; padding:2px 6px;"
-            )
-            lbl.setStyleSheet(f"color:{C_TEXT3}; font-size:12px;")
+    _step_indicator = StepIndicator(step_names)
+    wizard_card_layout = QVBoxLayout(wizard_card)
+    wizard_card_layout.setContentsMargins(0, 0, 0, 0)
+    wizard_card_layout.addWidget(_step_indicator)
 
     def _set_wizard_step(active_idx: int):
-        for i, (c, l) in enumerate(zip(_step_circles, _step_labels)):
-            if i < active_idx:
-                _apply_step_style(c, l, "done")
-            elif i == active_idx:
-                _apply_step_style(c, l, "active")
-            else:
-                _apply_step_style(c, l, "pending")
-        for a in _step_arrows:
-            a.setStyleSheet(f"color:{C_TEXT3}; font-size:14px;")
-        if 0 <= active_idx - 1 < len(_step_arrows):
-            _step_arrows[active_idx - 1].setStyleSheet(f"color:{C_GREEN}; font-size:14px;")
-
-    for idx, name in enumerate(step_names):
-        c = QLabel(f"{idx + 1}")
-        c.setAlignment(Qt.AlignCenter)
-        c.setFixedSize(pt(24), pt(24))
-        l = QLabel(name)
-        l.setAlignment(Qt.AlignCenter)
-        step_w = QWidget()
-        step_lay = QVBoxLayout(step_w)
-        step_lay.setContentsMargins(0, 0, 0, 0)
-        step_lay.setSpacing(2)
-        step_lay.addWidget(c, alignment=Qt.AlignCenter)
-        step_lay.addWidget(l, alignment=Qt.AlignCenter)
-        wizard_lay.addWidget(step_w)
-        _step_circles.append(c)
-        _step_labels.append(l)
-        if idx < len(step_names) - 1:
-            arrow = QLabel("›")
-            arrow.setStyleSheet(f"color:{C_TEXT3}; font-size:14px; padding:0 8px;")
-            wizard_lay.addWidget(arrow)
-            _step_arrows.append(arrow)
-    wizard_lay.addStretch()
-    _set_wizard_step(0)
+        _step_indicator.set_current(active_idx)
     inner_lay.addWidget(wizard_card)
 
     # ── Content stack ──
@@ -502,11 +446,12 @@ def build_page() -> QWidget:
     step0.setStyleSheet("background:transparent;")
     s0_lay = _pack_top(QVBoxLayout(step0))
     s0_lay.setContentsMargins(0, 0, 0, 0)
-    s0_lay.setSpacing(pt(16))
+    s0_lay.setSpacing(pt(20))
 
     device_card = _pin_height(_card(12))
     device_lay = _pack_top(QVBoxLayout(device_card))
-    device_lay.setSpacing(pt(12))
+    device_lay.setContentsMargins(pt(24), pt(20), pt(24), pt(20))
+    device_lay.setSpacing(pt(16))
 
     device_title = _lbl(_at("ota.device.title"), 14, C_TEXT, bold=True)
     device_lay.addWidget(device_title)
@@ -527,11 +472,11 @@ def build_page() -> QWidget:
     dev_img.setAlignment(Qt.AlignCenter)
     dev_img.setStyleSheet(f"background:{C_CARD_LIGHT}; border-radius:8px;")
     dev_info_col = _pack_top(QVBoxLayout())
-    dev_info_col.setSpacing(pt(8))
+    dev_info_col.setSpacing(pt(12))
     dev_name_lbl = _pin_height(_lbl("", 14, C_TEXT, bold=True))
     dev_versions_lbl = _pin_height(_lbl("", 12, C_TEXT2))
     dev_versions_lbl.setWordWrap(True)
-    dev_ota_hint = _pin_height(_lbl("", 12, C_ORANGE))
+    dev_ota_hint = _pin_height(StatusBadge("", "warn"))
     dev_ota_hint.setWordWrap(True)
     dev_info_col.addWidget(dev_name_lbl)
     dev_info_col.addWidget(dev_versions_lbl)
@@ -558,11 +503,12 @@ def build_page() -> QWidget:
     step1.setStyleSheet("background:transparent;")
     s1_lay = _pack_top(QVBoxLayout(step1))
     s1_lay.setContentsMargins(0, 0, 0, 0)
-    s1_lay.setSpacing(pt(16))
+    s1_lay.setSpacing(pt(20))
 
     conn_card = _pin_height(_card(12))
     conn_lay = _pack_top(QVBoxLayout(conn_card))
-    conn_lay.setSpacing(pt(12))
+    conn_lay.setContentsMargins(pt(24), pt(20), pt(24), pt(20))
+    conn_lay.setSpacing(pt(16))
 
     conn_title = _lbl(_at("ota.connect.title"), 14, C_TEXT, bold=True)
     conn_lay.addWidget(conn_title)
@@ -592,7 +538,7 @@ def build_page() -> QWidget:
         detect_grid.addWidget(w)
     detect_lay.addLayout(detect_grid)
 
-    match_lbl = _lbl("", 12, C_ORANGE)
+    match_lbl = StatusBadge("", "warn")
     match_lbl.setWordWrap(True)
     detect_lay.addWidget(match_lbl)
 
@@ -632,7 +578,7 @@ def build_page() -> QWidget:
     step2.setStyleSheet("background:transparent;")
     s2_lay = _pack_top(QVBoxLayout(step2))
     s2_lay.setContentsMargins(0, 0, 0, 0)
-    s2_lay.setSpacing(pt(16))
+    s2_lay.setSpacing(pt(20))
 
     download_card = _pin_height(_card(12))
     dl_lay = _pack_top(QVBoxLayout(download_card))
@@ -660,7 +606,6 @@ def build_page() -> QWidget:
     for opt in (_state["selected_path"] or {}).get("payload_options", []):
         label = opt.get("name" if lang == "zh" else "name_en", opt.get("name", ""))
         rb = QRadioButton(label)
-        rb.setStyleSheet(f"color:{C_TEXT2}; font-size:{pt(12)}px;")
         payload_group.addButton(rb)
         rb.setProperty("payload_id", opt.get("id", ""))
         payload_group_lay.addWidget(rb)
@@ -726,20 +671,19 @@ def build_page() -> QWidget:
 
     precheck_card = _pin_height(_card(12))
     pre_lay = _pack_top(QVBoxLayout(precheck_card))
-    pre_lay.setSpacing(pt(12))
+    pre_lay.setContentsMargins(pt(24), pt(20), pt(24), pt(20))
+    pre_lay.setSpacing(pt(16))
 
     pre_title = _lbl(_at("ota.precheck.title"), 14, C_TEXT, bold=True)
     pre_lay.addWidget(pre_title)
 
     reupload_cb = QCheckBox(_at("ota.precheck.reupload"))
-    reupload_cb.setStyleSheet(f"color:{C_TEXT2}; font-size:{pt(12)}px;")
     reupload_cb.setChecked(False)
     reupload_hint = _lbl(_at("ota.precheck.reupload_hint"), 10, C_TEXT3, wrap=True)
     pre_lay.addWidget(reupload_cb)
     pre_lay.addWidget(reupload_hint)
 
     skip_board_cb = QCheckBox(_at("ota.precheck.skip_board"))
-    skip_board_cb.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(12)}px;")
     skip_board_cb.setChecked(False)
     skip_board_hint = _lbl(_at("ota.precheck.skip_board_hint"), 10, C_TEXT3, wrap=True)
     pre_lay.addWidget(skip_board_cb)
@@ -751,24 +695,18 @@ def build_page() -> QWidget:
     backup_hint = _lbl(_at("ota.precheck.backup_hint"), 11, C_TEXT3, wrap=True)
     pre_lay.addWidget(backup_hint)
 
-    backup_edit = QTextEdit()
+    backup_edit = make_log_view(read_only=False, min_height=120, text_color=C_TEXT2)
     backup_edit.setPlainText(
         "/home/seeed/.bashrc\n"
         "/home/seeed/.ssh\n"
         "/home/seeed/workspace\n"
     )
-    backup_edit.setFixedHeight(pt(120))
-    backup_edit.setStyleSheet(
-        f"background:{C_CARD_LIGHT}; border:none; border-radius:8px; "
-        f"color:{C_TEXT2}; font-family:'JetBrains Mono','Consolas',monospace; "
-        f"font-size:{pt(11)}px; padding:8px;"
-    )
     pre_lay.addWidget(backup_edit)
 
-    note_card = QFrame()
+    note_card = _card(8)
     note_card.setStyleSheet(
         f"background:rgba(255,193,7,0.10); border:1px solid rgba(255,193,7,0.30); "
-        f"border-radius:8px; padding:8px;"
+        f"border-radius:8px;"
     )
     note_lay = QHBoxLayout(note_card)
     note_lay.setContentsMargins(pt(12), pt(8), pt(12), pt(8))
@@ -797,16 +735,17 @@ def build_page() -> QWidget:
     step3.setStyleSheet("background:transparent;")
     s3_lay = _pack_top(QVBoxLayout(step3))
     s3_lay.setContentsMargins(0, 0, 0, 0)
-    s3_lay.setSpacing(pt(16))
+    s3_lay.setSpacing(pt(20))
 
     exec_card = _pin_height(_card(12))
     exec_lay = _pack_top(QVBoxLayout(exec_card))
-    exec_lay.setSpacing(pt(12))
+    exec_lay.setContentsMargins(pt(24), pt(20), pt(24), pt(20))
+    exec_lay.setSpacing(pt(16))
 
     exec_title = _lbl(_at("ota.execute.title"), 14, C_TEXT, bold=True)
     exec_lay.addWidget(exec_title)
 
-    exec_status = _lbl(_at("ota.execute.ready"), 12, C_TEXT2)
+    exec_status = StatusBadge(_at("ota.execute.ready"), "default")
     exec_lay.addWidget(exec_status)
 
     progress = ShinyProgressBar()
@@ -814,14 +753,7 @@ def build_page() -> QWidget:
     progress.setValue(0)
     exec_lay.addWidget(progress)
 
-    exec_log = QTextEdit()
-    exec_log.setReadOnly(True)
-    exec_log.setStyleSheet(
-        f"background:{C_CARD_LIGHT}; border:none; border-radius:8px; "
-        f"color:{C_GREEN}; font-family:'JetBrains Mono','Consolas',monospace; "
-        f"font-size:{pt(11)}px; padding:10px;"
-    )
-    exec_log.setMinimumHeight(pt(180))
+    exec_log = make_log_view(read_only=True, min_height=180, text_color=C_GREEN)
     exec_lay.addWidget(exec_log)
 
     done_widget = QWidget()
@@ -923,7 +855,7 @@ def build_page() -> QWidget:
         if not path:
             s1_next.setEnabled(False)
             match_lbl.setText(_at("ota.manual.no_selection"))
-            match_lbl.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(12)}px;")
+            match_lbl.set_status("warn")
             path_match_lbl.setText("")
             return
 
@@ -932,7 +864,7 @@ def build_page() -> QWidget:
         current_l4t = _state.get("current_l4t", "")
         if mode == "auto" or (current_l4t and _l4t_matches(current_l4t, path.get("source_l4t", ""))):
             match_lbl.setText(_at("ota.connect.match_ok"))
-            match_lbl.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(12)}px;")
+            match_lbl.set_status("ok")
             path_match_lbl.setText(_at("ota.connect.path_matched", name=name))
             return
 
@@ -946,7 +878,7 @@ def build_page() -> QWidget:
             )
         else:
             match_lbl.setText(_at("ota.manual.unverified"))
-        match_lbl.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(12)}px;")
+        match_lbl.set_status("warn")
         path_match_lbl.setText(_at("ota.manual.selected", name=name))
 
     def _on_product_changed(text: str):
@@ -973,10 +905,10 @@ def build_page() -> QWidget:
         if matched:
             names = ", ".join(_path_display_name(p) for p in matched)
             dev_ota_hint.setText(_at("ota.device.ota_available", paths=names))
-            dev_ota_hint.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(12)}px;")
+            dev_ota_hint.set_status("ok")
         else:
             dev_ota_hint.setText("")
-            dev_ota_hint.setStyleSheet("")
+            dev_ota_hint.set_status("default")
         _refresh_path_combo()
         _set_selected_path(None)
 
@@ -1047,7 +979,7 @@ def build_page() -> QWidget:
                 else:
                     _state["selected_path"] = None
                     match_lbl.setText(_at("ota.connect.match_fail", current=l4t))
-                    match_lbl.setStyleSheet(f"color:{C_RED}; font-size:{pt(12)}px;")
+                    match_lbl.set_status("error")
                     path_match_lbl.setText(_at("ota.connect.path_unavailable"))
                     s1_next.setEnabled(False)
 
@@ -1125,7 +1057,7 @@ def build_page() -> QWidget:
         top, bottom, text = stage_map.get(stage_name, stage_map["execute"])
         progress.set_color(top, bottom)
         exec_status.setText(text)
-        exec_status.setStyleSheet(f"color:{top}; font-size:{pt(12)}px;")
+        exec_status.set_status("ok" if top == C_GREEN else "error" if top == C_RED else "warn")
 
     def _on_ota_done(success: bool, msg: str):
         _state["thread"] = None
@@ -1133,14 +1065,14 @@ def build_page() -> QWidget:
         s3_prev.setEnabled(True)
         if success:
             exec_status.setText(_at("ota.execute.finished"))
-            exec_status.setStyleSheet(f"color:{C_GREEN}; font-size:{pt(12)}px;")
+            exec_status.set_status("ok")
             done_widget.setVisible(True)
             _log_append(_at("ota.execute.success", msg=msg))
         else:
             s3_retry.setText(_at("ota.nav.retry"))
             s3_retry.setVisible(True)
             exec_status.setText(_at("ota.execute.failed"))
-            exec_status.setStyleSheet(f"color:{C_RED}; font-size:{pt(12)}px;")
+            exec_status.set_status("error")
             _log_append(_at("ota.execute.error", msg=msg))
         _refresh_stack_geometry()
 
@@ -1191,7 +1123,7 @@ def build_page() -> QWidget:
         _dl_last_bytes[0] = 0
         _last_dl_log_ts[0] = 0.0
         exec_status.setText(_at("ota.execute.running"))
-        exec_status.setStyleSheet(f"color:{C_ORANGE}; font-size:{pt(12)}px;")
+        exec_status.set_status("warn")
         _log_append(_at("ota.execute.started"))
 
         from seeed_jetson_develop.modules.ota.thread import OTAThread
