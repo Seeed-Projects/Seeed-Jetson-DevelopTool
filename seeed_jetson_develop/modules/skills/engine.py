@@ -22,6 +22,7 @@ CATEGORY_SYSTEM_TUNING = "system_tuning"
 CATEGORY_AI_LLM = "ai_llm"
 CATEGORY_VISION_YOLO = "vision_yolo"
 CATEGORY_REFERENCE = "reference"
+CATEGORY_NVIDIA = "nvidia_skills"
 
 CATEGORY_LABEL_KEYS = {
     CATEGORY_DRIVER_REPAIR: "skills.category.driver_repair",
@@ -31,6 +32,7 @@ CATEGORY_LABEL_KEYS = {
     CATEGORY_AI_LLM: "skills.category.ai_llm",
     CATEGORY_VISION_YOLO: "skills.category.vision_yolo",
     CATEGORY_REFERENCE: "skills.category.reference",
+    CATEGORY_NVIDIA: "skills.category.nvidia_skills",
 }
 
 CATEGORY_ALIASES = {
@@ -51,6 +53,8 @@ CATEGORY_ALIASES = {
     "\u89c6\u89c9 / YOLO": CATEGORY_VISION_YOLO,
     CATEGORY_REFERENCE: CATEGORY_REFERENCE,
     "\u53c2\u8003\u6587\u6863": CATEGORY_REFERENCE,
+    CATEGORY_NVIDIA: CATEGORY_NVIDIA,
+    "NVIDIA Skills": CATEGORY_NVIDIA,
 }
 
 # Category icon mapping uses canonical keys.
@@ -62,6 +66,7 @@ CATEGORY_ICONS = {
     CATEGORY_AI_LLM: "🤖",
     CATEGORY_VISION_YOLO: "📹",
     CATEGORY_REFERENCE: "📖",
+    CATEGORY_NVIDIA: "🟢",
 }
 
 
@@ -86,6 +91,8 @@ class Skill:
     source:        str  = "builtin"   # "builtin" | "openclaw" | "claude" | "codex"
     md_path:       str  = ""          # SKILL.md / CLAUDE.md / AGENTS.md path
     wiki_url:      str  = ""          # Seeed Wiki page URL
+    triggers:      list[str] = field(default_factory=list)  # natural-language trigger phrases
+    examples:      list[str] = field(default_factory=list)  # example user prompts
 
 
 # slug -> Seeed Wiki URL mapping.
@@ -189,6 +196,14 @@ _WIKI_URL_MAP: dict[str, str] = {
     "install_yolov8":               "https://wiki.seeedstudio.com/YOLOv8-TRT-Jetson/",
     "vnc_setup":                    "https://wiki.seeedstudio.com/vnc_for_recomputer/",
     "lerobot":                      "https://wiki.seeedstudio.com/lerobot_so100m_new/",
+    # NVIDIA Skills workflow (Seeed wiki Rapid Prototyping / JetPack 7.2 memory optimization)
+    "nvidia-jetson-diagnostic":     "https://wiki.seeedstudio.com/rapid_prototyping_on_jetson_with_nvidia_skills/",
+    "nvidia-jetson-package":        "https://wiki.seeedstudio.com/rapid_prototyping_on_jetson_with_nvidia_skills/",
+    "nvidia-deepstream-import-vision-model": "https://wiki.seeedstudio.com/rapid_prototyping_on_jetson_with_nvidia_skills/",
+    "nvidia-jetson-device-skills":  "https://wiki.seeedstudio.com/rapid_prototyping_on_jetson_with_nvidia_skills/",
+    "nvidia-jetson-bsp-skills":     "https://wiki.seeedstudio.com/rapid_prototyping_on_jetson_with_nvidia_skills/",
+    "nvidia-jetson-memory-audit":   "https://wiki.seeedstudio.com/jetpack_7_2_memory_optimization/",
+    "nvidia-jetson-headless-mode":  "https://wiki.seeedstudio.com/jetpack_7_2_memory_optimization/",
 }
 
 
@@ -209,15 +224,29 @@ def _parse_skill_md(md_file: Path, slug: str, source: str = "openclaw", fast: bo
             text = md_file.read_text(encoding="utf-8", errors="replace")
 
         name, desc = slug, ""
+        triggers: list[str] = []
+        examples: list[str] = []
         # frontmatter
         if text.startswith("---"):
             parts = text.split("---", 2)
             if len(parts) >= 3:
-                for line in parts[1].splitlines():
-                    if line.startswith("name:"):
-                        name = line.split(":", 1)[1].strip()
-                    elif line.startswith("description:"):
-                        desc = line.split(":", 1)[1].strip()[:120]
+                fm_text = parts[1]
+                try:
+                    import yaml
+                    fm = yaml.safe_load(fm_text) or {}
+                    if "name" in fm:
+                        name = str(fm["name"]).strip()
+                    if "description" in fm:
+                        desc = str(fm["description"]).strip()[:120]
+                    triggers = fm.get("triggers") or []
+                    examples = fm.get("examples") or []
+                except Exception:
+                    # fallback to simple line parsing if YAML is malformed
+                    for line in fm_text.splitlines():
+                        if line.startswith("name:"):
+                            name = line.split(":", 1)[1].strip()
+                        elif line.startswith("description:"):
+                            desc = line.split(":", 1)[1].strip()[:120]
 
         # Extract bash code blocks as commands (skipped in fast mode).
         cmds: list[str] = []
@@ -236,15 +265,17 @@ def _parse_skill_md(md_file: Path, slug: str, source: str = "openclaw", fast: bo
 
         # category from slug keywords
         sl = slug.lower()
-        if any(k in sl for k in ("power","swap","fan","cache","log","backup","encrypt","disk","bsp","ko-module","diy-bsp","hybrid-bsp","spi","ethercat")):
+        if sl.startswith("nvidia-"):
+            cat = CATEGORY_NVIDIA
+        elif any(k in sl for k in ("power","swap","fan","cache","log","backup","encrypt","disk","bsp","ko-module","diy-bsp","hybrid-bsp","spi","ethercat","memory","diagnostic","headless")):
             cat = CATEGORY_SYSTEM_TUNING
         elif any(k in sl for k in ("wifi","driver","fix","repair","usb-timeout","uuid","recomp")):
             cat = CATEGORY_DRIVER_REPAIR
         elif any(k in sl for k in ("yolo","yolov","vision","deepstream","nvblox","depth","detect","track","vlm","nvstreamer","maskcam","dashcam","traffic","zero-shot","efficient-vision","no-code","roboflow")):
             cat = CATEGORY_VISION_YOLO
-        elif any(k in sl for k in ("llm","llama","deepseek","qwen","gpt","oss","rag","chatbot","whisper","speech","voice","subtitle","langchain","finetune","mlc","riva","dia","gr00t")):
+        elif any(k in sl for k in ("llm","llama","deepseek","qwen","gpt","oss","rag","chatbot","whisper","speech","voice","subtitle","langchain","finetune","mlc","riva","deploy-dia","gr00t")):
             cat = CATEGORY_AI_LLM
-        elif any(k in sl for k in ("docker","torch","install","setup","deploy","env","lerobot","ollama","frigate","pinocchio","jetson-ai","jetson-docker")):
+        elif any(k in sl for k in ("docker","torch","install","setup","deploy","env","lerobot","ollama","frigate","pinocchio","jetson-ai","jetson-docker","package")):
             cat = CATEGORY_APP_ENV_DEPLOY
         elif any(k in sl for k in ("vnc","ssh","remote","vscode","proxy","neqto","allxon","ota","update","network")):
             cat = CATEGORY_NETWORK_REMOTE
@@ -256,6 +287,7 @@ def _parse_skill_md(md_file: Path, slug: str, source: str = "openclaw", fast: bo
             duration_hint="—", verified=False,
             source=source, md_path=str(md_file),
             wiki_url=_WIKI_URL_MAP.get(slug, ""),
+            triggers=triggers, examples=examples,
         )
     except Exception:
         return None
@@ -281,7 +313,7 @@ def _scan_skill_dir(root: Path, filename: str, source: str, cap: int = 60, fast:
 
 def load_openclaw_skills() -> list[Skill]:
     """Load skills/openclaw/ SKILL.md entries."""
-    return _scan_skill_dir(_OPENCLAW, "SKILL.md", "openclaw", cap=60)
+    return _scan_skill_dir(_OPENCLAW, "SKILL.md", "openclaw", cap=200)
 
 
 def load_external_skills() -> list[Skill]:
@@ -289,9 +321,9 @@ def load_external_skills() -> list[Skill]:
     skills: list[Skill] = []
     seen: set[str] = set()
     for s in (
-        _scan_skill_dir(_OPENCLAW, "SKILL.md",  "openclaw", cap=60)
-        + _scan_skill_dir(_CLAUDE,  "CLAUDE.md", "claude",  cap=60)
-        + _scan_skill_dir(_CODEX,   "AGENTS.md", "codex",   cap=60)
+        _scan_skill_dir(_OPENCLAW, "SKILL.md",  "openclaw", cap=200)
+        + _scan_skill_dir(_CLAUDE,  "CLAUDE.md", "claude",  cap=200)
+        + _scan_skill_dir(_CODEX,   "AGENTS.md", "codex",   cap=200)
     ):
         if s.id not in seen:
             seen.add(s.id)
@@ -307,9 +339,9 @@ def load_all_variants(fast: bool = False) -> list[Skill]:
     if _variants_cache is not None:
         return _variants_cache
     result = []
-    result.extend(_scan_skill_dir(_OPENCLAW, "SKILL.md",  "openclaw", cap=100, fast=fast))
-    result.extend(_scan_skill_dir(_CLAUDE,   "CLAUDE.md", "claude",   cap=100, fast=fast))
-    result.extend(_scan_skill_dir(_CODEX,    "AGENTS.md", "codex",    cap=100, fast=fast))
+    result.extend(_scan_skill_dir(_OPENCLAW, "SKILL.md",  "openclaw", cap=200, fast=fast))
+    result.extend(_scan_skill_dir(_CLAUDE,   "CLAUDE.md", "claude",   cap=200, fast=fast))
+    result.extend(_scan_skill_dir(_CODEX,    "AGENTS.md", "codex",    cap=200, fast=fast))
     if not fast:
         _variants_cache = result
     return result

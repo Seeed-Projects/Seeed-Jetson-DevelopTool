@@ -1,6 +1,6 @@
 # OpenClaw Source Skills Index
 
-Total: 90
+Total: 103
 
 - `SKILLS/openclaw/ai-nvr/SKILL.md`
 - `SKILLS/openclaw/allxon-ota-update/SKILL.md`
@@ -28,12 +28,14 @@ Total: 90
 - `SKILLS/openclaw/ethercat-communication/SKILL.md`
 - `SKILLS/openclaw/ethercat-setup/SKILL.md`
 - `SKILLS/openclaw/finetune-llm-llama-factory/SKILL.md`
+- `SKILLS/openclaw/fix-browser-snap-jetson/SKILL.md`
 - `SKILLS/openclaw/gapi-setup/SKILL.md`
 - `SKILLS/openclaw/generative-ai-intro/SKILL.md`
 - `SKILLS/openclaw/gpt-oss-live/SKILL.md`
 - `SKILLS/openclaw/gr00t-n1-5-deploy-thor/SKILL.md`
 - `SKILLS/openclaw/gr00t-n1-6-deploy-agx/SKILL.md`
 - `SKILLS/openclaw/hardhat-setup/SKILL.md`
+- `SKILLS/openclaw/hybrid-bsp-dk-to-recomputer/SKILL.md`
 - `SKILLS/openclaw/imx477-a603-setup/SKILL.md`
 - `SKILLS/openclaw/j501-viola-fruit-sorting/SKILL.md`
 - `SKILLS/openclaw/jetpack-flash-wsl2/SKILL.md`
@@ -49,6 +51,7 @@ Total: 90
 - `SKILLS/openclaw/ko-module-build/SKILL.md`
 - `SKILLS/openclaw/l4t-differences/SKILL.md`
 - `SKILLS/openclaw/langchain-output-formatting/SKILL.md`
+- `SKILLS/openclaw/lerobot-env-setup/SKILL.md`
 - `SKILLS/openclaw/llama-cpp-rpc-distributed/SKILL.md`
 - `SKILLS/openclaw/llm-interface-control/SKILL.md`
 - `SKILLS/openclaw/local-chatbot-multimodal/SKILL.md`
@@ -63,6 +66,7 @@ Total: 90
 - `SKILLS/openclaw/nvstreamer-setup/SKILL.md`
 - `SKILLS/openclaw/openclaw-local-deploy/SKILL.md`
 - `SKILLS/openclaw/ota-deploy/SKILL.md`
+- `SKILLS/openclaw/pinocchio-install/SKILL.md`
 - `SKILLS/openclaw/quantized-llama2-7b-mlc/SKILL.md`
 - `SKILLS/openclaw/realtime-subtitle-recorder/SKILL.md`
 - `SKILLS/openclaw/recomputer-veye-compat-fix/SKILL.md`
@@ -77,7 +81,9 @@ Total: 90
 - `SKILLS/openclaw/torch-install/SKILL.md`
 - `SKILLS/openclaw/traffic-deepstream/SKILL.md`
 - `SKILLS/openclaw/train-deploy-yolov8/SKILL.md`
+- `SKILLS/openclaw/ultralytics-yolo-jetson-setup/SKILL.md`
 - `SKILLS/openclaw/usb-timeout-during-flashing/SKILL.md`
+- `SKILLS/openclaw/usb-wifi-88x2bu-setup/SKILL.md`
 - `SKILLS/openclaw/uuid-error-fix/SKILL.md`
 - `SKILLS/openclaw/vlm-warehouse-guard/SKILL.md`
 - `SKILLS/openclaw/vnc-setup/SKILL.md`
@@ -86,7 +92,7 @@ Total: 90
 - `SKILLS/openclaw/voice-llm-reachy-mini-physical/SKILL.md`
 - `SKILLS/openclaw/whisper-realtime-stt/SKILL.md`
 - `SKILLS/openclaw/yolov11-depth-distance/SKILL.md`
-- `SKILLS/openclaw/yolov26-dual-usb-camera/SKILL.md`
+- `SKILLS/openclaw/yolov26_jetson/SKILL.md`
 - `SKILLS/openclaw/yolov5-object-detection/SKILL.md`
 - `SKILLS/openclaw/yolov8-custom-classification/SKILL.md`
 - `SKILLS/openclaw/yolov8-deepstream-trt/SKILL.md`

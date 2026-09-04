@@ -11,7 +11,7 @@ from seeed_jetson_develop.core.runner import SSHRunner
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding
 from seeed_jetson_develop.gui.i18n import get_language, t
 from seeed_jetson_develop.gui.theme import (
-    C_BG, C_CARD_LIGHT, C_GREEN, C_ORANGE,
+    C_BG, C_CARD, C_CARD_LIGHT, C_GREEN, C_ORANGE,
     C_TEXT, C_TEXT2, C_TEXT3,
     apply_shadow, make_button, make_card, make_label, pt,
     show_warning_message,

@@ -146,6 +146,22 @@ ZH_EN_EXACT = {
     "已安装": "Installed",
     "有风险": "Has Risk",
     "精选": "Featured",
+    # ── NVIDIA Skills dialog ───────────────────────────────────────────────
+    "⚡ 获取 NVIDIA Skills": "⚡ Get NVIDIA Skills",
+    "从 NVIDIA/skills 仓库获取技能": "Browse and install skills from NVIDIA/skills repo",
+    "🔍 搜索技能...": "🔍 Search skills...",
+    "刷新列表": "Refresh List",
+    "获取中...": "Fetching...",
+    "安装选中": "Install Selected",
+    "没有选中新技能。": "No new skills selected.",
+    "共": "Total",
+    "个技能可用，勾选后点击安装。": "skills available. Check the ones you want, then click Install.",
+    "安装完成。": "Install complete.",
+    "个技能已安装。": "skills installed.",
+    "NVIDIA Skills 已安装": "NVIDIA Skills Installed",
+    "以下 NVIDIA Skills 已安装完成": "The following NVIDIA Skills have been installed:",
+    "在任意 AI 对话框中描述相关需求即可触发对应 skill，例如：": "Describe your need in any AI dialog to trigger the skill, e.g.:",
+    "知道了": "Got it",
     "需要远程连接": "Remote Connection Required",
     "当前运行在 PC 上，运行 Skill 前必须先在「远程开发」页连接 Jetson 设备。": "Running on PC. Connect to a Jetson in the Remote page before running skills.",
 
@@ -591,6 +607,7 @@ ZH_EN_PATTERNS = [
     (re.compile(r"^安装路径：(.+)$"), lambda m: f"Install path: {m.group(1)}"),
     (re.compile(r"^尝试镜像: (.+)$"), lambda m: f"Trying mirror: {m.group(1)}"),
     (re.compile(r"^创建目录 (.+) …$"), lambda m: f"Creating directory {m.group(1)}..."),
+
 ]
 
 
