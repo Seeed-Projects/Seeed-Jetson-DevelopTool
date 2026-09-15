@@ -4,6 +4,74 @@
 
 ---
 
+## [2026-09-09] 全局彩色 emoji 字体修复
+
+### 背景
+
+Linux 上界面中大量 emoji（按钮 ⚡、搜索框 🔍、徽章 🤖、日志 ⏳ ✓ 等）渲染为
+黑白。项目已有按标签处理的 `set_emoji_font_for_label`，但只对少数调用点生效，
+绝大多数 QLabel / QPushButton / QComboBox / 日志框继承的是不含 emoji 回退链的
+默认字体，被系统 fallback 成黑白字形。
+
+### 方案
+
+1. `theme.py` 的 `build_app_font()` 在非 Windows 平台把 `"Noto Color Emoji"`
+   追加为字体族回退链（`font.setFamilies([ui, "Noto Color Emoji"])`）。
+   应用启动时 `app.setFont(build_app_font(...))` 全局生效，所有继承默认字体
+   的控件自动获得彩色 emoji。
+2. 所有显式 `font-family:...monospace;` 的样式表（日志 / 终端区域）追加
+   `'Noto Color Emoji'`，修复等宽区域内的 emoji。
+
+已用离屏像素级验证：修复前 emoji 区域饱和色像素为 0（纯灰度），修复后
+> 0（彩色）。Windows 不受影响（走系统 Segoe UI Emoji 引擎）。
+
+### 改动文件
+
+| 文件 | 改动内容 |
+|------|----------|
+| `seeed_jetson_develop/gui/theme.py` | `build_app_font()` 追加 emoji 字体族回退链 |
+| `seeed_jetson_develop/gui/ai_chat.py` | 两处 monospace 样式表追加 emoji 字体 |
+| `seeed_jetson_develop/modules/{skills,apps,devices,flash}/page.py` | monospace 样式表追加 emoji 字体 |
+| `seeed_jetson_develop/modules/remote/{jetson_init,agent_install_dialog,net_share_dialog}.py` | monospace 样式表追加 emoji 字体 |
+
+---
+
+## [2026-09-09] NVIDIA Skills 分类（运行目标 + 使用场景）
+
+### 背景
+
+Skills 板块「⚡ 获取 NVIDIA Skills」弹窗通过 `npx skills add nvidia/skills --list`
+只拿到 (name, description)，344 个技能平铺展示。用户无法区分哪些在 Jetson
+上运行、哪些在 PC 开发机运行，也没有使用场景分类。
+
+### 方案
+
+新增前缀规则分类目录（参考官方仓库 https://github.com/nvidia/skills 的产品
+族结构），两个维度：
+
+- 运行目标：`jetson`（Jetson 设备）/ `pc`（PC 开发机）/ `both`（PC 与 Jetson
+  均可，如 DeepStream / VSS / Holoscan / HSB 等边缘视频栈）
+- 使用场景（9 类）：Jetson 设备与系统、视频 AI 与视觉分析、边缘大模型推理、
+  大模型与生成式 AI、视觉模型训练 (TAO)、医疗影像、科学计算与加速计算、
+  网络与 DPU (DOCA)、机器人与物理 AI、其他
+
+弹窗内直接平铺可点击的 chips（而非下拉框）：「运行目标」单选 chips
+（全部 / Jetson 设备 / PC 开发机）+「使用场景」chips（图标 + 名称 + 数量，
+FlowLayout 自动换行，单选）；每行保留彩色目标徽章；列表按分类排序；
+头部提示"所有技能均安装到本机 PC"。中英文均支持，刷新后自动重建并翻译。
+
+### 改动文件
+
+| 文件 | 改动内容 |
+|------|----------|
+| `seeed_jetson_develop/modules/skills/nvidia_catalog.py` | **新增**：前缀规则分类模块（`nvidia_category` / `nvidia_target` / `target_matches` 等） |
+| `seeed_jetson_develop/modules/skills/page.py` | `_NvidiaSkillsDialog` 增加目标/场景 chips（`_FlowLayout` 自动换行）与行内目标徽章、按分类排序；文案改为中文源；修复 `_get_installed_nvidia_skills` 扫描 CWD 而非用户主目录的 bug |
+| `seeed_jetson_develop/gui/runtime_i18n.py` | 新增分类相关 zh→en 映射（精确串 + 模式：安装进度、数量统计、图标分类项） |
+| `seeed_jetson_develop/locales/{en,zh-CN}/skills.json` | 补缺失的 `skills.category.nvidia_skills` key |
+| `tests/test_nvidia_skills_load.py` | 新增 `TestNvidiaCatalog`：目标/分类/筛选匹配测试 |
+
+---
+
 ## [2026-04-13] 跨平台 UI 参数分离（PlatformUI）
 
 ### 背景

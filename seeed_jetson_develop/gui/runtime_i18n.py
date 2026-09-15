@@ -164,6 +164,23 @@ ZH_EN_EXACT = {
     "知道了": "Got it",
     "需要远程连接": "Remote Connection Required",
     "当前运行在 PC 上，运行 Skill 前必须先在「远程开发」页连接 Jetson 设备。": "Running on PC. Connect to a Jetson in the Remote page before running skills.",
+    # ── NVIDIA Skills dialog — classification (target / scenario) ────────────
+    "所有技能均安装到本机 PC，徽章与筛选表示建议运行目标与使用场景。":
+        "All skills install to this PC. Badges and filters show the suggested run target and scenario.",
+    "运行目标": "Target",
+    "使用场景": "Scenario",
+    "Jetson 设备": "Jetson Device",
+    "PC 开发机": "PC Dev Machine",
+    "Jetson 设备与系统": "Jetson Device & System",
+    "视频 AI 与视觉分析": "Video AI & Vision",
+    "边缘大模型推理": "Edge LLM Inference",
+    "大模型与生成式 AI": "LLM & Generative AI",
+    "视觉模型训练 (TAO)": "Vision Model Training (TAO)",
+    "医疗影像": "Medical Imaging",
+    "科学计算与加速计算": "Scientific & Accelerated Computing",
+    "网络与 DPU (DOCA)": "Networking & DPU (DOCA)",
+    "机器人与物理 AI": "Robotics & Physical AI",
+    "PC / Jetson": "PC / Jetson",
 
     # ── remote/page.py ────────────────────────────────────────────────────────
     "远程开发": "Remote Dev",
@@ -607,6 +624,17 @@ ZH_EN_PATTERNS = [
     (re.compile(r"^安装路径：(.+)$"), lambda m: f"Install path: {m.group(1)}"),
     (re.compile(r"^尝试镜像: (.+)$"), lambda m: f"Trying mirror: {m.group(1)}"),
     (re.compile(r"^创建目录 (.+) …$"), lambda m: f"Creating directory {m.group(1)}..."),
+    # ── skills/page.py — NVIDIA skills dialog ────────────────────────────────
+    (re.compile(r"^共 (\d+) 个技能可用，勾选后点击安装。$"),
+     lambda m: f"{m.group(1)} skills available. Check the ones you want, then click Install."),
+    (re.compile(r"^(\d+) 个技能已安装。$"), lambda m: f"{m.group(1)} skills installed."),
+    (re.compile(r"^安装中 \((\d+)/(\d+)\)$"), lambda m: f"Installing ({m.group(1)}/{m.group(2)})"),
+    # Filter chips: "[icon ]<zh label> · <count>" -> "[icon ]<en label> · <count>"
+    (re.compile(r"^([^\x00-\x7f]{1,4} )?(.+) · (\d+)$"),
+     lambda m: f"{m.group(1) or ''}{ZH_EN_EXACT.get(m.group(2), m.group(2))} · {m.group(3)}"),
+    # Category combo items: "<icon> <zh label>" -> "<icon> <en label>"
+    (re.compile(r"^([^\x00-\x7f]{1,4}) (.+)$"),
+     lambda m: f"{m.group(1)} {ZH_EN_EXACT.get(m.group(2), m.group(2))}"),
 
 ]
 

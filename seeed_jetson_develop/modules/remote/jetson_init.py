@@ -452,7 +452,7 @@ class JetsonInitDialog(QDialog):
         right.addLayout(top_row)
         self.terminal_view = NativeTerminalWidget()
         self.terminal_view.setMinimumHeight(pt(280))
-        self.terminal_view.setStyleSheet(f"QPlainTextEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:10px; color:{C_TEXT}; padding:12px; font-size:{pt(10)}pt; font-family:'Consolas','JetBrains Mono',monospace; }}")
+        self.terminal_view.setStyleSheet(f"QPlainTextEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:10px; color:{C_TEXT}; padding:12px; font-size:{pt(10)}pt; font-family:'Consolas','JetBrains Mono',monospace,'Noto Color Emoji'; }}")
         right.addWidget(self.terminal_view, 1)
         btn_row = QHBoxLayout()
         self.disconnect_btn = make_button(_tr("remote.jetson_init.disconnect", "Disconnect", self._lang), small=True)
@@ -896,7 +896,7 @@ class JetsonNetConfigDialog(QDialog):
         self._log.setReadOnly(True)
         self._log.setMinimumHeight(pt(160))
         self._log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self._log.setStyleSheet(f"QTextEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:8px; color:{C_TEXT2}; padding:10px; font-size:{pt(10)}pt; font-family:'JetBrains Mono','Consolas',monospace; }}")
+        self._log.setStyleSheet(f"QTextEdit {{ background:{C_CARD_LIGHT}; border:none; border-radius:8px; color:{C_TEXT2}; padding:10px; font-size:{pt(10)}pt; font-family:'JetBrains Mono','Consolas',monospace,'Noto Color Emoji'; }}")
         log_l.addWidget(self._log)
         root.addWidget(log_card, 1)
 

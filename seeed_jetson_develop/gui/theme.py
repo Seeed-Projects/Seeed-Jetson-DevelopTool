@@ -114,7 +114,13 @@ def pick_font_family(candidates: tuple[str, ...], fallback: str = "Sans Serif") 
 
 
 def build_app_font(point_size: int | None = None) -> QFont:
-    font = QFont(pick_font_family(UI_FONT_CANDIDATES))
+    ui = pick_font_family(UI_FONT_CANDIDATES)
+    font = QFont(ui)
+    if sys.platform != "win32":
+        # 全局追加彩色 emoji 字体链：否则 QLabel / 按钮 / 输入框 / 下拉框等
+        # 继承默认字体时，emoji 会被 fallback 成黑白字形（Linux 常见）。
+        # 与 _set_emoji_font 的单标签处理保持一致；Windows 走系统 emoji 引擎。
+        font.setFamilies([ui, "Noto Color Emoji"])
     if point_size is not None:
         font.setPointSize(point_size)
     return font
@@ -839,7 +845,7 @@ def make_log_view(read_only: bool = True, min_height: int = 180,
         f"QTextEdit {{"
         f" background:{C_CARD_LIGHT}; border:none; border-radius:8px;"
         f" color:{text_color};"
-        f" font-family:'JetBrains Mono','Consolas','Courier New',monospace;"
+        f" font-family:'JetBrains Mono','Consolas','Courier New',monospace,'Noto Color Emoji';"
         f" font-size:{pt(11)}px; padding:10px;"
         f"}}"
     )
@@ -1030,7 +1036,7 @@ QTextEdit {{
     border-radius: 10px;
     color: {C_TEXT2};
     padding: 14px;
-    font-family: "JetBrains Mono", "Consolas", "Courier New", monospace;
+    font-family: "JetBrains Mono", "Consolas", "Courier New", monospace, "Noto Color Emoji";
     font-size: {pt(11)}px;
     selection-background-color: rgba(141,194,31,0.25);
 }}

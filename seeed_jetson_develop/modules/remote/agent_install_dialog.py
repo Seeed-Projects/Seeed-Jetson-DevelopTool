@@ -188,7 +188,7 @@ class AgentInstallDialog(QDialog):
             QTextEdit {{
                 background:{C_CARD_LIGHT}; border:none; border-radius:8px;
                 color:{C_TEXT2}; padding:10px;
-                font-size:{pt(10)}px; font-family:'JetBrains Mono','Consolas',monospace;
+                font-size:{pt(10)}px; font-family:'JetBrains Mono','Consolas',monospace,'Noto Color Emoji';
             }}
         """)
         ll.addWidget(self._log)

@@ -1796,7 +1796,7 @@ def build_page() -> QWidget:
             id_lbl = QLabel(f"  {name}: {uid}")
             id_lbl.setMinimumWidth(0)
             id_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
-            id_lbl.setStyleSheet(f"color:{C_TEXT2}; font-size:{pt(11)}pt; font-family:monospace; background:transparent;")
+            id_lbl.setStyleSheet(f"color:{C_TEXT2}; font-size:{pt(11)}pt; font-family:monospace, 'Noto Color Emoji'; background:transparent;")
             rec_guide_layout.addWidget(id_lbl)
         if guide.get("note"):
             note_lbl = QLabel(guide["note"])

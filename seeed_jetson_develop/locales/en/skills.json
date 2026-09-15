@@ -18,6 +18,7 @@
   "skills.category.ai_llm": "AI / LLM",
   "skills.category.vision_yolo": "Vision / YOLO",
   "skills.category.driver_repair": "Driver / System Repair",
+  "skills.category.nvidia_skills": "NVIDIA Skills",
   "skills.msg.remote_required.title": "Remote Connection Required",
   "skills.msg.remote_required.body": "Running on PC. Connect to a Jetson device on the Remote page before running a skill.",
   "skills.install.err.ssh_not_connected": "SSH is not connected. Cannot install.",

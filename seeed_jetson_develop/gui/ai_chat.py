@@ -453,7 +453,7 @@ class _ToolCallBubble(QFrame):
         cmd_lbl.setWordWrap(True)
         cmd_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
         cmd_lbl.setStyleSheet(
-            f"color:{C_TEXT3}; font-size:{_pt(10)}pt; font-family:monospace;"
+            f"color:{C_TEXT3}; font-size:{_pt(10)}pt; font-family:monospace, 'Noto Color Emoji';"
             f"background:rgba(0,0,0,0.25); border:none; border-radius:4px; padding:4px 8px;"
         )
         lay.addWidget(cmd_lbl)
@@ -463,7 +463,7 @@ class _ToolCallBubble(QFrame):
         self._output_lbl.setWordWrap(True)
         self._output_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
         self._output_lbl.setStyleSheet(
-            f"color:{C_TEXT2}; font-size:{_pt(10)}pt; font-family:monospace;"
+            f"color:{C_TEXT2}; font-size:{_pt(10)}pt; font-family:monospace, 'Noto Color Emoji';"
             f"background:transparent; border:none;"
         )
         lay.addWidget(self._output_lbl)

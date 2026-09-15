@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from qtpy.QtCore import Qt, QThread, Signal, QTimer, QPoint, QRect
+from qtpy.QtCore import Qt, QThread, Signal, QTimer, QPoint, QRect, QSize
 from qtpy.QtGui import QTextCursor
 from qtpy.QtWidgets import (
     QWidget, QFrame, QLabel, QPushButton, QLineEdit,
@@ -298,7 +298,7 @@ class _InstallDialog(QDialog):
         file_view.setStyleSheet(f"""
             background:{C_CARD_LIGHT}; border:none; border-radius:10px;
             color:{C_TEXT2};
-            font-family:'JetBrains Mono','Consolas',monospace;
+            font-family:'JetBrains Mono','Consolas',monospace,'Noto Color Emoji';
             font-size:{_pt(10)}pt; padding:12px;
         """)
         lay.addWidget(file_view)
@@ -332,7 +332,7 @@ class _InstallDialog(QDialog):
         self._log_edit.setStyleSheet(f"""
             background:{C_CARD}; border:none; border-radius:10px;
             color:{C_GREEN};
-            font-family:'JetBrains Mono','Consolas',monospace;
+            font-family:'JetBrains Mono','Consolas',monospace,'Noto Color Emoji';
             font-size:{_pt(10)}pt; padding:12px;
         """)
         self._log_edit.setMinimumHeight(_pt(140))
@@ -459,7 +459,7 @@ class _DocDialog(QDialog):
             border:none;
             border-radius:10px;
             color:{C_TEXT2};
-            font-family:'JetBrains Mono','Consolas',monospace;
+            font-family:'JetBrains Mono','Consolas',monospace,'Noto Color Emoji';
             font-size:{_pt(11)}pt;
             padding:14px;
         """)
@@ -489,7 +489,82 @@ class _DocDialog(QDialog):
 
 
 import subprocess, re as _re, shutil, sys
-from qtpy.QtWidgets import QCheckBox, QListWidget, QListWidgetItem
+from qtpy.QtWidgets import (
+    QCheckBox, QListWidget, QListWidgetItem, QLayout,
+)
+
+from seeed_jetson_develop.modules.skills.nvidia_catalog import (
+    CATEGORIES, TARGET_JETSON, TARGET_PC, TARGET_BOTH,
+    nvidia_category, nvidia_target, target_label, target_matches,
+)
+
+
+class _FlowLayout(QLayout):
+    """Wrap-around layout for filter chips (classic Qt flow layout)."""
+
+    def __init__(self, parent=None, spacing=6):
+        super().__init__(parent)
+        self._items = []
+        self.setSpacing(spacing)
+
+    def addItem(self, item):
+        self._items.append(item)
+
+    def count(self):
+        return len(self._items)
+
+    def itemAt(self, index):
+        if 0 <= index < len(self._items):
+            return self._items[index]
+        return None
+
+    def takeAt(self, index):
+        if 0 <= index < len(self._items):
+            return self._items.pop(index)
+        return None
+
+    def expandingDirections(self):
+        return Qt.Orientations()
+
+    def hasHeightForWidth(self):
+        return True
+
+    def heightForWidth(self, width):
+        return self._do_layout(QRect(0, 0, width, 0), test_only=True)
+
+    def setGeometry(self, rect):
+        super().setGeometry(rect)
+        self._do_layout(rect, test_only=False)
+
+    def sizeHint(self):
+        return self.minimumSize()
+
+    def minimumSize(self):
+        size = QSize(0, 0)
+        for item in self._items:
+            size = size.expandedTo(item.minimumSize())
+        m = self.contentsMargins()
+        return size + QSize(m.left() + m.right(), m.top() + m.bottom())
+
+    def _do_layout(self, rect, test_only):
+        m = self.contentsMargins()
+        effective = rect.adjusted(m.left(), m.top(), -m.right(), -m.bottom())
+        x, y = effective.x(), effective.y()
+        line_h = 0
+        spacing = self.spacing()
+        for item in self._items:
+            hint = item.sizeHint()
+            next_x = x + hint.width() + spacing
+            if next_x - spacing > effective.right() and line_h > 0:
+                x = effective.x()
+                y += line_h + spacing
+                next_x = x + hint.width() + spacing
+                line_h = 0
+            if not test_only:
+                item.setGeometry(QRect(QPoint(x, y), hint))
+            x = next_x
+            line_h = max(line_h, hint.height())
+        return y + line_h - rect.y() + m.bottom()
 
 
 def _find_npx() -> str | None:
@@ -525,12 +600,16 @@ def _save_skills_cache(skills: list):
 
 
 def _get_installed_nvidia_skills() -> set[str]:
-    """Return names of NVIDIA skills already installed via npx skills add."""
+    """Return names of NVIDIA skills already installed via npx skills add.
+
+    The skills CLI installs into the current user's home directory, so scan
+    there instead of the process working directory.
+    """
     installed = set()
-    for base in (".claude/skills", ".agents/skills"):
-        d = Path(base)
-        if d.exists():
-            for child in d.iterdir():
+    for base in (Path.home() / ".claude" / "skills",
+                 Path.home() / ".agents" / "skills"):
+        if base.exists():
+            for child in base.iterdir():
                 if child.is_dir() and (child / "SKILL.md").exists():
                     installed.add(child.name)
     return installed
@@ -706,12 +785,17 @@ class _NvidiaSkillsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("NVIDIA Skills")
-        self.setMinimumSize(640, 560)
+        self.setMinimumSize(720, 600)
+        self.resize(780, 840)
         self._list_thread = None
         self._install_threads = []
         self._installed = set()
         self._newly_installed: list[str] = []
         self._all_skills: dict[str, str] = {}
+        self._filter_target = "all"
+        self._filter_cat = "all"
+        self._tgt_btns: dict = {}
+        self._cat_btns: dict = {}
         self._build_ui()
         self._start_fetch()
 
@@ -721,45 +805,73 @@ class _NvidiaSkillsDialog(QDialog):
         lay.setSpacing(10)
 
         # Header
-        hdr = QLabel("Browse and install skills from NVIDIA/skills repo")
+        hdr = QLabel("从 NVIDIA/skills 仓库获取技能")
         hdr.setStyleSheet(f"font-size:14px; font-weight:bold; color:{C_TEXT};")
         lay.addWidget(hdr)
 
+        # Hint: install location + classification meaning
+        hint = QLabel("所有技能均安装到本机 PC，徽章与筛选表示建议运行目标与使用场景。")
+        hint.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px;")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+
         # Search
         self._search = QLineEdit()
-        self._search.setPlaceholderText("🔍 Search skills...")
+        self._search.setPlaceholderText("🔍 搜索技能...")
         self._search.setStyleSheet(input_qss(radius=20, font_size=12))
-        self._search.setFixedHeight(_pt(36))
-        self._search.textChanged.connect(self._filter_list)
+        self._search.setFixedHeight(_pt(34))
+        self._search.textChanged.connect(lambda _t: self._filter_list())
         lay.addWidget(self._search)
 
-        # Skills list
+        # Filter card: run-target chips + scenario chips in one wrapping flow
+        card = QFrame()
+        card.setStyleSheet(
+            f"QFrame {{ background:rgba(255,255,255,0.03);"
+            f" border:1px solid rgba(255,255,255,0.06); border-radius:10px; }}"
+        )
+        cl = QVBoxLayout(card)
+        cl.setContentsMargins(12, 8, 12, 10)
+        cl.setSpacing(4)
+        self._cat_flow = _FlowLayout(spacing=5)
+        flow_host = QWidget()
+        flow_host.setStyleSheet("background:transparent;")
+        flow_host.setLayout(self._cat_flow)
+        cl.addWidget(flow_host)
+        lay.addWidget(card)
+
+        # Skills list (gets most of the space)
         self._list = QListWidget()
         self._list.setStyleSheet(
             f"QListWidget {{ background:transparent; border:1px solid rgba(255,255,255,0.06);"
             f" border-radius:8px; color:{C_TEXT2}; font-size:{_pt(12)}px; }}"
-            f"QListWidget::item {{ padding:8px 12px; border-bottom:1px solid rgba(255,255,255,0.03); }}"
+            f"QListWidget::item {{ padding:0px; border-bottom:1px solid rgba(255,255,255,0.03); }}"
             f"QListWidget::item:selected {{ background:rgba(122,179,23,0.10); }}"
+            f"QScrollBar:vertical {{ background:transparent; width:{_pt(10)}px; margin:2px 2px 2px 0; }}"
+            f"QScrollBar::handle:vertical {{ background:rgba(122,179,23,0.40);"
+            f" border-radius:{_pt(5)}px; min-height:{_pt(36)}px; }}"
+            f"QScrollBar::handle:vertical:hover {{ background:rgba(122,179,23,0.70); }}"
+            f"QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height:0; }}"
+            f"QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background:transparent; }}"
         )
         lay.addWidget(self._list, 1)
 
-        # Log area
+        # Log area (compact, collapsible)
         self._log = QTextEdit()
         self._log.setReadOnly(True)
-        self._log.setMaximumHeight(140)
+        self._log.setFixedHeight(_pt(64))
         self._log.setStyleSheet(
             f"QTextEdit {{ background:rgba(0,0,0,0.15); border:1px solid rgba(255,255,255,0.04);"
-            f" border-radius:8px; color:{C_TEXT3}; font-size:{_pt(11)}px; font-family:monospace; }}"
+            f" border-radius:8px; color:{C_TEXT3}; font-size:{_pt(10)}px; font-family:monospace,'Noto Color Emoji'; }}"
         )
         lay.addWidget(self._log)
 
         # Buttons
         btn_row = QHBoxLayout()
-        self._btn_refresh = _btn("Refresh List")
+        self._btn_refresh = _btn("刷新列表")
         self._btn_refresh.clicked.connect(self._start_fetch)
-        self._btn_install = _btn("Install Selected", primary=True)
+        self._btn_install = _btn("安装选中", primary=True)
         self._btn_install.clicked.connect(self._install_selected)
-        self._btn_close = _btn("Close")
+        self._btn_close = _btn("关闭")
         self._btn_close.clicked.connect(self.accept)
         btn_row.addWidget(self._btn_refresh)
         btn_row.addStretch()
@@ -774,43 +886,167 @@ class _NvidiaSkillsDialog(QDialog):
         self._log.clear()
         cached = _load_skills_cache()
         if cached:
-            self._log.append("⏳ Loading NVIDIA skills from local cache...\n")
+            self._log.append("⏳ 从本地缓存加载 NVIDIA skills...\n")
             self._on_list_done(cached)
-            self._log.append(f"✓ Loaded from cache {len(cached)} skills\n")
+            self._log.append(f"✓ 已从缓存加载 {len(cached)} 个技能\n")
             return
-        self._btn_refresh.setText("Fetching...")
+        self._btn_refresh.setText("获取中...")
         self._list_thread = _NvidiaListThread()
         self._list_thread.log.connect(self._log.append)
         self._list_thread.done.connect(self._on_list_done)
         self._list_thread.failed.connect(self._on_list_failed)
         self._list_thread.start()
 
+    def _badge(self, text: str, color: str) -> QLabel:
+        b = QLabel(text)
+        b.setStyleSheet(
+            f"color:{color}; background:rgba(255,255,255,0.05);"
+            f" border:1px solid rgba(255,255,255,0.08); border-radius:6px;"
+            f" padding:1px 6px; font-size:{_pt(9)}px;"
+        )
+        b.setFixedHeight(_pt(18))
+        return b
+
+    def _chip_style(self, active: bool) -> str:
+        if active:
+            return (
+                f"QPushButton {{ background:rgba(122,179,23,0.16);"
+                f" border:1px solid rgba(122,179,23,0.55); border-radius:{_pt(13)}px;"
+                f" color:{C_GREEN}; font-size:{_pt(11)}px; padding:3px 10px; }}"
+                f"QPushButton:hover {{ background:rgba(122,179,23,0.24); }}"
+            )
+        return (
+            f"QPushButton {{ background:rgba(255,255,255,0.04);"
+            f" border:1px solid rgba(255,255,255,0.10); border-radius:{_pt(13)}px;"
+            f" color:{C_TEXT2}; font-size:{_pt(11)}px; padding:3px 10px; }}"
+            f"QPushButton:hover {{ background:rgba(255,255,255,0.09); color:{C_TEXT}; }}"
+        )
+
+    def _make_chip(self, text: str, active: bool = False) -> QPushButton:
+        b = QPushButton(text)
+        b.setCheckable(True)
+        b.setChecked(active)
+        b.setCursor(Qt.PointingHandCursor)
+        b.setStyleSheet(self._chip_style(active))
+        return b
+
+    def _on_target_chip(self, key: str):
+        self._filter_target = key
+        for k, b in self._tgt_btns.items():
+            b.setChecked(k == key)
+            b.setStyleSheet(self._chip_style(k == key))
+        self._filter_list()
+
+    def _on_cat_chip(self, key: str):
+        self._filter_cat = key
+        for k, b in self._cat_btns.items():
+            b.setChecked(k == key)
+            b.setStyleSheet(self._chip_style(k == key))
+        self._filter_list()
+
+    def _flow_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(
+            f"color:{C_TEXT3}; font-size:{_pt(11)}px; padding-right:2px;"
+        )
+        lbl.setAlignment(Qt.AlignVCenter)
+        return lbl
+
+    def _rebuild_cat_chips(self, counts: dict):
+        """Rebuild filter flow: target label+chips, scenario label+chips."""
+        prev = self._filter_cat if self._filter_cat in counts else "all"
+        self._filter_cat = prev
+        while self._cat_flow.count():
+            item = self._cat_flow.takeAt(0)
+            if item and item.widget():
+                item.widget().deleteLater()
+        self._cat_btns = {}
+
+        # Run target: label + chips
+        self._cat_flow.addWidget(self._flow_label("运行目标"))
+        for key, text in (("all", "全部"), (TARGET_JETSON, "Jetson 设备"),
+                          (TARGET_PC, "PC 开发机")):
+            b = self._make_chip(text, self._filter_target == key)
+            b.clicked.connect(lambda _=False, k=key: self._on_target_chip(k))
+            self._cat_flow.addWidget(b)
+            self._tgt_btns[key] = b
+
+        # Vertical separator
+        sep = QFrame()
+        sep.setFixedSize(1, _pt(20))
+        sep.setStyleSheet("background:rgba(255,255,255,0.10);")
+        self._cat_flow.addWidget(sep)
+
+        # Scenario: label + chips with counts
+        self._cat_flow.addWidget(self._flow_label("使用场景"))
+        all_btn = self._make_chip(f"全部 · {sum(counts.values())}", prev == "all")
+        all_btn.clicked.connect(lambda _=False: self._on_cat_chip("all"))
+        self._cat_flow.addWidget(all_btn)
+        self._cat_btns["all"] = all_btn
+
+        cat_keys = [k for k in CATEGORIES if k in counts]
+        for cat in cat_keys:
+            zh, icon = CATEGORIES[cat]
+            b = self._make_chip(f"{icon} {zh} · {counts[cat]}", prev == cat)
+            b.clicked.connect(lambda _=False, c=cat: self._on_cat_chip(c))
+            self._cat_flow.addWidget(b)
+            self._cat_btns[cat] = b
+        self._cat_flow.activate()
+
     def _on_list_done(self, skills: list):
         _save_skills_cache(skills)
         self._all_skills = {name: desc for name, desc in skills}
         installed = _get_installed_nvidia_skills()
+
+        # Scenario chips with counts
+        counts: dict = {}
+        for name, _desc in skills:
+            cat = nvidia_category(name)
+            counts[cat] = counts.get(cat, 0) + 1
+        self._rebuild_cat_chips(counts)
+
+        # Sort: scenario order, then Jetson-first, then name
+        def _sort_key(item):
+            name = item[0]
+            cat = nvidia_category(name)
+            target = nvidia_target(name)
+            return (list(CATEGORIES.keys()).index(cat),
+                    0 if target == TARGET_JETSON else 1, name)
+        skills = sorted(skills, key=_sort_key)
+
         for name, desc in skills:
             is_installed = name in installed
+            cat = nvidia_category(name)
+            target = nvidia_target(name)
             item = QListWidgetItem()
+            item.setData(Qt.UserRole, (name, desc, target, cat))
             widget = QWidget()
             wl = QHBoxLayout(widget)
-            wl.setContentsMargins(8, 4, 8, 4)
+            wl.setContentsMargins(10, 3, 10, 3)
+            wl.setSpacing(8)
             cb = QCheckBox()
-            cb.setStyleSheet(f"QCheckBox {{ color:{C_TEXT}; }}")
+            cb.setStyleSheet(f"QCheckBox {{ color:{C_TEXT}; spacing:4px; }}")
             if is_installed:
                 cb.setChecked(True)
                 cb.setEnabled(False)
             info = QVBoxLayout()
-            info.setSpacing(2)
+            info.setSpacing(1)
             name_text = name + ("  ✓" if is_installed else "")
             lbl_name = QLabel(name_text)
             lbl_name.setStyleSheet(
                 f"font-weight:bold; color:{C_GREEN if is_installed else C_TEXT}; font-size:{_pt(12)}px;"
             )
-            lbl_desc = QLabel(desc[:100] + "..." if len(desc) > 100 else desc)
-            lbl_desc.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px;")
-            lbl_desc.setWordWrap(True)
-            info.addWidget(lbl_name)
+            short = desc[:90] + "..." if len(desc) > 90 else desc
+            lbl_desc = QLabel(short)
+            lbl_desc.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(10)}px;")
+            top_row = QHBoxLayout()
+            top_row.setSpacing(6)
+            top_row.addWidget(lbl_name)
+            tgt_color = C_GREEN if target == TARGET_JETSON else (
+                C_BLUE if target == TARGET_PC else C_ORANGE)
+            top_row.addWidget(self._badge(target_label(target), tgt_color))
+            top_row.addStretch()
+            info.addLayout(top_row)
             info.addWidget(lbl_desc)
             wl.addWidget(cb)
             wl.addLayout(info, 1)
@@ -818,40 +1054,44 @@ class _NvidiaSkillsDialog(QDialog):
             self._list.addItem(item)
             self._list.setItemWidget(item, widget)
         self._btn_refresh.setEnabled(True)
-        self._btn_refresh.setText("Refresh List")
+        self._btn_refresh.setText("刷新列表")
         self._btn_install.setEnabled(True)
-        self._log.append(f"\n{len(skills)} skills available. Check the ones you want, then click Install.\n")
+        self._log.append(f"\n共 {len(skills)} 个技能可用，勾选后点击安装。\n")
+        self._filter_list()
+        # Chips were rebuilt after the initial translation pass — re-apply.
+        _apply_dlg_lang(self)
 
     def _on_list_failed(self, msg: str):
         self._log.append(f"\n✗ {msg}\n")
         self._btn_refresh.setEnabled(True)
-        self._btn_refresh.setText("Refresh List")
+        self._btn_refresh.setText("刷新列表")
 
-    def _filter_list(self, text: str):
-        text = text.lower().strip()
+    def _filter_list(self):
+        text = self._search.text().lower().strip()
         for i in range(self._list.count()):
             item = self._list.item(i)
-            widget = self._list.itemWidget(item)
-            if widget:
-                labels = widget.findChildren(QLabel)
-                name = labels[0].text().lower() if labels else ""
-                desc = labels[1].text().lower() if len(labels) > 1 else ""
-                item.setHidden(text not in name and text not in desc)
+            meta = item.data(Qt.UserRole)
+            if not meta:
+                continue
+            name, desc, target, cat = meta
+            visible = (not text or text in name.lower() or text in desc.lower())
+            visible = visible and target_matches(target, self._filter_target)
+            visible = visible and (self._filter_cat == "all" or cat == self._filter_cat)
+            item.setHidden(not visible)
 
     def _install_selected(self):
         selected = []
         for i in range(self._list.count()):
             item = self._list.item(i)
             widget = self._list.itemWidget(item)
-            if widget:
+            meta = item.data(Qt.UserRole)
+            if widget and meta:
                 cb = widget.findChild(QCheckBox)
-                if cb and cb.isChecked():
-                    labels = widget.findChildren(QLabel)
-                    name = labels[0].text() if labels else ""
-                    if name and name not in self._installed:
-                        selected.append(name)
+                name = meta[0]
+                if cb and cb.isChecked() and name not in self._installed:
+                    selected.append(name)
         if not selected:
-            self._log.append("No new skills selected.\n")
+            self._log.append("没有选中新技能。\n")
             return
         self._btn_install.setEnabled(False)
         self._btn_install.setText(f"安装中 (0/{len(selected)})")
@@ -863,8 +1103,8 @@ class _NvidiaSkillsDialog(QDialog):
     def _install_next(self):
         if self._install_idx >= len(self._install_queue):
             self._btn_install.setEnabled(True)
-            self._btn_install.setText("Install Selected")
-            self._log.append(f"\nInstall complete. {len(self._installed)} skills installed.\n")
+            self._btn_install.setText("安装选中")
+            self._log.append(f"\n安装完成。{len(self._installed)} 个技能已安装。\n")
             if self._newly_installed:
                 installed = self._newly_installed[:]
                 self._newly_installed = []
@@ -906,11 +1146,11 @@ class _NvidiaSkillUsageDialog(QDialog):
         lay.setContentsMargins(16, 16, 16, 16)
         lay.setSpacing(12)
 
-        title = QLabel("The following NVIDIA Skills have been installed:")
+        title = QLabel("以下 NVIDIA Skills 已安装完成")
         title.setStyleSheet(f"font-size:14px; font-weight:bold; color:{C_TEXT};")
         lay.addWidget(title)
 
-        hint = QLabel("Describe your need in any AI dialog to trigger the skill, e.g.:\n"
+        hint = QLabel("在任意 AI 对话框中描述相关需求即可触发对应 skill，例如：\n"
                       '"I want to use DeepStream for object detection", "Help me debug Jetson memory".')
         hint.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px;")
         hint.setWordWrap(True)
@@ -929,7 +1169,7 @@ class _NvidiaSkillUsageDialog(QDialog):
             list_widget.addItem(item)
         lay.addWidget(list_widget, 1)
 
-        btn = _btn("Got it", primary=True)
+        btn = _btn("知道了", primary=True)
         btn.clicked.connect(self.accept)
         btn_row = QHBoxLayout()
         btn_row.addStretch()

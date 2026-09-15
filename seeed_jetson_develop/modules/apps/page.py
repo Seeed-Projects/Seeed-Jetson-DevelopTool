@@ -824,7 +824,7 @@ class _InstallDialog(QDialog):
             border:none;
             border-radius:10px;
             color:{C_TEXT2};
-            font-family:'JetBrains Mono','Consolas',monospace;
+            font-family:'JetBrains Mono','Consolas',monospace,'Noto Color Emoji';
             font-size:{_pt(11)}px;
             padding:12px;
         """)
@@ -842,7 +842,7 @@ class _InstallDialog(QDialog):
             border:none;
             border-radius:10px;
             color:{log_color};
-            font-family:'JetBrains Mono','Consolas',monospace;
+            font-family:'JetBrains Mono','Consolas',monospace,'Noto Color Emoji';
             font-size:{_pt(11)}px;
             padding:12px;
         """)
