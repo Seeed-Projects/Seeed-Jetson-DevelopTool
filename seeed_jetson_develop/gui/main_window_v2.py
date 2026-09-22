@@ -78,6 +78,7 @@ NAV_ITEMS = [
     ("apps", "main.nav.apps"),
     ("skills", "main.nav.skills"),
     ("ota", "main.nav.ota"),
+    ("backup", "main.nav.backup"),
     ("community", "main.nav.community"),
 ]
 
@@ -306,7 +307,9 @@ class MainWindowV2(QMainWindow):
         self._skills_built = False
         self.stack.addWidget(self._skills_placeholder) # 4: skills
         self.stack.addWidget(_ota_page())          # 5
-        self.stack.addWidget(_community_page(self.products, self.product_images))  # 6: community
+        from seeed_jetson_develop.modules.backup_restore.page import build_page as _backup_page
+        self.stack.addWidget(_backup_page())        # 6: backup & restore
+        self.stack.addWidget(_community_page(self.products, self.product_images))  # 7: community
         content_layout.addWidget(self.stack)
 
         body_layout.addWidget(content_area, 1)

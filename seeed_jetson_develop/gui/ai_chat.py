@@ -43,6 +43,7 @@ from seeed_jetson_develop.gui.theme import (
     make_label as _lbl,
     make_button as _btn,
 )
+from seeed_jetson_develop.gui.runtime_i18n import get_current_lang, translate_text
 from seeed_jetson_develop.gui.i18n import get_language, t as _t_raw
 
 
@@ -935,7 +936,7 @@ class FloatingAIAssistant(QObject):
         self._ball = BreathingButton("AI Bot", self._host)
         self._ball.setFixedSize(self._ball_w, self._ball_h)
         self._ball.setCursor(Qt.SizeAllCursor)
-        self._ball.setToolTip("拖动可移动 · 靠近边缘会收起 · 点击打开")
+        self._ball.setToolTip(translate_text("拖动可移动 · 靠近边缘会收起 · 点击打开", get_current_lang()))
         self._ball.setAttribute(Qt.WA_Hover, True)
         self._ball.show()
         self._ball.raise_()

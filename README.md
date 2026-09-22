@@ -32,6 +32,7 @@ Click the image below to watch the usage video on YouTube:
 | App Market | Install and run Jetson applications and examples such as Jupyter Lab, Node-RED, jtop, YOLO/GMSL demos, Depth Anything, LLM, RAG, audio, and robotics examples. |
 | Skills Center | Browse and install OpenClaw, Claude, and Codex-style skills for Jetson deployment, troubleshooting, AI, CV, robotics, networking, and system tuning. |
 | OTA Update | Run supported JetPack/L4T OTA upgrade paths through a guided four-step workflow. |
+| Backup & Restore | Create a full-disk backup of the connected Jetson NVMe (over USB) or restore from a previous image, with auto board discovery, APX wait, disk/NFS pre-checks, and SHA256 verification. One-click in-app preparation downloads and assembles the BSP (version + workspace; kernel sources/toolchain skipped). |
 | Community | Open Seeed Wiki, forum, GitHub, video resources, NVIDIA NGC, Hugging Face, and product purchase links. |
 
 The current command-line entry point launches the GUI. Product selection, flashing, OTA, app install, and skills workflows are handled from the desktop client.

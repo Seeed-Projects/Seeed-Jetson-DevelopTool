@@ -37,6 +37,7 @@ from seeed_jetson_develop.core.config import get_npm_registry
 from seeed_jetson_develop.gui.ai_chat import _DEFAULT_SYSTEM
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding
 from seeed_jetson_develop.gui.runtime_i18n import apply_dialog_language as _apply_dlg_lang
+from seeed_jetson_develop.gui.runtime_i18n import get_current_lang as _gcl, translate_text as _rt
 from seeed_jetson_develop.gui.theme import (
     C_BG, C_BG_DEEP, C_CARD, C_CARD_LIGHT,
     C_GREEN, C_BLUE, C_ORANGE, C_RED,
@@ -524,7 +525,7 @@ class _FlowLayout(QLayout):
         return None
 
     def expandingDirections(self):
-        return Qt.Orientations()
+        return Qt.Horizontal | Qt.Vertical
 
     def hasHeightForWidth(self):
         return True
@@ -888,7 +889,7 @@ class _NvidiaSkillsDialog(QDialog):
         if cached:
             self._log.append("⏳ 从本地缓存加载 NVIDIA skills...\n")
             self._on_list_done(cached)
-            self._log.append(f"✓ 已从缓存加载 {len(cached)} 个技能\n")
+            self._log.append(_rt("✓ 已从缓存加载 {n} 个技能", _gcl()).format(n=len(cached)) + "\n")
             return
         self._btn_refresh.setText("获取中...")
         self._list_thread = _NvidiaListThread()
@@ -1054,9 +1055,7 @@ class _NvidiaSkillsDialog(QDialog):
             self._list.addItem(item)
             self._list.setItemWidget(item, widget)
         self._btn_refresh.setEnabled(True)
-        self._btn_refresh.setText("刷新列表")
-        self._btn_install.setEnabled(True)
-        self._log.append(f"\n共 {len(skills)} 个技能可用，勾选后点击安装。\n")
+        self._log.append("\n" + _rt("共 {n} 个技能可用，勾选后点击安装。", _gcl()).format(n=len(skills)) + "\n")
         self._filter_list()
         # Chips were rebuilt after the initial translation pass — re-apply.
         _apply_dlg_lang(self)
@@ -1091,7 +1090,7 @@ class _NvidiaSkillsDialog(QDialog):
                 if cb and cb.isChecked() and name not in self._installed:
                     selected.append(name)
         if not selected:
-            self._log.append("没有选中新技能。\n")
+            self._log.append(_rt("没有选中新技能。", _gcl()) + "\n")
             return
         self._btn_install.setEnabled(False)
         self._btn_install.setText(f"安装中 (0/{len(selected)})")
@@ -1102,9 +1101,7 @@ class _NvidiaSkillsDialog(QDialog):
 
     def _install_next(self):
         if self._install_idx >= len(self._install_queue):
-            self._btn_install.setEnabled(True)
-            self._btn_install.setText("安装选中")
-            self._log.append(f"\n安装完成。{len(self._installed)} 个技能已安装。\n")
+            self._log.append("\n" + _rt("安装完成。{n} 个技能已安装。", _gcl()).format(n=len(self._installed)) + "\n")
             if self._newly_installed:
                 installed = self._newly_installed[:]
                 self._newly_installed = []

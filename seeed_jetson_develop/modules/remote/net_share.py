@@ -16,6 +16,15 @@ import sys
 
 _IFACE_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
 
+def _tr(text: str) -> str:
+    """状态文案按当前语言翻译 (懒加载 gui, 保持本模块可独立导入)。"""
+    try:
+        from seeed_jetson_develop.gui.runtime_i18n import get_current_lang, translate_text
+        return translate_text(text, get_current_lang())
+    except Exception:
+        return text
+
+
 
 def _run(cmd: str, sudo_password: str = "") -> tuple[int, str]:
     """执行 shell 命令，Linux 下可用 sudo -S。"""
@@ -188,7 +197,7 @@ def _enable_nat_linux(wan: str, lan: str, sudo_password: str) -> tuple[bool, str
         rc, out = _run(cmd, sudo_password)
         logs.append(f"$ {cmd}\n{out}" if out else f"$ {cmd}")
         if rc != 0:
-            return False, "\n".join(logs) + f"\n\n命令失败 (rc={rc})"
+            return False, "\n".join(logs) + "\n\n" + _tr("命令失败 (rc={rc})").format(rc=rc)
     return True, "\n".join(logs)
 
 
@@ -216,8 +225,8 @@ def _enable_nat_windows(wan: str, lan: str) -> tuple[bool, str]:
     )
     rc, out = _run_powershell(script)
     if rc == 0:
-        return True, f"ICS 已开启：{wan} → {lan}\n{out}"
-    return False, f"ICS 开启失败：{out}"
+        return True, _tr("ICS 已开启：{wan} → {lan}").format(wan=wan, lan=lan) + f"\n{out}"
+    return False, _tr("ICS 开启失败：{out}").format(out=out)
 
 
 def disable_nat(wan: str, lan: str, sudo_password: str = "") -> tuple[bool, str]:
@@ -253,8 +262,8 @@ def _disable_nat_windows(wan: str, lan: str) -> tuple[bool, str]:
     )
     rc, out = _run_powershell(script)
     if rc == 0:
-        return True, f"ICS 已关闭\n{out}"
-    return False, f"ICS 关闭失败：{out}"
+        return True, _tr("ICS 已关闭") + f"\n{out}"
+    return False, _tr("ICS 关闭失败：{out}").format(out=out)
 
 
 def _validate_iface_name(name: str, field: str) -> str:

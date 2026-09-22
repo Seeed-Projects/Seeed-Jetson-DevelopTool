@@ -32,6 +32,7 @@ Seeed Jetson Develop Tool 是面向 Seeed Jetson 开发者的桌面客户端。�
 | 应用市场 | 安装和运行 Jetson 应用与示例，例如 Jupyter Lab、Node-RED、jtop、YOLO/GMSL、Depth Anything、LLM、RAG、音频和机器人示例。 |
 | Skills 中心 | 浏览并安装 OpenClaw、Claude、Codex 格式的 Jetson 技能，用于部署、排障、AI、CV、机器人、网络和系统调优。 |
 | OTA 升级 | 按向导执行已支持的 JetPack/L4T OTA 升级路径。 |
+| 系统备份/恢复 | 通过 USB 对相连 Jetson 的 NVMe 系统盘制作完整镜像备份或恢复，支持板型自动发现、APX 等待、磁盘/NFS 预检与 SHA256 校验。支持应用内一键下载装配 BSP 环境（选版本 + 工作区，跳过内核源码/工具链）。 |
 | 社区资源 | 打开 Seeed Wiki、论坛、GitHub、视频资源、NVIDIA NGC、Hugging Face 和产品购买链接。 |
 
 当前命令行入口用于启动 GUI。产品选择、烧录、OTA、应用安装和 Skills 工作流都在桌面客户端中完成。

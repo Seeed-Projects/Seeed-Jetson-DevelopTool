@@ -158,6 +158,13 @@ ZH_EN_EXACT = {
     "个技能可用，勾选后点击安装。": "skills available. Check the ones you want, then click Install.",
     "安装完成。": "Install complete.",
     "个技能已安装。": "skills installed.",
+    # ── core/runner.py — SSH/串口登录错误 ───────────────────────────────────
+    "用户名或密码错误": "Incorrect username or password",
+    "登录失败，未检测到 shell 提示符": "Login failed: no shell prompt detected",
+    # ── gui/ai_chat.py — 悬浮球 tooltip ─────────────────────────────────────
+    "拖动可移动 · 靠近边缘会收起 · 点击打开": "Drag to move · docks to the edge when near · click to open",
+    # ── modules/remote/net_share.py — ICS/NAT 状态 ──────────────────────────
+    "ICS 已关闭": "ICS disabled",
     "NVIDIA Skills 已安装": "NVIDIA Skills Installed",
     "以下 NVIDIA Skills 已安装完成": "The following NVIDIA Skills have been installed:",
     "在任意 AI 对话框中描述相关需求即可触发对应 skill，例如：": "Describe your need in any AI dialog to trigger the skill, e.g.:",
@@ -624,11 +631,19 @@ ZH_EN_PATTERNS = [
     (re.compile(r"^安装路径：(.+)$"), lambda m: f"Install path: {m.group(1)}"),
     (re.compile(r"^尝试镜像: (.+)$"), lambda m: f"Trying mirror: {m.group(1)}"),
     (re.compile(r"^创建目录 (.+) …$"), lambda m: f"Creating directory {m.group(1)}..."),
-    # ── skills/page.py — NVIDIA skills dialog ────────────────────────────────
     (re.compile(r"^共 (\d+) 个技能可用，勾选后点击安装。$"),
      lambda m: f"{m.group(1)} skills available. Check the ones you want, then click Install."),
-    (re.compile(r"^(\d+) 个技能已安装。$"), lambda m: f"{m.group(1)} skills installed."),
     (re.compile(r"^安装中 \((\d+)/(\d+)\)$"), lambda m: f"Installing ({m.group(1)}/{m.group(2)})"),
+    # 模板式 (先翻译后 .format): 占位符 {n}/{rc}/{wan}... 与 f-string 片段解耦
+    (re.compile(r"^✓ 已从缓存加载 \{n\} 个技能$"), lambda m: "✓ Loaded {n} skills from cache"),
+    (re.compile(r"^共 \{n\} 个技能可用，勾选后点击安装。$"),
+     lambda m: "A total of {n} skills are available. Check the ones you want, then click Install."),
+    (re.compile(r"^安装完成。\{n\} 个技能已安装。$"), lambda m: "Install complete. {n} skills installed."),
+    # ── modules/remote/net_share.py — ICS/NAT 状态 (模板式) ─────────────────
+    (re.compile(r"^命令失败 \(rc=\{rc\}\)$"), lambda m: "Command failed (rc={rc})"),
+    (re.compile(r"^ICS 已开启：\{wan\} → \{lan\}$"), lambda m: "ICS enabled: {wan} → {lan}"),
+    (re.compile(r"^ICS 开启失败：\{out\}$"), lambda m: "Failed to enable ICS: {out}"),
+    (re.compile(r"^ICS 关闭失败：\{out\}$"), lambda m: "Failed to disable ICS: {out}"),
     # Filter chips: "[icon ]<zh label> · <count>" -> "[icon ]<en label> · <count>"
     (re.compile(r"^([^\x00-\x7f]{1,4} )?(.+) · (\d+)$"),
      lambda m: f"{m.group(1) or ''}{ZH_EN_EXACT.get(m.group(2), m.group(2))} · {m.group(3)}"),

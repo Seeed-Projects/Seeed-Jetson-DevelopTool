@@ -841,6 +841,7 @@ def make_log_view(read_only: bool = True, min_height: int = 180,
     """
     te = QTextEdit()
     te.setReadOnly(read_only)
+    te.setAcceptRichText(False)
     te.setStyleSheet(
         f"QTextEdit {{"
         f" background:{C_CARD_LIGHT}; border:none; border-radius:8px;"
