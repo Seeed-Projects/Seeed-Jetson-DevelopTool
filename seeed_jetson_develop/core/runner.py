@@ -31,6 +31,15 @@ def _sanitize_cmd_for_log(cmd: str | list[str]) -> str:
     return text
 
 
+def _err(text: str) -> str:
+    """登录错误消息按当前语言翻译 (懒加载避免 core→gui 的导入环)。"""
+    try:
+        from seeed_jetson_develop.core.config import get_language
+        from seeed_jetson_develop.gui.runtime_i18n import translate_text
+        return translate_text(text, get_language())
+    except Exception:
+        return text
+
 def _prepare_local_command(cmd: str | list[str]) -> tuple[str | list[str], bool]:
     if isinstance(cmd, (list, tuple)):
         return [str(part) for part in cmd], False
@@ -356,8 +365,8 @@ class SerialRunner(Runner):
 
             if not re.search(r"[$#]\s*", buf):
                 if re.search(r"[Ll]ogin incorrect|[Aa]uthentication failure", buf):
-                    return -1, "用户名或密码错误"
-                return -1, "登录失败，未检测到 shell 提示符"
+                    return -1, _err("用户名或密码错误")
+                return -1, _err("登录失败，未检测到 shell 提示符")
 
             time.sleep(0.2)
             ser.write(b"export TERM=xterm-256color\r\n")

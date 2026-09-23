@@ -409,3 +409,36 @@ def set_npm_registry(url: str | None):
     else:
         data["npm_registry"] = url
     save(data)
+
+
+# ── Backup/Restore 上次使用状态 (目录与 sudo 密码, 本机勾选记住后复用) ─────────
+_BACKUP_STATE_KEY = "backup_state"
+
+
+def get_backup_state() -> dict:
+    """Return previously remembered backup state: workspace / l4t_dir / sudo_pass.
+
+    Empty string values mean "explicitly cleared"; missing keys mean "never set".
+    """
+    data = load().get(_BACKUP_STATE_KEY)
+    return data if isinstance(data, dict) else {}
+
+
+def set_backup_state(**kwargs) -> None:
+    """Persist backup UI state. ``None`` (or empty str) clears that key.
+
+    The config file is chmod 600 because it may carry the sudo password.
+    """
+    data = load()
+    state = data.setdefault(_BACKUP_STATE_KEY, {})
+    for key, value in kwargs.items():
+        if value is None or value == "":
+            state.pop(key, None)
+        else:
+            state[key] = str(value)
+    data[_BACKUP_STATE_KEY] = state
+    save(data)
+    try:
+        _CONFIG_PATH.chmod(0o600)
+    except OSError as exc:
+        log.warning("Failed to chmod config %s: %s", _CONFIG_PATH, exc)

@@ -60,6 +60,21 @@ QSS_HINT_RE = re.compile(r"\{\s|\}\s|^\s*[a-zA-Z-]+\s*:\s*[^;\n]+;", re.MULTILIN
 # - devices/page.py 的双语 fallback 文案：已包含中英两段，不需要重复翻译
 IGNORE_LITERALS: set[tuple[str, str]] = {
     ("onboarding_guide.py", ';">中文</span>'),
+    # sudo/密码提示检测: 匹配系统输出 (password for .../...的密码), 不是 UI 文案
+    ("runner.py", "的密码"),
+    ("net_share.py", "需要密码"),
+    ("net_share.py", "的密码"),
+    # wsl.exe 中文输出的检测匹配, 翻译了反而检测失效
+    ("wsl_flash.py", "用法"),
+    ("wsl_flash.py", "需要重新启动"),
+    ("wsl_flash.py", "重新启动系统"),
+    # net_share_dialog.py: _msg(zh, en) 双语对的中文半边, 英文走第二参数
+    ("net_share_dialog.py", "\n   （代理仅监听 127.0.0.1，已通过 iptables DNAT 转发 LAN 接口 "),
+    ("net_share_dialog.py", "\n   ⚠ iptables 转发设置失败，Jetson 可能无法访问代理："),
+    ("net_share_dialog.py", "\n   ⚠ iptables 转发异常："),
+    ("net_share_dialog.py", "（PC 端口 "),
+    ("net_share_dialog.py", "配置失败："),
+    ("net_share_dialog.py", ") 的 IP 地址，无法自动配置 Jetson。"),
 }
 
 
