@@ -20,6 +20,9 @@
   - 关闭共享：down 共享连接并自动恢复原始有线连接（状态存于 `~/.cache/seeed-jetson/net_share_state.json`），同时幂等清理旧 iptables 规则；Jetson 端经 SSH 还原默认路由/resolvectl/nmcli 持久化配置（`build_jetson_restore_cmd`）。
   - Jetson 联网验证改为分级检测（ping PC 网关 → ping 公网 → DNS → HTTPS， `build_jetson_verify_cmd`），按首个失败环节给出精确排障提示，不再只报「ping 8.8.8.8 失败」。
 
+- **fix(theme): 消息框标准按钮（Yes/No/Cancel/OK）硬编码中文**
+  - `ThemedMessageBox._STANDARD_TEXT` 改为经 `gui.i18n.t("common.yes/no/cancel/ok")` 按当前语言取值，英文界面下按钮不再显示「是/否/取消」。
+
 - **test**: `test_nvidia_skills_load.py` 新增远程技能名解析/新线程导入/Node 保障命令用例；`test_apps_registry.py` 新增 `codex-cli` 注册校验。真机（reComputer, Ubuntu 24.04）验证 Codex 安装与 skill SFTP 推送通过。
 
 - **feat(backup_restore): 新增系统备份/恢复页面**

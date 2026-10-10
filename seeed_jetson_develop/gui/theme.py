@@ -1230,12 +1230,22 @@ class ThemedMessageBox(QDialog):
         QMessageBox.No,
         QMessageBox.Cancel,
     )
-    _STANDARD_TEXT = {
-        QMessageBox.Ok:     "OK",
-        QMessageBox.Yes:    "是",
-        QMessageBox.No:     "否",
-        QMessageBox.Cancel: "取消",
+    # 标准按钮文案对应的 i18n key，运行时按当前语言取值
+    _STANDARD_KEYS = {
+        QMessageBox.Ok:     "common.ok",
+        QMessageBox.Yes:    "common.yes",
+        QMessageBox.No:     "common.no",
+        QMessageBox.Cancel: "common.cancel",
     }
+
+    @staticmethod
+    def _std_text(code) -> str:
+        try:
+            from seeed_jetson_develop.gui.i18n import t
+            return t(ThemedMessageBox._STANDARD_KEYS[code])
+        except Exception:
+            return {QMessageBox.Ok: "OK", QMessageBox.Yes: "Yes",
+                    QMessageBox.No: "No", QMessageBox.Cancel: "Cancel"}[code]
     _ROLE_RESULT = {
         QMessageBox.AcceptRole:     QDialog.Accepted,
         QMessageBox.YesRole:        QMessageBox.Yes,
@@ -1488,7 +1498,7 @@ class ThemedMessageBox(QDialog):
         self._clear_buttons()
         for code in self._STANDARD_BUTTONS:
             if buttons & code:
-                btn = QPushButton(self._STANDARD_TEXT.get(code, str(code)), self._card)
+                btn = QPushButton(self._std_text(code), self._card)
                 primary = code in (QMessageBox.Ok, QMessageBox.Yes)
                 self._style_button(btn, primary=primary)
                 self._connect_button(btn, code)
@@ -1500,7 +1510,7 @@ class ThemedMessageBox(QDialog):
         if isinstance(button, int):
             target = None
             for btn in self._buttons:
-                if btn.text() == self._STANDARD_TEXT.get(button):
+                if btn.text() == self._std_text(button):
                     target = btn
                     break
         self._default_button = target
