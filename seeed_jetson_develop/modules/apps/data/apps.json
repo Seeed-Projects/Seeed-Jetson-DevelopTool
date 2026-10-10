@@ -59,6 +59,26 @@
     ]
   },
   {
+    "id": "codex-cli",
+    "example_name": null,
+    "icon": "🟢",
+    "name": "Codex CLI",
+    "category": "开发工具",
+    "desc": "OpenAI 官方终端 AI 编程助手（自动保障 Node.js ≥ 20 环境）",
+    "skill_id": null,
+    "check_cmd": "codex --version 2>/dev/null",
+    "install_cmds": [
+      "_v=$(node --version 2>/dev/null); _m=$(echo \"$_v\" | sed 's/^v//' | cut -d. -f1); if [ -n \"$_m\" ] && [ \"$_m\" -ge 20 ] 2>/dev/null; then echo \"Node.js $_v already installed\"; else (curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - && sudo apt-get install -y nodejs) || (sudo apt-get update && sudo apt-get install -y nodejs npm); node --version; fi",
+      "sudo npm install -g @openai/codex",
+      "codex --version"
+    ],
+    "run_cmds": null,
+    "clean_cmds": null,
+    "uninstall_cmds": [
+      "sudo npm uninstall -g @openai/codex"
+    ]
+  },
+  {
     "id": "seeed-device-manager",
     "example_name": null,
     "icon": "DM",

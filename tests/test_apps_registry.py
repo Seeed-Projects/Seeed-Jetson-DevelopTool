@@ -93,6 +93,17 @@ class AppRegistryTest(unittest.TestCase):
         self.assertNotIn("value", masked)
         self.assertTrue(masked.endswith("_ ***"))
 
+    def test_codex_cli_app_registered(self):
+        app = next((item for item in load_apps() if item["id"] == "codex-cli"), None)
+
+        self.assertIsNotNone(app)
+        self.assertEqual(app["check_cmd"], "codex --version 2>/dev/null")
+        self.assertEqual(len(app["install_cmds"]), 3)
+        # Node.js >= 20 ensured before npm install
+        self.assertIn("-ge 20", app["install_cmds"][0])
+        self.assertIn("npm install -g @openai/codex", app["install_cmds"][1])
+        self.assertIn("npm uninstall -g @openai/codex", app["uninstall_cmds"][0])
+
 
 if __name__ == "__main__":
     unittest.main()

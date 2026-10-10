@@ -1,8 +1,26 @@
 # 更新日志
 
-## 0.2.0.post2（开发中）
+## 0.2.0.post2（最新）
 
 ### 新功能
+
+- **feat(skills): 「获取 NVIDIA Skills」接入 Jetson Codex 流程**
+  - SSH 已连接 Jetson 时点击该按钮：先检测 Jetson 上 Codex CLI（`codex --version`），未安装则弹出 Codex 安装对话框（复用 `AgentInstallDialog`，新增 `only_agents` 模式只装 Codex），安装成功后进入 NVIDIA Skills 浏览/安装。
+  - Jetson 模式下技能安装改为「本机 npx 拉取 + SFTP 推送至 Jetson `~/.codex/skills/<name>`」，规避 Jetson 直连 GitHub 克隆超时问题；已安装状态改为远程目录检测（`~/.codex|agents|claude/skills`）。
+  - 未连接 Jetson 时保持原有本机 PC 安装流程不变；按钮文案改为 i18n key（`skills.banner.get_nvidia`）。
+
+- **feat(apps): 应用市场新增「Codex CLI」卡片**
+  - `apps.json` 新增 `codex-cli`：自动保障 Node.js ≥ 20（NodeSource 22.x，回退 apt）→ `npm install -g @openai/codex`，支持状态检测与卸载。
+
+- **feat(remote): Agent 安装对话框 Node.js 保障升级**
+  - `build_node_ensure_cmd()`：检测 Node 主版本 ≥ 20 跳过；否则 NodeSource 22.x 优先、apt 兜底（此前仅 apt，Ubuntu 24.04 源仅 18.x）。
+
+- **feat(remote): 网络共享重构为 NetworkManager `ipv4.method shared` 优先（参照 jetson-pc-wired-share 技能）**
+  - 开启共享：LAN 网卡受 NM 管理时改用专用 `jetson-wired-share` 连接（autoconnect no / never-default yes / 保留既有静态 IP，不断 SSH），NM 自动接管 NAT + DHCP + DNS 转发；nmcli 缺失/网卡 unmanaged/NM 失败时自动回退原 iptables 方案。
+  - 关闭共享：down 共享连接并自动恢复原始有线连接（状态存于 `~/.cache/seeed-jetson/net_share_state.json`），同时幂等清理旧 iptables 规则；Jetson 端经 SSH 还原默认路由/resolvectl/nmcli 持久化配置（`build_jetson_restore_cmd`）。
+  - Jetson 联网验证改为分级检测（ping PC 网关 → ping 公网 → DNS → HTTPS， `build_jetson_verify_cmd`），按首个失败环节给出精确排障提示，不再只报「ping 8.8.8.8 失败」。
+
+- **test**: `test_nvidia_skills_load.py` 新增远程技能名解析/新线程导入/Node 保障命令用例；`test_apps_registry.py` 新增 `codex-cli` 注册校验。真机（reComputer, Ubuntu 24.04）验证 Codex 安装与 skill SFTP 推送通过。
 
 - **feat(backup_restore): 新增系统备份/恢复页面**
   - 包装官方 `l4t_backup_restore.sh` 的 Seeed 全机型备份/恢复脚本（`modules/backup_restore/scripts/jetson-backup-restore.sh`）。
@@ -51,7 +69,7 @@
   - 误报 12 处 (sudo 密码检测、wsl 中文输出检测、已双语 `_msg` 对) 入审计 ignore 白名单。
   - `scripts/i18n_audit.py` 现全绿: locale 键集 1040 对齐, 代码 0 未翻译字面量。
 
-## 0.1.9.post4（最新）
+## 0.1.9.post4
 
 ### 修复
 

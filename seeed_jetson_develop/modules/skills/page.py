@@ -46,6 +46,8 @@ from seeed_jetson_develop.gui.theme import (
     make_card as _card, make_input_card as _input_card,
     apply_shadow as _shadow,
     show_info_message as _show_info_message,
+    show_warning_message as _show_warning_message,
+    ask_question_message as _ask_question_message,
     input_qss,
     set_emoji_font_for_label, RippleButton,
 )
@@ -780,11 +782,175 @@ class _NvidiaInstallThread(QThread):
             self.log.emit(f"✗ Error installing {self._name}: {e}\n")
             self.done.emit(self._name, False)
 
+class _CodexCheckThread(QThread):
+    """Check whether Codex CLI is installed on the remote Jetson."""
+    done = Signal(bool, str)  # installed, version
+
+    def __init__(self, runner: SSHRunner):
+        super().__init__()
+        self._runner = runner
+
+    def run(self):
+        try:
+            rc, out = self._runner.run("codex --version 2>/dev/null", timeout=15)
+            lines = [l.strip() for l in out.splitlines() if l.strip()]
+            ver = lines[-1] if lines else ""
+            self.done.emit(rc == 0 and bool(ver), ver)
+        except Exception:
+            self.done.emit(False, "")
+
+
+# Remote skill dirs scanned on the Jetson (codex is the primary target)
+_REMOTE_LIST_SKILLS_CMD = (
+    "for d in ~/.codex/skills ~/.agents/skills ~/.claude/skills; do "
+    "if [ -d \"$d\" ]; then ls -1 \"$d\"; fi; done"
+)
+
+
+def _parse_remote_skill_names(output: str) -> set:
+    """Parse `ls` output of remote skill dirs into a set of skill names."""
+    names = set()
+    for line in output.splitlines():
+        name = line.strip()
+        if name and not name.startswith(("$", "total")) and " " not in name:
+            names.add(name)
+    return names
+
+
+class _RemoteInstalledThread(QThread):
+    """List NVIDIA skills already installed on the remote Jetson."""
+    done = Signal(set)
+
+    def __init__(self, runner: SSHRunner):
+        super().__init__()
+        self._runner = runner
+
+    def run(self):
+        try:
+            rc, out = self._runner.run(_REMOTE_LIST_SKILLS_CMD, timeout=15)
+            self.done.emit(_parse_remote_skill_names(out) if rc == 0 else set())
+        except Exception:
+            self.done.emit(set())
+
+
+def _local_nvidia_skill_dir(name: str) -> Path | None:
+    """Return the local dir of a NVIDIA skill fetched via npx, if present."""
+    for base in (Path.home() / ".claude" / "skills",
+                 Path.home() / ".agents" / "skills"):
+        d = base / name
+        if d.is_dir():
+            return d
+    return None
+
+
+def _fetch_nvidia_skill_local(name: str, log) -> Path | None:
+    """Fetch a NVIDIA skill onto the local PC via npx (returns local dir)."""
+    local = _local_nvidia_skill_dir(name)
+    if local is not None:
+        return local
+    npx = _find_npx()
+    if not npx:
+        log("✗ npx not found on this PC. Install Node.js LTS first.")
+        return None
+    try:
+        env = os.environ.copy()
+        env["NPM_CONFIG_REGISTRY"] = get_npm_registry()
+        proc = subprocess.Popen(
+            [npx, "skills", "add", "nvidia/skills", "--skill", name, "--yes"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace",
+            env=env,
+        )
+        for line in proc.stdout:
+            log(line.rstrip("\n"))
+        proc.wait(timeout=300)
+    except Exception as e:
+        log(f"✗ Local fetch failed: {e}")
+        return None
+    return _local_nvidia_skill_dir(name)
+
+
+class _NvidiaRemoteInstallThread(QThread):
+    """Install a single NVIDIA skill onto the Jetson's Codex (~/.codex/skills).
+
+    GitHub access from the Jetson is slow/unreliable, so the skill is fetched
+    on the local PC via `npx skills add` (cached) and then pushed over SFTP.
+    """
+    log  = Signal(str)
+    done = Signal(str, bool)  # name, success
+
+    def __init__(self, runner: SSHRunner, skill_name: str):
+        super().__init__()
+        self._runner = runner
+        self._name = skill_name
+        self._cancelled = False
+
+    def cancel(self):
+        self._cancelled = True
+
+    def run(self):
+        name = self._name
+        try:
+            self.log.emit(f"\n⏳ Fetching locally: {name}\n")
+            local = _fetch_nvidia_skill_local(name, self.log.emit)
+            if self._cancelled:
+                self.done.emit(name, False)
+                return
+            if local is None:
+                self.log.emit(f"✗ {name} local fetch failed\n")
+                self.done.emit(name, False)
+                return
+
+            # Resolve remote home (SFTP does not expand "~")
+            rc, home = self._runner.run("echo $HOME", timeout=10)
+            home = home.strip() if rc == 0 and home.strip() else f"/home/{self._runner.username}"
+            dest = f"{home}/.codex/skills/{name}"
+            self.log.emit(f"⏳ Uploading to Jetson: {dest}\n")
+            rc, _ = self._runner.run(f"mkdir -p {dest}", timeout=10)
+            if rc != 0:
+                self.log.emit(f"✗ mkdir failed (rc={rc})\n")
+                self.done.emit(name, False)
+                return
+
+            sftp_client = sftp = None
+            try:
+                sftp_client, sftp = self._runner.open_sftp()
+                for root, _dirs, fnames in os.walk(str(local)):
+                    for fn in fnames:
+                        if self._cancelled:
+                            self.done.emit(name, False)
+                            return
+                        lp = Path(root) / fn
+                        rel = str(lp.relative_to(local)).replace("\\", "/")
+                        rdir = f"{dest}/{rel}".rsplit("/", 1)[0]
+                        try:
+                            sftp.stat(rdir)
+                        except IOError:
+                            self._runner.run(f"mkdir -p {rdir}", timeout=10)
+                        sftp.put(str(lp), f"{dest}/{rel}")
+            finally:
+                if sftp is not None:
+                    sftp.close()
+                if sftp_client is not None:
+                    sftp_client.close()
+
+            rc2, _ = self._runner.run(f"test -d {dest}", timeout=10)
+            ok = rc2 == 0
+            status = "installed -> ~/.codex/skills" if ok else "failed"
+            self.log.emit(f"{'✓' if ok else '✗'} {name} {status}\n")
+            self.done.emit(name, ok)
+        except Exception as e:
+            self.log.emit(f"✗ Error installing {name}: {e}\n")
+            self.done.emit(name, False)
+
+
 class _NvidiaSkillsDialog(QDialog):
     """Dialog to browse and install NVIDIA skills from nvidia/skills repo."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, runner: SSHRunner | None = None):
         super().__init__(parent)
+        self._runner = runner
+        self._remote_installed_thread = None
         self.setWindowTitle("NVIDIA Skills")
         self.setMinimumSize(720, 600)
         self.resize(780, 840)
@@ -811,7 +977,10 @@ class _NvidiaSkillsDialog(QDialog):
         lay.addWidget(hdr)
 
         # Hint: install location + classification meaning
-        hint = QLabel("所有技能均安装到本机 PC，徽章与筛选表示建议运行目标与使用场景。")
+        if self._runner is not None:
+            hint = QLabel(_t("skills.nvidia.hint_jetson"))
+        else:
+            hint = QLabel("所有技能均安装到本机 PC，徽章与筛选表示建议运行目标与使用场景。")
         hint.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px;")
         hint.setWordWrap(True)
         lay.addWidget(hint)
@@ -997,8 +1166,17 @@ class _NvidiaSkillsDialog(QDialog):
     def _on_list_done(self, skills: list):
         _save_skills_cache(skills)
         self._all_skills = {name: desc for name, desc in skills}
-        installed = _get_installed_nvidia_skills()
+        if self._runner is not None:
+            # Jetson mode: check installed skills on the remote device
+            self._log.append(_t("skills.nvidia.remote_checking") + "\n")
+            self._remote_installed_thread = _RemoteInstalledThread(self._runner)
+            self._remote_installed_thread.done.connect(
+                lambda installed: self._build_list(skills, installed))
+            self._remote_installed_thread.start()
+        else:
+            self._build_list(skills, _get_installed_nvidia_skills())
 
+    def _build_list(self, skills: list, installed: set):
         # Scenario chips with counts
         counts: dict = {}
         for name, _desc in skills:
@@ -1109,7 +1287,10 @@ class _NvidiaSkillsDialog(QDialog):
             return
         name = self._install_queue[self._install_idx]
         self._btn_install.setText(f"安装中 ({self._install_idx}/{len(self._install_queue)})")
-        t = _NvidiaInstallThread(name)
+        if self._runner is not None:
+            t = _NvidiaRemoteInstallThread(self._runner, name)
+        else:
+            t = _NvidiaInstallThread(name)
         t.log.connect(self._log.append)
         t.done.connect(self._on_install_done)
         self._install_threads.append(t)
@@ -1249,11 +1430,11 @@ class SkillsPage(PageBase):
         self._banner_sub = _lbl(_t("skills.loading"), 11, C_TEXT3)
         tc.addWidget(self._banner_sub)
         bl.addLayout(tc, 1)
-        nvidia_btn = _btn("⚡ 获取 NVIDIA Skills", primary=True)
-        nvidia_btn.setFixedHeight(_pt(36))
-        nvidia_btn.setCursor(Qt.PointingHandCursor)
-        nvidia_btn.clicked.connect(self._open_nvidia_skills)
-        bl.addWidget(nvidia_btn)
+        self._nvidia_btn = _btn(_t("skills.banner.get_nvidia"), primary=True)
+        self._nvidia_btn.setFixedHeight(_pt(36))
+        self._nvidia_btn.setCursor(Qt.PointingHandCursor)
+        self._nvidia_btn.clicked.connect(self._open_nvidia_skills)
+        bl.addWidget(self._nvidia_btn)
         lay.addWidget(banner)
 
         # Search box
@@ -1394,6 +1575,7 @@ class SkillsPage(PageBase):
     def _bind_i18n(self):
         self.i18n.bind_callable(lambda: self.set_header_text(_t("skills.page.title"), _t("skills.page.subtitle")))
         self.i18n.bind_text(self._banner_title, "skills.banner.title")
+        self.i18n.bind_text(self._nvidia_btn, "skills.banner.get_nvidia")
         self.i18n.bind_callable(lambda: self._search_edit.setPlaceholderText("🔍  " + _t("skills.search.placeholder")))
         self.i18n.bind_callable(self._apply_dynamic_i18n)
 
@@ -1428,11 +1610,66 @@ class SkillsPage(PageBase):
 
     # Dialogs
     def _open_nvidia_skills(self):
-        """Open dialog to browse and install NVIDIA skills from GitHub."""
+        """Open dialog to browse and install NVIDIA skills from GitHub.
+
+        When connected to a Jetson via SSH, skills are installed into Codex
+        on the Jetson (requires Codex CLI there). Otherwise fall back to the
+        legacy local PC install flow.
+        """
+        runner = get_runner()
+        if isinstance(runner, SSHRunner):
+            self._nvidia_btn.setEnabled(False)
+            self._nvidia_btn.setText(_t("skills.nvidia.codex_checking"))
+            self._codex_check_thread = _CodexCheckThread(runner)
+            self._codex_check_thread.done.connect(
+                lambda ok, ver: self._on_codex_checked(runner, ok, ver))
+            self._codex_check_thread.start()
+            return
         dlg = _NvidiaSkillsDialog(parent=self)
         _apply_dlg_lang(dlg, self)
         dlg.exec_()
         # Reload skills after install
+        self._start_load()
+
+    def _on_codex_checked(self, runner: SSHRunner, installed: bool, _version: str):
+        self._nvidia_btn.setEnabled(True)
+        self._nvidia_btn.setText(_t("skills.banner.get_nvidia"))
+        if not installed:
+            yes = _ask_question_message(
+                self,
+                _t("skills.nvidia.codex_missing_title"),
+                _t("skills.nvidia.codex_missing_msg"),
+            )
+            if not yes:
+                return
+            from seeed_jetson_develop.modules.remote.agent_install_dialog import (
+                AgentInstallDialog,
+            )
+            dlg = AgentInstallDialog(runner, parent=self, only_agents=["codex"])
+            dlg.exec_()
+            # Re-check after the install dialog closes (non-blocking)
+            self._codex_recheck_thread = _CodexCheckThread(runner)
+            self._codex_recheck_thread.done.connect(
+                lambda ok, _v: self._on_codex_rechecked(runner, ok))
+            self._codex_recheck_thread.start()
+            return
+        dlg = _NvidiaSkillsDialog(parent=self, runner=runner)
+        _apply_dlg_lang(dlg, self)
+        dlg.exec_()
+        # Reload skills after install
+        self._start_load()
+
+    def _on_codex_rechecked(self, runner: SSHRunner, installed: bool):
+        if not installed:
+            _show_warning_message(
+                self,
+                _t("skills.nvidia.codex_missing_title"),
+                _t("skills.nvidia.codex_required"),
+            )
+            return
+        dlg = _NvidiaSkillsDialog(parent=self, runner=runner)
+        _apply_dlg_lang(dlg, self)
+        dlg.exec_()
         self._start_load()
 
 

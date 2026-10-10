@@ -146,30 +146,77 @@ class _JetsonGatewayThread(QThread):
             f"⚠ Proxy setup failed: {out}{extra_log}",
         )
 
+    def _format_verify_steps(self, steps: dict) -> str:
+        """分级验证结果格式化（ping 网关 → ping 公网 → DNS → HTTPS）。"""
+        labels = {
+            "ping_gw":      self._msg("ping PC 网关", "ping PC gateway"),
+            "ping_public":  self._msg("ping 公网 IP", "ping public IP"),
+            "dns":          self._msg("DNS 解析", "DNS resolution"),
+            "https":        self._msg("HTTPS 请求", "HTTPS request"),
+        }
+        lines = []
+        for key in ("ping_gw", "ping_public", "dns", "https"):
+            if key in steps:
+                mark = "✅" if steps[key] else "❌"
+                lines.append(f"{mark} {labels[key]}")
+        return "\n".join(lines)
+
+    def _verify_hint(self, steps: dict) -> str:
+        """根据首个失败环节给出排障提示。"""
+        if not steps.get("ping_gw"):
+            return self._msg(
+                "💡 PC ↔ Jetson 链路不通：请检查网线连接，以及 PC 的 LAN 网卡是否保留原有 IP。",
+                "💡 PC ↔ Jetson link down: check the cable and whether the PC LAN interface kept its IP.",
+            )
+        if not steps.get("ping_public"):
+            return self._msg(
+                "💡 网关通但公网不通：PC 端 NAT/转发未生效，请确认共享开启成功且 PC 本身可上网。",
+                "💡 Gateway reachable but no internet: PC-side NAT/forwarding is not working; confirm sharing is enabled and the PC itself is online.",
+            )
+        if not steps.get("dns"):
+            return self._msg(
+                "💡 公网 IP 通但 DNS 失败：Jetson DNS 未生效，请检查 resolvectl/resolv.conf。",
+                "💡 Public IP reachable but DNS failed: Jetson DNS not applied; check resolvectl/resolv.conf.",
+            )
+        if not steps.get("https"):
+            return self._msg(
+                "💡 DNS 正常但 HTTPS 失败：目标站点可能被墙，建议配置 PC 代理共享。",
+                "💡 DNS ok but HTTPS failed: the site may be blocked; consider sharing the PC proxy.",
+            )
+        return ""
+
     def run(self):
+        from seeed_jetson_develop.modules.remote.net_share import (
+            build_jetson_verify_cmd, parse_jetson_verify_output,
+        )
         cmd = build_jetson_gateway_cmd(self._runner.sudo_password, self._gateway)
         rc, out = self._runner.run(cmd, timeout=20)
-        if rc == 0:
-            # 验证连通性
-            rc2, out2 = self._runner.run("ping -c 1 -W 3 8.8.8.8", timeout=10)
-            if rc2 == 0:
-                time_sync_log = self._sync_time()
-                proxy_log = self._configure_proxy()
-                self.done.emit(
-                    True,
-                    f"{out}\n\n"
-                    f"{self._msg('✅ Jetson 已可上网（ping 8.8.8.8 成功）', '✅ Jetson is online (ping 8.8.8.8 succeeded)')}\n"
-                    f"{time_sync_log}\n"
-                    f"{proxy_log}",
-                )
-            else:
-                self.done.emit(
-                    True,
-                    f"{out}\n\n"
-                    f"{self._msg('⚠ 网关已配置，但 ping 8.8.8.8 失败，请检查 PC 端 NAT 是否生效', '⚠ Gateway configured, but ping 8.8.8.8 failed. Check whether PC-side NAT is working')}",
-                )
-        else:
+        if rc != 0:
             self.done.emit(False, self._msg(f"配置失败：{out}", f"Configuration failed: {out}"))
+            return
+
+        # 分级验证（ping 网关 → ping 公网 → DNS → HTTPS）
+        _rc2, out2 = self._runner.run(build_jetson_verify_cmd(self._gateway), timeout=60)
+        steps = parse_jetson_verify_output(out2)
+        verify_log = self._format_verify_steps(steps)
+
+        if steps.get("ping_public"):
+            time_sync_log = self._sync_time()
+            proxy_log = self._configure_proxy()
+            self.done.emit(
+                True,
+                f"{out}\n\n{verify_log}\n"
+                f"{self._msg('✅ Jetson 已可上网', '✅ Jetson is online')}\n"
+                f"{time_sync_log}\n"
+                f"{proxy_log}",
+            )
+        else:
+            hint = self._verify_hint(steps)
+            self.done.emit(
+                bool(steps.get("ping_gw")),
+                f"{out}\n\n{verify_log}\n"
+                f"{self._msg('⚠ 网关已配置，但联网验证未全部通过', '⚠ Gateway configured, but online verification did not fully pass')}\n{hint}",
+            )
 
 
 class NetShareDialog(QDialog):
@@ -180,6 +227,7 @@ class NetShareDialog(QDialog):
         self._refresh_thread: _RefreshThread | None = None
         self._sharing = False
         self._jetson_ip = jetson_ip
+        self._last_gateway = ""
         self._lang = get_current_lang(parent)
         self._proxy_port = 0
         self._proxy_lan = ""
@@ -531,6 +579,7 @@ class NetShareDialog(QDialog):
             return
 
         self._log.append("\n" + self._format_configuring_gateway_log(lan_ip))
+        self._last_gateway = lan_ip
         self._jetson_thread = _JetsonGatewayThread(runner, lan_ip, self._lang, self._get_lan(), self._get_sudo_pwd())
         self._jetson_thread.done.connect(self._on_jetson_gw_done)
         self._jetson_thread.start()
@@ -561,13 +610,18 @@ class NetShareDialog(QDialog):
         self._log.append("\n" + log)
         self._status.setText(self._tr("已关闭"))
         self._status.setStyleSheet(f"color:{C_TEXT3}; font-size:{pt(12)}px; background:transparent;")
-        # 关闭共享时顺带清除 Jetson 上的代理配置
+        # 关闭共享时顺带清除 Jetson 上的代理配置并还原路由/DNS
         runner = get_runner()
         if isinstance(runner, SSHRunner):
-            from seeed_jetson_develop.modules.remote.net_share import build_jetson_clear_proxy_cmd
+            from seeed_jetson_develop.modules.remote.net_share import (
+                build_jetson_clear_proxy_cmd, build_jetson_restore_cmd,
+            )
+            gw = self._last_gateway
             import threading
             def _clear():
                 runner.run(build_jetson_clear_proxy_cmd(), timeout=10)
+                if gw:
+                    runner.run(build_jetson_restore_cmd(gw), timeout=20)
             threading.Thread(target=_clear, daemon=True).start()
         # 清除 PC 上的代理 iptables 规则
         if sys.platform != "win32" and self._proxy_port and self._proxy_lan:

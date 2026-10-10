@@ -50,6 +50,25 @@ AGENTS = [
 CHECK_NODE_CMD = "node --version 2>/dev/null"
 
 
+def build_node_ensure_cmd() -> str:
+    """Shell command ensuring Node.js >= 20 on the remote Jetson.
+
+    Relies on the exported ``sudo()`` shell function injected by SSHRunner.
+    Prefers NodeSource 22.x; falls back to the distro apt packages.
+    """
+    return (
+        "_v=$(node --version 2>/dev/null); _m=$(echo \"$_v\" | sed 's/^v//' | cut -d. -f1); "
+        "if [ -n \"$_m\" ] && [ \"$_m\" -ge 20 ] 2>/dev/null; then "
+        "echo \"Node.js $_v already installed\"; "
+        "else "
+        "(curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - "
+        "&& sudo apt-get install -y nodejs) "
+        "|| (sudo apt-get update && sudo apt-get install -y nodejs npm); "
+        "node --version; "
+        "fi"
+    )
+
+
 # Background threads
 
 class _SshCmdThread(QThread):
@@ -80,24 +99,27 @@ class _DetectThread(QThread):
     """Check Node.js and agent install status."""
     result = Signal(dict)  # {node: bool, agents: {id: bool}}
 
-    def __init__(self, runner: SSHRunner):
+    def __init__(self, runner: SSHRunner, agents: list | None = None):
         super().__init__()
         self._runner = runner
+        self._agents = agents if agents is not None else AGENTS
 
     def run(self):
         rc, out = self._runner.run(CHECK_NODE_CMD, timeout=10)
         node_ok = rc == 0 and out.strip().startswith("v")
         agents = {}
-        for a in AGENTS:
+        for a in self._agents:
             rc2, out2 = self._runner.run(a["check"], timeout=10)
             agents[a["id"]] = rc2 == 0 and bool(out2.strip())
         self.result.emit({"node": node_ok, "agents": agents})
 
 
 class AgentInstallDialog(QDialog):
-    def __init__(self, runner: SSHRunner, parent=None):
+    def __init__(self, runner: SSHRunner, parent=None, only_agents: list | None = None):
         super().__init__(parent)
         self._runner = runner
+        self._agents = [a for a in AGENTS
+                        if only_agents is None or a["id"] in only_agents]
         self._thread: _SshCmdThread | None = None
         self._detect_thread: _DetectThread | None = None
         self._lang = get_language()
@@ -144,7 +166,7 @@ class AgentInstallDialog(QDialog):
         self._checkboxes: dict[str, QCheckBox] = {}
         self._agent_statuses: dict[str, object] = {}
 
-        for a in AGENTS:
+        for a in self._agents:
             row = QHBoxLayout()
             row.setSpacing(10)
             cb = QCheckBox(f"{a['icon']}  {a['name']}")
@@ -243,7 +265,7 @@ class AgentInstallDialog(QDialog):
         self._i18n.bind_text(self._refresh_btn, "remote.agent_install.refresh_status")
         self._i18n.bind_text(self._log_title, "remote.agent_install.execution_log")
         self._i18n.bind_text(self._close_btn, "common.close")
-        for agent in AGENTS:
+        for agent in self._agents:
             self._i18n.bind_text(agent["desc_label"], f"remote.agent_install.agent.{agent['id']}.desc")
 
     def _append(self, line: str):
@@ -261,7 +283,7 @@ class AgentInstallDialog(QDialog):
             lbl.setText(self._tr("common.checking"))
             lbl.setStyleSheet(f"color:{C_TEXT3}; font-size:{pt(11)}px; background:transparent;")
 
-        self._detect_thread = _DetectThread(self._runner)
+        self._detect_thread = _DetectThread(self._runner, self._agents)
         self._detect_thread.result.connect(self._on_detect)
         self._detect_thread.start()
 
@@ -278,7 +300,7 @@ class AgentInstallDialog(QDialog):
             self._node_status.setStyleSheet(
                 f"color:{C_ORANGE}; font-size:{pt(12)}px; background:transparent;")
 
-        for a in AGENTS:
+        for a in self._agents:
             lbl = self._agent_statuses[a["id"]]
             if s["agents"].get(a["id"]):
                 lbl.setText(self._tr("remote.agent_install.status.installed_short"))
@@ -290,7 +312,7 @@ class AgentInstallDialog(QDialog):
 
     # Install
     def _do_install(self):
-        selected = [a for a in AGENTS if self._checkboxes[a["id"]].isChecked()]
+        selected = [a for a in self._agents if self._checkboxes[a["id"]].isChecked()]
         if not selected:
             show_warning_message(
                 self,
@@ -299,18 +321,10 @@ class AgentInstallDialog(QDialog):
             )
             return
 
-        pwd = self._runner.sudo_password
-        escaped = pwd.replace("'", "'\\''")
         cmds: list[tuple[str, int]] = []
 
-        # Ensure Node.js first
-        cmds.append((
-            f"node --version 2>/dev/null || "
-            f"( echo '{escaped}' | sudo -S apt-get update "
-            f"&& echo '{escaped}' | sudo -S apt-get install -y nodejs npm "
-            f"&& node --version )",
-            180,
-        ))
+        # Ensure Node.js >= 20 first
+        cmds.append((build_node_ensure_cmd(), 600))
 
         # Install selected agents
         for a in selected:
@@ -337,7 +351,7 @@ class AgentInstallDialog(QDialog):
         self._do_detect()
 
 
-def open_agent_install_dialog(runner: SSHRunner, parent=None):
+def open_agent_install_dialog(runner: SSHRunner, parent=None, only_agents: list | None = None):
     """Open AI agent install dialog."""
-    dlg = AgentInstallDialog(runner, parent)
+    dlg = AgentInstallDialog(runner, parent, only_agents=only_agents)
     dlg.exec_()

@@ -1,6 +1,8 @@
 """PC 网络共享给 Jetson — 跨平台实现。
 
-Linux:  sysctl ip_forward + iptables MASQUERADE
+Linux 优先走 NetworkManager `ipv4.method shared`（参照 jetson-pc-wired-share 技能：
+由 NM 统一管理 DHCP/DNS 转发与 NAT，保留既有静态 IP/SSH 链路，可干净回退）；
+nmcli 不可用或网卡不受 NM 管理时回退到手工 iptables MASQUERADE 方案。
 Windows: netsh ICS (简化版)
 
 用法：
@@ -9,10 +11,13 @@ Windows: netsh ICS (简化版)
 """
 from __future__ import annotations
 
+import json
 import re
 import shlex
+import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 _IFACE_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
 
@@ -176,7 +181,7 @@ def enable_nat(wan: str, lan: str, sudo_password: str = "") -> tuple[bool, str]:
     """开启 NAT 转发：wan 是上网网卡，lan 是连 Jetson 的网卡。"""
     if sys.platform == "win32":
         return _enable_nat_windows(wan, lan)
-    return _enable_nat_linux_safe(wan, lan, sudo_password)
+    return _enable_nat_linux_smart(wan, lan, sudo_password)
 
 
 def _enable_nat_linux(wan: str, lan: str, sudo_password: str) -> tuple[bool, str]:
@@ -233,7 +238,7 @@ def disable_nat(wan: str, lan: str, sudo_password: str = "") -> tuple[bool, str]
     """关闭 NAT 转发。"""
     if sys.platform == "win32":
         return _disable_nat_windows(wan, lan)
-    return _disable_nat_linux_safe(wan, lan, sudo_password)
+    return _disable_nat_linux_smart(wan, lan, sudo_password)
 
 
 def _disable_nat_linux(wan: str, lan: str, sudo_password: str) -> tuple[bool, str]:
@@ -319,6 +324,213 @@ def _remove_iptables_rule_if_exists(
     if out2:
         logs.append(out2)
     return rc2 == 0, rc2
+
+
+# ── NetworkManager shared 方案（首选，参照 jetson-pc-wired-share 技能）────────────
+
+NM_SHARE_PROFILE = "jetson-wired-share"
+_NET_SHARE_STATE_PATH = Path.home() / ".cache" / "seeed-jetson" / "net_share_state.json"
+
+
+def _nmcli_available() -> bool:
+    return shutil.which("nmcli") is not None
+
+
+def _nm_device_managed(iface: str) -> bool:
+    """网卡受 NetworkManager 管理（非 unmanaged 且 nmcli 能识别）。"""
+    rc, out = _run_argv(["nmcli", "-t", "-f", "DEVICE,STATE", "device", "status"])
+    if rc != 0:
+        return False
+    for line in out.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 2 and parts[0] == iface:
+            return parts[1] != "unmanaged"
+    return False
+
+
+def _nm_active_connection(iface: str) -> str | None:
+    """指定网卡当前激活的 NM 连接名。"""
+    rc, out = _run_argv(
+        ["nmcli", "-t", "-g", "NAME,DEVICE", "connection", "show", "--active"])
+    if rc != 0:
+        return None
+    for line in out.splitlines():
+        # 名字里可能含转义冒号，取最后一个字段为 device
+        idx = line.rfind(":")
+        if idx > 0 and line[idx + 1:] == iface:
+            return line[:idx].replace("\\:", ":")
+    return None
+
+
+def _nm_profile_exists(name: str) -> bool:
+    rc, _ = _run_argv(["nmcli", "connection", "show", name])
+    return rc == 0
+
+
+def _iface_cidr(iface: str) -> str | None:
+    """网卡当前 IPv4 地址（含前缀），如 192.168.88.24/24。"""
+    try:
+        r = subprocess.run(
+            ["ip", "-4", "-o", "addr", "show", "dev", iface],
+            capture_output=True, text=True, timeout=10,
+        )
+        m = re.search(r"inet\s+(\S+)", r.stdout)
+        return m.group(1) if m else None
+    except Exception:
+        return None
+
+
+def _load_share_state() -> dict:
+    try:
+        return json.loads(_NET_SHARE_STATE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_share_state(state: dict):
+    try:
+        _NET_SHARE_STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _NET_SHARE_STATE_PATH.write_text(
+            json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _clear_share_state():
+    try:
+        _NET_SHARE_STATE_PATH.unlink()
+    except Exception:
+        pass
+
+
+def _enable_nat_linux_nm(wan: str, lan: str, sudo_password: str) -> tuple[bool, str]:
+    """用 NM `ipv4.method shared` 开启共享：NM 自动管理 NAT/DHCP/DNS 转发。
+
+    保留 LAN 网卡既有静态 IP（避免断开既有 SSH 链路），不改动原有有线连接。
+    """
+    logs: list[str] = []
+
+    # 1. 记录原始连接与当前地址
+    original = _nm_active_connection(lan)
+    cidr = _iface_cidr(lan)
+    logs.append(f"[info] lan={lan} original_connection={original or '-'} addr={cidr or '-'}")
+    if original == NM_SHARE_PROFILE:
+        original = _load_share_state().get("original_connection") or None
+
+    # 2. 开启 ip_forward（NM shared 也会设置，双保险）
+    rc, out = _run_argv(["sysctl", "-w", "net.ipv4.ip_forward=1"], sudo_password)
+    logs.append("$ sysctl -w net.ipv4.ip_forward=1")
+    if out:
+        logs.append(out)
+    if rc != 0:
+        return False, "\n".join(logs) + f"\n\nip_forward failed (rc={rc})"
+
+    # 3. 创建或更新共享连接（autoconnect no，不影响默认路由）
+    addr_args = ["ipv4.addresses", cidr] if cidr else []
+    if _nm_profile_exists(NM_SHARE_PROFILE):
+        mod_args = (["connection", "modify", NM_SHARE_PROFILE,
+                     "connection.interface-name", lan,
+                     "connection.autoconnect", "no",
+                     "ipv4.method", "shared",
+                     "ipv4.never-default", "yes",
+                     "ipv6.method", "disabled"] + addr_args)
+        rc, out = _run_argv(["nmcli", *mod_args], sudo_password)
+        logs.append("$ nmcli connection modify " + NM_SHARE_PROFILE)
+    else:
+        add_args = (["connection", "add", "type", "ethernet",
+                     "ifname", lan, "con-name", NM_SHARE_PROFILE,
+                     "autoconnect", "no",
+                     "ipv4.method", "shared",
+                     "ipv4.never-default", "yes",
+                     "ipv6.method", "disabled"] + addr_args)
+        rc, out = _run_argv(["nmcli", *add_args], sudo_password)
+        logs.append("$ nmcli connection add " + NM_SHARE_PROFILE)
+    if out:
+        logs.append(out)
+    if rc != 0:
+        return False, "\n".join(logs) + f"\n\nnmcli profile setup failed (rc={rc})"
+
+    # 4. 激活共享连接（可能短暂抖动有线链路）
+    rc, out = _run_argv(["nmcli", "connection", "up", NM_SHARE_PROFILE],
+                        sudo_password, timeout=40)
+    logs.append("$ nmcli connection up " + NM_SHARE_PROFILE)
+    if out:
+        logs.append(out)
+    if rc != 0:
+        return False, "\n".join(logs) + f"\n\nnmcli up failed (rc={rc})"
+
+    # 5. 校验：LAN 网卡应仍有 IPv4 地址（SSH 链路保持）
+    new_cidr = _iface_cidr(lan)
+    logs.append(f"[info] after-up addr={new_cidr or '-'}")
+    if cidr and not new_cidr:
+        return False, "\n".join(logs) + "\n\nLAN interface lost its IPv4 address after activation"
+
+    if not shutil.which("dnsmasq"):
+        logs.append(_tr("[warn] 未检测到 dnsmasq，NM shared 的 DHCP/DNS 转发可能不可用"))
+
+    _save_share_state({
+        "lan": lan, "wan": wan,
+        "original_connection": original or "",
+        "addr": new_cidr or cidr or "",
+        "backend": "networkmanager",
+    })
+    return True, "\n".join(logs)
+
+
+def _disable_nat_linux_nm(sudo_password: str) -> tuple[bool, str]:
+    """关闭 NM 共享连接并恢复原始有线连接。返回 (是否处理过, 日志)。"""
+    if not _nm_profile_exists(NM_SHARE_PROFILE):
+        return False, ""
+    logs: list[str] = []
+    state = _load_share_state()
+
+    rc, out = _run_argv(["nmcli", "connection", "down", NM_SHARE_PROFILE],
+                        sudo_password, timeout=30)
+    logs.append("$ nmcli connection down " + NM_SHARE_PROFILE)
+    if out:
+        logs.append(out)
+
+    original = state.get("original_connection") or ""
+    if original and original != NM_SHARE_PROFILE and _nm_profile_exists(original):
+        rc2, out2 = _run_argv(["nmcli", "connection", "up", original],
+                              sudo_password, timeout=40)
+        logs.append(f"$ nmcli connection up {original}")
+        if out2:
+            logs.append(out2)
+
+    _clear_share_state()
+    return True, "\n".join(logs)
+
+
+def _enable_nat_linux_smart(wan: str, lan: str, sudo_password: str) -> tuple[bool, str]:
+    try:
+        wan = _validate_iface_name(wan, "wan")
+        lan = _validate_iface_name(lan, "lan")
+    except ValueError as exc:
+        return False, str(exc)
+
+    if _nmcli_available() and _nm_device_managed(lan):
+        ok, log = _enable_nat_linux_nm(wan, lan, sudo_password)
+        if ok:
+            return True, log
+        # NM 路径失败 → 回退手工 iptables
+        ok2, log2 = _enable_nat_linux_safe(wan, lan, sudo_password)
+        header = _tr("NetworkManager 共享失败，回退到 iptables 方案：")
+        return ok2, log + "\n\n" + header + "\n" + log2
+    return _enable_nat_linux_safe(wan, lan, sudo_password)
+
+
+def _disable_nat_linux_smart(wan: str, lan: str, sudo_password: str) -> tuple[bool, str]:
+    logs: list[str] = []
+    ok = True
+    if _nmcli_available():
+        handled, nm_log = _disable_nat_linux_nm(sudo_password)
+        if handled:
+            logs.append(nm_log)
+    # 同时清理可能残留的 iptables 规则（幂等）
+    ok2, log2 = _disable_nat_linux_safe(wan, lan, sudo_password)
+    logs.append(log2)
+    return ok and ok2, "\n".join(l for l in logs if l)
 
 
 def _enable_nat_linux_safe(wan: str, lan: str, sudo_password: str) -> tuple[bool, str]:
@@ -729,3 +941,77 @@ def build_jetson_clear_proxy_cmd() -> str:
         "/^HTTPS_PROXY=/d;/^no_proxy=/d;/^NO_PROXY=/d' /etc/environment 2>/dev/null || true; "
         "echo 'proxy_cleared'"
     )
+
+
+# ── Jetson 端分级验证与还原 ────────────────────────────────────────────────────
+
+def build_jetson_verify_cmd(gateway: str) -> str:
+    """在 Jetson 上分级验证联网状态，输出 verify_<step>=ok|fail 标记。
+
+    步骤：ping PC 网关 → ping 公网 IP → DNS 解析 → HTTPS 请求。
+    参照 jetson-pc-wired-share 技能的验证顺序，失败时可精确定位环节。
+    """
+    gw_q = shlex.quote(gateway)
+    return f"""
+GW={gw_q}
+if ping -c 1 -W 3 "$GW" >/dev/null 2>&1; then echo verify_ping_gw=ok; else echo verify_ping_gw=fail; fi
+if ping -c 1 -W 3 223.5.5.5 >/dev/null 2>&1 || ping -c 1 -W 3 8.8.8.8 >/dev/null 2>&1; then
+  echo verify_ping_public=ok
+else
+  echo verify_ping_public=fail
+fi
+if getent hosts mirrors.aliyun.com >/dev/null 2>&1 || getent hosts archive.ubuntu.com >/dev/null 2>&1; then
+  echo verify_dns=ok
+else
+  echo verify_dns=fail
+fi
+if curl -fsS -m 8 -o /dev/null https://mirrors.aliyun.com/ 2>/dev/null \\
+   || curl -fsS -m 8 -o /dev/null https://archive.ubuntu.com/ 2>/dev/null; then
+  echo verify_https=ok
+else
+  echo verify_https=fail
+fi
+""".strip()
+
+
+def parse_jetson_verify_output(output: str) -> dict:
+    """解析 build_jetson_verify_cmd 的输出为 {step: bool}。"""
+    result = {}
+    for line in output.splitlines():
+        line = line.strip()
+        m = re.fullmatch(r"verify_(ping_gw|ping_public|dns|https)=(ok|fail)", line)
+        if m:
+            result[m.group(1)] = m.group(2) == "ok"
+    return result
+
+
+def build_jetson_restore_cmd(gateway: str) -> str:
+    """关闭共享时在 Jetson 上还原：删除指向 PC 的默认路由、回退 DNS 与 nmcli 持久化配置。"""
+    gw_q = shlex.quote(gateway)
+    return f"""
+GW={gw_q}
+_S() {{ printf '%s\\n' "$SEEED_SUDO_PASSWORD" | command sudo -S -p '' "$@" 2>&1; return $?; }}
+
+IFACE="$(ip -4 route get "$GW" 2>/dev/null | awk '{{for(i=1;i<=NF;i++) if($i=="dev") {{print $(i+1); exit}}}}')"
+echo "[info] iface=${{IFACE:-unknown}} gw=$GW"
+
+# 运行时路由：删除经 PC 的默认路由
+_S ip route del default via "$GW" 2>/dev/null && echo "[ok] default route via $GW removed" \\
+  || echo "[info] no default route via $GW"
+
+# 运行时 DNS
+if command -v resolvectl >/dev/null 2>&1 && [ -n "$IFACE" ]; then
+  _S resolvectl revert "$IFACE" >/dev/null 2>&1 && echo "[ok] resolvectl reverted" || true
+fi
+
+# nmcli 持久化配置还原
+if command -v nmcli >/dev/null 2>&1 && [ -n "$IFACE" ]; then
+  CON="$(timeout 3 nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | awk -F: -v dev="$IFACE" '$2==dev {{print $1; exit}}')"
+  if [ -n "$CON" ]; then
+    _S timeout 5 nmcli connection modify "$CON" ipv4.gateway "" ipv4.dns "" ipv4.ignore-auto-dns no >/dev/null 2>&1 \\
+      && echo "[ok] nmcli gateway/dns cleared" || echo "[warn] nmcli revert failed"
+    _S timeout 5 nmcli device reapply "$IFACE" >/dev/null 2>&1 || true
+  fi
+fi
+echo "restore_done"
+""".strip()

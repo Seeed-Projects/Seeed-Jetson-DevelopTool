@@ -46,5 +46,12 @@
   "skills.badge.verified": "✓ Verified",
   "skills.badge.installed": "● Installed",
   "skills.badge.risk": "⚠ Risk",
-  "skills.btn.wiki": "Wiki"
+  "skills.btn.wiki": "Wiki",
+  "skills.banner.get_nvidia": "⚡ Get NVIDIA Skills",
+  "skills.nvidia.codex_checking": "Checking Codex on Jetson...",
+  "skills.nvidia.codex_missing_title": "Codex CLI Required",
+  "skills.nvidia.codex_missing_msg": "NVIDIA skills will be installed into Codex on the Jetson (~/.codex/skills).\nCodex CLI is not installed on the Jetson yet. Install it now?",
+  "skills.nvidia.codex_required": "Codex CLI is still not installed. Cannot continue installing NVIDIA skills.",
+  "skills.nvidia.hint_jetson": "Skills will be installed into Codex on the Jetson (~/.codex/skills). Badges and filters indicate suggested run target and scenario.",
+  "skills.nvidia.remote_checking": "⏳ Checking installed NVIDIA skills on Jetson..."
 }

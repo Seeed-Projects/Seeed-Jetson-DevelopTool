@@ -46,5 +46,12 @@
   "skills.badge.verified": "✓ 已验证",
   "skills.badge.installed": "● 已安装",
   "skills.badge.risk": "⚠ 风险",
-  "skills.btn.wiki": "Wiki"
+  "skills.btn.wiki": "Wiki",
+  "skills.banner.get_nvidia": "⚡ 获取 NVIDIA Skills",
+  "skills.nvidia.codex_checking": "正在检测 Jetson Codex 环境...",
+  "skills.nvidia.codex_missing_title": "需要安装 Codex CLI",
+  "skills.nvidia.codex_missing_msg": "NVIDIA Skills 将安装到 Jetson 的 Codex（~/.codex/skills）。\n检测到 Jetson 尚未安装 Codex CLI，是否现在安装？",
+  "skills.nvidia.codex_required": "Codex CLI 仍未安装，无法继续安装 NVIDIA Skills。",
+  "skills.nvidia.hint_jetson": "技能将安装到 Jetson 的 Codex（~/.codex/skills），徽章与筛选表示建议运行目标与使用场景。",
+  "skills.nvidia.remote_checking": "⏳ 正在检查 Jetson 上已安装的 NVIDIA skills..."
 }

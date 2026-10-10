@@ -154,9 +154,65 @@ class TestNvidiaSkillsDialogImport(unittest.TestCase):
     def test_import_threads(self):
         from seeed_jetson_develop.modules.skills.page import (
             _NvidiaListThread, _NvidiaInstallThread,
+            _NvidiaRemoteInstallThread, _RemoteInstalledThread,
+            _CodexCheckThread,
         )
         self.assertTrue(callable(_NvidiaListThread))
         self.assertTrue(callable(_NvidiaInstallThread))
+        self.assertTrue(callable(_NvidiaRemoteInstallThread))
+        self.assertTrue(callable(_RemoteInstalledThread))
+        self.assertTrue(callable(_CodexCheckThread))
+
+
+class TestRemoteSkillNameParsing(unittest.TestCase):
+    """Test parsing of remote `ls` output for installed skills."""
+
+    def test_parse_remote_skill_names(self):
+        from seeed_jetson_develop.modules.skills.page import (
+            _parse_remote_skill_names,
+        )
+        out = "deepstream-dev\njetson-quick-start\n\n  \ncuopt-install\n"
+        self.assertEqual(
+            _parse_remote_skill_names(out),
+            {"deepstream-dev", "jetson-quick-start", "cuopt-install"},
+        )
+
+    def test_parse_remote_skill_names_filters_noise(self):
+        from seeed_jetson_develop.modules.skills.page import (
+            _parse_remote_skill_names,
+        )
+        out = "$ ls\ntotal 8\nsome line with spaces\nvalid-skill\n"
+        self.assertEqual(_parse_remote_skill_names(out), {"valid-skill"})
+
+    def test_parse_remote_skill_names_empty(self):
+        from seeed_jetson_develop.modules.skills.page import (
+            _parse_remote_skill_names,
+        )
+        self.assertEqual(_parse_remote_skill_names(""), set())
+
+
+class TestAgentInstallDialogHelpers(unittest.TestCase):
+    """Test the shared Node.js ensure command used by codex install."""
+
+    def test_build_node_ensure_cmd(self):
+        from seeed_jetson_develop.modules.remote.agent_install_dialog import (
+            build_node_ensure_cmd,
+        )
+        cmd = build_node_ensure_cmd()
+        self.assertIn("node --version", cmd)
+        self.assertIn("-ge 20", cmd)
+        self.assertIn("deb.nodesource.com/setup_22.x", cmd)
+        self.assertIn("apt-get install -y nodejs npm", cmd)
+
+    def test_dialog_accepts_only_agents(self):
+        import inspect
+        from seeed_jetson_develop.modules.remote.agent_install_dialog import (
+            AgentInstallDialog, open_agent_install_dialog,
+        )
+        sig = inspect.signature(AgentInstallDialog.__init__)
+        self.assertIn("only_agents", sig.parameters)
+        sig2 = inspect.signature(open_agent_install_dialog)
+        self.assertIn("only_agents", sig2.parameters)
 
 
 if __name__ == "__main__":
