@@ -45,17 +45,24 @@ seeed_jetson_develop/
   gui/
     theme.py                     # ★ 设计 token + 组件工厂（唯一权威）
     styles.py                    # 旧版浅色 QSS（历史兼容，新代码勿扩展）
-    ai_chat.py                   # AI 对话面板
+    ai_chat.py                   # AI 悬浮球入口（点击进入 Agent 页，inject_* 转发）
     i18n.py                      # ★ 现代 key 式国际化
     runtime_i18n.py              # 已废弃，禁止使用
     main_window_v2.py            # 主窗口组装
     widgets/                     # ★ 组件库：page_base / list_page_base / empty_state /
                                  #   toast_notification / loading_spinner / breathing_* /
                                  #   animated_* / ripple_button / focus_ripple_edit / ...
-  modules/<flash|devices|apps|skills|remote|ota|community>/
+  modules/<flash|devices|apps|skills|agent|remote|ota|community>/
     page.py                      # 各功能页（迁移目标：全部基于 PageBase）
     thread.py / *.py             # 后台线程与业务逻辑
+  modules/agent/                 # ★ AI Agent 页：复用本机 claude/codex CLI 驱动 Jetson/
+                                 #   Physical AI（backend.py 流式包装 / cli_tools.py CLI
+                                 #   检测与 skills 目录约定 / agent_setup_dialog.py 本机补装）
   locales/en|zh-CN/*.json        # 双语文案
+  skills/{openclaw,claude,codex}/<slug>/  # ★ 内置技能库（运行时读取此包内树）：
+                                 #   openclaw→SKILL.md、claude→CLAUDE.md、codex→AGENTS.md，
+                                 #   内容相同仅 marker 文件名不同；references/scripts 子目录原样。
+                                 #   仓库顶层 skills/ 是同构副本，新增技能时两棵树都要同步。
   data/                          # BSP / 产品图 / Recovery 元数据
   core/                          # events(事件总线) / runner / config ...
 design.md                        # ★ UI 设计规范（改动 UI 先读它）

@@ -828,7 +828,7 @@ class StatusBadge(QLabel):
 
     def _apply(self):
         color = STATUS_COLORS.get(self._status, C_TEXT2)
-        self.setStyleSheet(f"color:{color}; font-size:{pt(12)}px;")
+        self.setStyleSheet(f"color:{color}; font-size:{pt(12)}px; background:transparent;")
 
 
 # ── make_log_view: unified log text area ────────────────────────────────────

@@ -1,0 +1,42 @@
+{
+  "schema": "rebot-arm-grasp.source/1",
+  "upstream": "https://github.com/johnnynunez/cascade",
+  "source_commit": "ceda94a168f600a3811441721f5e3afb56e89d33",
+  "review_date": "2026-10-14",
+  "scope": "Native CASCADE arm MCP contract; profile/calibration values require onsite validation. Hash match is compatibility evidence, not hardware admission.",
+  "contract_sha256": {
+    "src/cascade/config.py": "608e23804d70c034e38d73f67c496c75215420def31818b6d0cbee8802f61a43",
+    "src/cascade/apps/demo.py": "3e7e0a99de49315cfe7d139f98dce59234c27d30cc52c815268390e356584745",
+    "src/cascade/apps/mcp_server.py": "e62273b0686730abf29bddecacc3635c239ff46c1e5d25f307d86fde7a80629f",
+    "src/cascade/apps/capabilities.py": "110e74a17e68462716f671efa12b97a0bbc795cbdb930aeb35de08d496c6f584",
+    "src/cascade/control/kinematics.py": "ff122c617d596579bc7e235d39e370560fb230aeb46c1bd4b6e91c9c1860ea0e",
+    "src/cascade/control/lazy_arm.py": "a19a1131c505a1a0cb6ef1ead176012459cc3837235aae2623fad04f3ce735bc",
+    "src/cascade/control/rebot_rs_arm.py": "9c916a2c75fec965aead71bdc3d85756be383e15616d56356ebdbbde750de5af",
+    "src/cascade/control/rs_gripper.py": "c088d237f338eed9fe28819860b39cd8380fe2ce4dcdb8d0c5ba4a3cafac94e8",
+    "src/cascade/control/robstride.py": "3015df167ac61b37d368ce639095247b6a549b6497f11a5e5d3bb13d3dced46e",
+    "src/cascade/safety/harness.py": "8fc43f3ee0c05cf2c7fdb6f1f455dacfb6d25effcb8b84f92857e7650cdae21b",
+    "src/cascade/safety/contact.py": "0128adeec79bf5a0eee7e1905a109dcebce5c20f00a34ee5ea1d53b16cd444a4",
+    "src/cascade/safety/tool_volume.py": "07248036896b6b0a9c70867049fd4c4c0304579a9bb73b0ac49987bb89d79389",
+    "src/cascade/skills/runtime.py": "c60293f9586fd6837eb0b782050a93ea9055efb3c7b95666e89b8a61c6857346",
+    "src/cascade/skills/rest_pose.py": "b36b5cdc7fa121748065d5983dbe8c43227f67c90ad84afa2beb5ff2718aa305",
+    "src/cascade/skills/held_observation.py": "c6bb6b3e851c07405a94bf5b9b1452ccb935e179d6e3f66500c2ec2e3c1349c8",
+    "src/cascade/agent/effects.py": "601aada6adbace3972d6e129db7fc57d171a2b24d61a334af9812a49a8fa2658",
+    "src/cascade/calibration/dataset.py": "165017d4c9208b05837caf9f70b7489a1195753bc66b65eb77cc2b08679da5e7",
+    "src/cascade/calibration/markerless.py": "a235b2b252cbd15436bb82cd08232f6655d31184527be50f67b15fb84bcca288",
+    "src/cascade/calibration/handeye.py": "5bea9fc72b37f2a42b4420eb8790d4fdbc9d20517498abf0bf9d43a90053864e",
+    "src/cascade/perception/grounding.py": "64c018d4f8027e8a9652cb3786f49465d837c1b86f5e6dc96a951290f1979b01",
+    "src/cascade/perception/occupancy.py": "c4cedbc97a2aa16f2bf2711c3f68607f86156f49250ac7d4f1ba23ade8427d68",
+    "src/cascade/perception/robot_mask.py": "ddfca2621ebde90060fd3d747dc7853f7538dcaa58f186dd3b2fc8a38fa363eb",
+    "src/cascade/perception/link_mask.py": "a42db71171a93e78e4489ca8148ceabab1893334ae33bb6c63543c0080f914ce",
+    "src/cascade/perception/detector.py": "b4a2af37d88b6133f203718340e19e8b440b2ad9bf3be1f7b7d7b4700fb25014",
+    "src/cascade/device.py": "9c1bb69867276bdc3cdc08c52a59ef463e36622fae8ea88f3ade38fe90cd28f4",
+    "src/cascade/memory/grasp_memory.py": "c70923150c5e0365315e5f4eedb3fd67b1095ddf8fa45dbd2b96a855ece5d8bb",
+    "src/cascade/memory/envelope.py": "2314d277de5304311027fc12475d10a5af84bf3dba38f7023e431e793eb85556",
+    "src/cascade/apps/mcp_env.py": "bda47e43c2c178ba9be924b08133c990f8c5b38449c3310968f9d9932b59d7e7"
+  },
+  "profile_reference_sha256": {
+    "configs/demo.yaml": "fa26fefd4789f4ea8fd90f62c760e7135a8660dc5f2b1fb6892e619c4fba5a8f",
+    "configs/arms/rebot_rs.yaml": "817d87f6eb5c2a6d9845e104938fba0b7008cd0c2e89847739f68459cca44576",
+    "configs/cameras/d455f_scene.yaml": "2f8dd8e7d6e0425ba8f4d2ff23e3c7111542c78fa0984aac695cd25d3b30f797"
+  }
+}

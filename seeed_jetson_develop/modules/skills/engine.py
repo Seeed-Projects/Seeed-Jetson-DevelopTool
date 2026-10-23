@@ -23,6 +23,7 @@ CATEGORY_AI_LLM = "ai_llm"
 CATEGORY_VISION_YOLO = "vision_yolo"
 CATEGORY_REFERENCE = "reference"
 CATEGORY_NVIDIA = "nvidia_skills"
+CATEGORY_ROBOTICS = "robotics"
 
 CATEGORY_LABEL_KEYS = {
     CATEGORY_DRIVER_REPAIR: "skills.category.driver_repair",
@@ -33,6 +34,7 @@ CATEGORY_LABEL_KEYS = {
     CATEGORY_VISION_YOLO: "skills.category.vision_yolo",
     CATEGORY_REFERENCE: "skills.category.reference",
     CATEGORY_NVIDIA: "skills.category.nvidia_skills",
+    CATEGORY_ROBOTICS: "skills.category.robotics",
 }
 
 CATEGORY_ALIASES = {
@@ -55,6 +57,9 @@ CATEGORY_ALIASES = {
     "\u53c2\u8003\u6587\u6863": CATEGORY_REFERENCE,
     CATEGORY_NVIDIA: CATEGORY_NVIDIA,
     "NVIDIA Skills": CATEGORY_NVIDIA,
+    CATEGORY_ROBOTICS: CATEGORY_ROBOTICS,
+    "\u673a\u5668\u4eba": CATEGORY_ROBOTICS,
+    "Robotics": CATEGORY_ROBOTICS,
 }
 
 # Category icon mapping uses canonical keys.
@@ -67,6 +72,7 @@ CATEGORY_ICONS = {
     CATEGORY_VISION_YOLO: "📹",
     CATEGORY_REFERENCE: "📖",
     CATEGORY_NVIDIA: "🟢",
+    CATEGORY_ROBOTICS: "🦾",
 }
 
 
@@ -267,6 +273,8 @@ def _parse_skill_md(md_file: Path, slug: str, source: str = "openclaw", fast: bo
         sl = slug.lower()
         if sl.startswith("nvidia-"):
             cat = CATEGORY_NVIDIA
+        elif any(k in sl for k in ("rebot","grasp","robotic","soarm","moveit","-arm","arm-move")):
+            cat = CATEGORY_ROBOTICS
         elif any(k in sl for k in ("power","swap","fan","cache","log","backup","encrypt","disk","bsp","ko-module","diy-bsp","hybrid-bsp","spi","ethercat","memory","diagnostic","headless")):
             cat = CATEGORY_SYSTEM_TUNING
         elif any(k in sl for k in ("wifi","driver","fix","repair","usb-timeout","uuid","recomp")):

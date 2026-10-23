@@ -1,0 +1,3 @@
+interface:
+  display_name: "reBot 机械臂抓取"
+  short_description: "通过 CASCADE 安全检查驱动 reBot 机械臂完成物体抓取和结果核验"

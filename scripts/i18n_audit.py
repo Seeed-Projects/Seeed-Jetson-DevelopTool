@@ -59,6 +59,11 @@ QSS_HINT_RE = re.compile(r"\{\s|\}\s|^\s*[a-zA-Z-]+\s*:\s*[^;\n]+;", re.MULTILIN
 # - onboarding_guide.py 的语言切换器："中文"是 zh 标签自身，不翻译
 # - devices/page.py 的双语 fallback 文案：已包含中英两段，不需要重复翻译
 IGNORE_LITERALS: set[tuple[str, str]] = {
+    # Task intent keywords match user input in both languages; they are not UI copy.
+    *(("task_context.py", word) for word in (
+        "机械臂", "抓取", "控制", "移动", "搬", "共享网络", "共享上网", "相机",
+        "雷达", "传感器", "连接设备", "连接jetson",
+    )),
     ("onboarding_guide.py", ';">中文</span>'),
     # sudo/密码提示检测: 匹配系统输出 (password for .../...的密码), 不是 UI 文案
     ("runner.py", "的密码"),

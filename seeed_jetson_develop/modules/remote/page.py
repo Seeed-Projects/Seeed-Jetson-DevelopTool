@@ -1109,6 +1109,11 @@ def build_page() -> QWidget:
     init_net_btn.clicked.connect(lambda: open_jetson_net_config_dialog(parent=page))
     init_share_btn.clicked.connect(lambda: open_net_share_dialog(parent=page, jetson_ip=ip_input.text().strip()))
 
+    def _agent_network_share(host):
+        open_net_share_dialog(parent=page, jetson_ip=host)
+
+    bus.network_share_requested.connect(_agent_network_share)
+
     tools_card = _card(12)
     tools_lay = QVBoxLayout(tools_card)
     tools_lay.setContentsMargins(24, 20, 24, 20)

@@ -1,5 +1,41 @@
 # 更新日志
 
+## Unreleased
+
+### 新功能
+
+- **feat(bootstrap): 新 Ubuntu 启动时自动安装 Python 与 GUI 系统依赖**
+  - `python run_v2.py` 缺 PyQt6、qtpy 及其他运行依赖时自动用当前解释器的 pip 安装；没有 pip 时先 `ensurepip`，Ubuntu 上再回退安装 `python3-pip`。
+  - 系统 Python 受 PEP 668 限制时，自动改用 `--break-system-packages`。
+  - Linux 上默认补齐 Qt xcb / OpenGL 运行库和 Xvfb，不再只打印 apt 命令后退出。`SEEED_AUTO_INSTALL_SYSTEM=0` 可关闭系统包自动安装。
+
+- **feat(agent): 预设任务、已配置 SSH 复用与上位机可视化**
+  - 增加连接设备、网络共享、摄像头、机械臂读数/动作等 7 个紧凑预设；按明确任务路由只检查对应技能文件，双语提示词每轮携带当前设备与技能路径。
+  - 本机 CLI 通过临时、带认证的回环入口复用 DevelopTool 的 SSH/端口/sudo 配置，支持保存配置重连；密码不进入提示词，自动执行关闭时拒绝桥接命令，切换目标后拒绝旧请求。
+  - 对话旁新增摄像头与数据标签：远端 OpenCV 预览支持设备路径、RTSP 与 GStreamer；独立后台线程采集系统数据，并接收 Agent 回传的带单位机械臂/传感器读数及采样时间。
+  - 网络共享直接打开已有工具；新增 `developtool-device`、`jetson-pc-wired-share` 与 `soarm-control` 路由指引并同步两套目录、三种 Agent marker。续聊绑定实际会话 ID，避免混入其他 CLI 会话；普通工作目录可直接启动 Codex。
+  - 修正状态徽标背景透明度；新增桥接鉴权、配置重连、目标切换、技能匹配、数据校验、双语占位符与技能副本一致性测试。
+
+- **feat(skills): 内置新技能 `rebot-arm-grasp`（reBot DevArm B601 机械臂抓取），新增「机器人」分类**
+  - 三棵 skills 树（repo `skills/` 与包内 `seeed_jetson_develop/skills/`，openclaw/claude/codex 三变体）同步合入 CASCADE MCP 驱动的机械臂抓取技能：观察 → 定位 → 抓取/搬放 → 核验，含 `references/`（setup/hardware/recovery 等）与 `scripts/`（runtime.py / mock_fixture_server.py / smoke_test.py）。
+  - `engine.py` 新增 `CATEGORY_ROBOTICS`（图标 🦾、i18n key `skills.category.robotics` 双语），slug 关键词 `rebot/grasp/robotic/soarm/moveit/-arm` 归入该分类；Skills 页分类映射同步补充。
+
+- **feat(agent): 新增「AI Agent」页面 —— 复用本机 Claude Code / Codex CLI 驱动 Jetson 与 Physical AI 开发**
+  - 新模块 `modules/agent/`：`backend.py` 以非交互模式包装本机 `claude`（stream-json）/ `codex`（exec --json JSONL）CLI，逐行解析为文本/工具事件流，支持续聊（`--continue` / `exec resume --last`）与「自动执行」权限开关（`--dangerously-skip-permissions` / `--dangerously-bypass-approvals-and-sandbox`）。
+  - 页面内置 Physical AI 快捷场景卡片（📷 摄像头接入、📡 雷达/传感器、🦾 SO-ARM101 机械臂、🧭 自由任务）一键填充预设提示词；支持工作目录选择、Jetson SSH 连接状态徽标（首轮自动注入设备上下文，引导 agent 经 `ssh` 操控设备）。
+  - `cli_tools.py` 统一 agent 目录约定（本机 claude→`~/.claude/skills`、codex→`~/.agents/skills`(+`~/.codex/skills`)；Jetson→`~/.claude|codex/skills`）与本机 CLI 检测。
+  - `agent_setup_dialog.py`：本机 PC 缺少 claude/codex CLI 时一键 `npm install -g` 补装（Node.js 缺失时给出安装引导）。
+
+- **refactor(ai_chat): AI 悬浮球重写为 Agent 页入口**
+  - 点击悬浮球进入新「AI Agent」页（侧边栏导航同步新增），移除原 LLM API 直连浮窗面板；`inject_context/inject_topic/inject_error` API 保持不变，自动跳页并预填输入框（Skills/Apps 页调用点零改动）。
+
+- **feat(skills): NVIDIA Skills 一键安装区分「运行目标 + Agent」**
+  - 对话框新增「安装到：本机 PC / Jetson 设备」与「Agent：Claude Code / Codex」选择器；本机安装命令携带 `--agent <claude-code|codex>` 落到对应目录，Jetson 安装经 SFTP 推送到所选 agent 的 skills 目录（不再仅限 Codex）。
+  - Jetson 目标安装前自动检测所选 agent CLI，缺失时可选调起 `AgentInstallDialog` 补装；本机缺 CLI 时仅提示不阻断（skills 为纯文件）。
+  - 场景/目标标签全部改为 i18n key（`skills.nvidia.*`，双语），分类新增 soarm/lerobot/isaac → 机器人与物理 AI。
+
+- **test**: 新增 `tests/test_agent_backend.py`（命令构造 / Claude 与 Codex 事件解析 / ANSI 清洗 / 目录约定 / 安装线程签名）；扩展 NVIDIA 安装线程 agent 参数用例。
+
 ## 0.2.0.post2（最新）
 
 ### 新功能

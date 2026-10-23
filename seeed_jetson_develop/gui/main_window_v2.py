@@ -31,7 +31,7 @@ from .theme import (
 from ..core.platform_detect import is_jetson
 from ..core.events import bus
 from ..resources import resolve_runtime_path
-from .ai_chat import FloatingAIAssistant, build_ai_system_prompt
+from .ai_chat import FloatingAIAssistant
 from .app_icon import apply_app_icon
 from .. import __version__
 from ..data_update import load_json_data, update_bsp_links_from_github
@@ -77,6 +77,7 @@ NAV_ITEMS = [
     ("devices", "main.nav.devices"),
     ("apps", "main.nav.apps"),
     ("skills", "main.nav.skills"),
+    ("agent", "main.nav.agent"),
     ("ota", "main.nav.ota"),
     ("backup", "main.nav.backup"),
     ("community", "main.nav.community"),
@@ -292,7 +293,7 @@ class MainWindowV2(QMainWindow):
         from seeed_jetson_develop.modules.devices.page import build_page as _devices_page
         from seeed_jetson_develop.modules.community.page import build_page as _community_page
         from seeed_jetson_develop.modules.remote.page import build_page as _remote_page
-        # 顺序必须与 NAV_ITEMS 一致: flash, remote, devices, apps, skills, ota, community
+        # 顺序必须与 NAV_ITEMS 一致: flash, remote, devices, apps, skills, agent, ota, backup, community
         self.stack.addWidget(_flash_page())        # 0
         self.stack.addWidget(_remote_page())       # 1
         self.stack.addWidget(_devices_page())      # 2
@@ -306,10 +307,15 @@ class MainWindowV2(QMainWindow):
         self._skills_placeholder.setStyleSheet(f"background:{C_BG};")
         self._skills_built = False
         self.stack.addWidget(self._skills_placeholder) # 4: skills
-        self.stack.addWidget(_ota_page())          # 5
+        # Agent 页面延迟加载
+        self._agent_placeholder = QWidget()
+        self._agent_placeholder.setStyleSheet(f"background:{C_BG};")
+        self._agent_built = False
+        self.stack.addWidget(self._agent_placeholder)  # 5: agent
+        self.stack.addWidget(_ota_page())          # 6
         from seeed_jetson_develop.modules.backup_restore.page import build_page as _backup_page
-        self.stack.addWidget(_backup_page())        # 6: backup & restore
-        self.stack.addWidget(_community_page(self.products, self.product_images))  # 7: community
+        self.stack.addWidget(_backup_page())        # 7: backup & restore
+        self.stack.addWidget(_community_page(self.products, self.product_images))  # 8: community
         content_layout.addWidget(self.stack)
 
         body_layout.addWidget(content_area, 1)
@@ -331,7 +337,7 @@ class MainWindowV2(QMainWindow):
         self.stack.installEventFilter(self)
 
         self._set_page(0)
-        self._floating_ai = FloatingAIAssistant(self, system_prompt=build_ai_system_prompt())
+        self._floating_ai = FloatingAIAssistant(self, nav_index=5)
         self._apply_runtime_language()
 
     def _sync_content_overlays(self):
@@ -904,6 +910,24 @@ class MainWindowV2(QMainWindow):
             if self._lang == "en":
                 from .runtime_i18n import apply_language
                 apply_language(real_page, "en")
+        # Agent 页面（index=5）首次访问时懒加载
+        if idx == 5 and not self._agent_built:
+            try:
+                from seeed_jetson_develop.modules.agent import build_page as _agent_page
+                real_page = _agent_page()
+            except Exception:
+                msg = traceback.format_exc()
+                log.error("failed to build Agent page\n%s", msg)
+                real_page = self._build_lazy_error_page(
+                    t("main.nav.agent", lang=self._lang),
+                    t("main.lazy.load_error_message", lang=self._lang),
+                    msg,
+                )
+            self._agent_built = True
+            _agent_idx = self.stack.indexOf(self._agent_placeholder)
+            self.stack.removeWidget(self._agent_placeholder)
+            self.stack.insertWidget(_agent_idx, real_page)
+            self._agent_placeholder.deleteLater()
         self._current_page = idx
         self.stack.setCurrentIndex(idx)
         for i, btn in enumerate(self._nav_btns):
@@ -1097,15 +1121,9 @@ class MainWindowV2(QMainWindow):
                     apply_language(page, self._lang)
         self._update_env_label()
         self._sync_language_selector()
-        # Notify floating AI assistant
-        if hasattr(self, "_floating_ai"):
-            chat = getattr(self._floating_ai, "_chat", None)
-            if chat and hasattr(chat, "retranslate_ui"):
-                chat.retranslate_ui(self._lang)
-            # Rebuild system prompt in new language
-            from seeed_jetson_develop.gui.ai_chat import build_ai_system_prompt
-            self._floating_ai._system = build_ai_system_prompt()
-            self._floating_ai._chat.set_system(self._floating_ai._system)
+        # Notify floating AI assistant (ball tooltip)
+        if hasattr(self, "_floating_ai") and hasattr(self._floating_ai, "retranslate_ui"):
+            self._floating_ai.retranslate_ui(self._lang)
 
     def _open_url(self, url):
         from qtpy.QtGui import QDesktopServices

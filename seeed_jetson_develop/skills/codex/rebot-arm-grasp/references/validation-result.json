@@ -1,0 +1,155 @@
+{
+  "schema": "rebot-arm-grasp.validation/1",
+  "created_at": "2026-10-14T07:21:23.300670+00:00",
+  "source_commit": "ceda94a168f600a3811441721f5e3afb56e89d33",
+  "physical_validation": "not_performed",
+  "standard_skill_validation": "passed",
+  "packaged_helper_tests": {
+    "passed": 23,
+    "failed": 0,
+    "scope": "scripts/test_runtime.py; also passed from installed skill outside the checkout"
+  },
+  "repository_regression": {
+    "passed": 67,
+    "failed": 0,
+    "files": [
+      "tests/test_mcp_server.py",
+      "tests/test_safety.py",
+      "tests/test_rebot_rest_and_park.py",
+      "tests/test_rebot_occupancy_live.py",
+      "tests/test_contact_rebot_rs.py"
+    ]
+  },
+  "independent_forward_review": {
+    "scope": "offline setup, fresh physical B601 without calibration, timeout with possible payload",
+    "result": "mock checks passed; field names, persistence isolation, missing contact fixture and detector-weight admission corrected"
+  },
+  "installed_mock_mcp_smoke": {
+    "software_passed": true,
+    "catalog_size": 49,
+    "contact_fixture": "synthetic MockArm gripper stop at 45% travel",
+    "server_exit_code": 0,
+    "steps": [
+      {
+        "tool": "get_observation",
+        "expected_error": false,
+        "ok": true,
+        "postcondition": null,
+        "return_home": null
+      },
+      {
+        "tool": "localize_object",
+        "expected_error": false,
+        "ok": true,
+        "postcondition": null,
+        "return_home": null
+      },
+      {
+        "tool": "preview_grasp",
+        "expected_error": false,
+        "ok": true,
+        "postcondition": null,
+        "return_home": null
+      },
+      {
+        "tool": "grasp_object",
+        "expected_error": true,
+        "ok": false,
+        "postcondition": {
+          "skill": "grasp_object",
+          "kind": "holding",
+          "status": "unverified",
+          "evidence": "jaw held at 1.000 but absent purple teapot could not be re-located, so the lift is unconfirmed",
+          "channel": "gripper",
+          "measured": {
+            "gripper_frac": 1.0
+          }
+        },
+        "return_home": null
+      },
+      {
+        "tool": "pick_and_place",
+        "expected_error": false,
+        "ok": true,
+        "postcondition": {
+          "skill": "pick_and_place",
+          "kind": "relocated",
+          "status": "unverified",
+          "evidence": "red cube matches the drop point the skill itself reported, but only in the belief channel it also wrote -- no independent confirmation",
+          "channel": "belief",
+          "measured": {
+            "moved_m": 0.2033,
+            "final": [
+              0.18,
+              -0.17,
+              0.05
+            ],
+            "target_err_m": 0.0
+          }
+        },
+        "return_home": {
+          "attempted": true,
+          "ok": true,
+          "at": "home"
+        }
+      },
+      {
+        "tool": "verify_last_action",
+        "expected_error": false,
+        "ok": true,
+        "postcondition": null,
+        "return_home": null
+      },
+      {
+        "tool": "emergency_stop",
+        "expected_error": false,
+        "ok": true,
+        "postcondition": null,
+        "return_home": null
+      },
+      {
+        "tool": "move_home",
+        "expected_error": true,
+        "ok": false,
+        "postcondition": null,
+        "return_home": null
+      },
+      {
+        "tool": "reset_stop",
+        "expected_error": false,
+        "ok": true,
+        "postcondition": null,
+        "return_home": null
+      },
+      {
+        "tool": "world_state",
+        "expected_error": false,
+        "ok": true,
+        "postcondition": null,
+        "return_home": null
+      }
+    ],
+    "physical_validation": "not_performed"
+  },
+  "python": "3.12.4",
+  "dependency_versions": {
+    "pytest": "9.1.1",
+    "numpy": "2.5.4",
+    "pin": "4.1.0",
+    "scipy": "1.18.1",
+    "opencv-python-headless": "5.0.0.93",
+    "pyyaml": "6.0.3",
+    "jsonschema": "4.26.0"
+  },
+  "script_sha256": {
+    "mock_fixture_server.py": "6ab6946c6ae48d65bb2ff300c2183c1d675fa728c5b4c897e13df2b8ac91c224",
+    "runtime.py": "077c417ba4a1e10619736af75bcfd717f49b2ae5dd7f42e2bc6899fcda099b60",
+    "smoke_test.py": "735f92bfb282519fcb3a37dbeddc821b3b27d50511ba01816e951041767494f7",
+    "test_runtime.py": "ebe76a690a9701719050b77830618b47196d69abd2e0b89c71260945f8f9ade6"
+  },
+  "limitations": [
+    "No real CAN/USB/camera/model inference or physical motion was tested.",
+    "Skill requires the full source checkout, assets and platform runtime dependencies.",
+    "Physical readiness requires onsite mounting/calibration/payload/bus-owner checks and runtime observations."
+  ]
+}

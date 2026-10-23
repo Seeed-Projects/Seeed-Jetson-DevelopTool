@@ -34,7 +34,12 @@ from seeed_jetson_develop.modules.skills.engine import (
     load_all_variants, Skill, CATEGORY_ICONS, normalize_category,
 )
 from seeed_jetson_develop.core.config import get_npm_registry
-from seeed_jetson_develop.gui.ai_chat import _DEFAULT_SYSTEM
+from seeed_jetson_develop.modules.agent.cli_tools import (
+    AGENT_INFO as _AGENT_INFO,
+    installed_nvidia_skills as _cli_installed_nvidia_skills,
+    npx_agent_arg as _npx_agent_arg,
+    remote_skills_dir as _remote_skills_dir,
+)
 from seeed_jetson_develop.gui.i18n_binding import I18nBinding
 from seeed_jetson_develop.gui.runtime_i18n import apply_dialog_language as _apply_dlg_lang
 from seeed_jetson_develop.gui.runtime_i18n import get_current_lang as _gcl, translate_text as _rt
@@ -46,7 +51,6 @@ from seeed_jetson_develop.gui.theme import (
     make_card as _card, make_input_card as _input_card,
     apply_shadow as _shadow,
     show_info_message as _show_info_message,
-    show_warning_message as _show_warning_message,
     ask_question_message as _ask_question_message,
     input_qss,
     set_emoji_font_for_label, RippleButton,
@@ -498,7 +502,7 @@ from qtpy.QtWidgets import (
 
 from seeed_jetson_develop.modules.skills.nvidia_catalog import (
     CATEGORIES, TARGET_JETSON, TARGET_PC, TARGET_BOTH,
-    nvidia_category, nvidia_target, target_label, target_matches,
+    nvidia_category, nvidia_target, target_matches,
 )
 
 
@@ -602,20 +606,15 @@ def _save_skills_cache(skills: list):
 
 
 
-def _get_installed_nvidia_skills() -> set[str]:
+def _get_installed_nvidia_skills(agent: str | None = None) -> set[str]:
     """Return names of NVIDIA skills already installed via npx skills add.
 
     The skills CLI installs into the current user's home directory, so scan
-    there instead of the process working directory.
+    there instead of the process working directory. When ``agent`` is given,
+    only that agent's skills dirs are scanned (claude: ~/.claude/skills,
+    codex: ~/.agents/skills + ~/.codex/skills).
     """
-    installed = set()
-    for base in (Path.home() / ".claude" / "skills",
-                 Path.home() / ".agents" / "skills"):
-        if base.exists():
-            for child in base.iterdir():
-                if child.is_dir() and (child / "SKILL.md").exists():
-                    installed.add(child.name)
-    return installed
+    return _cli_installed_nvidia_skills(agent)
 
 
 # ── NVIDIA Skills fetch/install (via npx skills CLI) ──
@@ -732,9 +731,10 @@ class _NvidiaInstallThread(QThread):
     log   = Signal(str)
     done  = Signal(str, bool)  # name, success
 
-    def __init__(self, skill_name: str):
+    def __init__(self, skill_name: str, agent: str | None = None):
         super().__init__()
         self._name = skill_name
+        self._agent = agent
         self._proc = None
         self._cancelled = False
 
@@ -756,8 +756,12 @@ class _NvidiaInstallThread(QThread):
         try:
             env = os.environ.copy()
             env["NPM_CONFIG_REGISTRY"] = get_npm_registry()
+            cmd = [npx, "skills", "add", "nvidia/skills", "--skill", self._name]
+            if self._agent:
+                cmd += ["--agent", _npx_agent_arg(self._agent)]
+            cmd.append("--yes")
             self._proc = subprocess.Popen(
-                [npx, "skills", "add", "nvidia/skills", "--skill", self._name, "--yes"],
+                cmd,
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace",
                 env=env,
@@ -782,22 +786,30 @@ class _NvidiaInstallThread(QThread):
             self.log.emit(f"✗ Error installing {self._name}: {e}\n")
             self.done.emit(self._name, False)
 
-class _CodexCheckThread(QThread):
-    """Check whether Codex CLI is installed on the remote Jetson."""
+class _AgentCheckThread(QThread):
+    """Check whether an agent CLI is installed on the remote Jetson."""
     done = Signal(bool, str)  # installed, version
 
-    def __init__(self, runner: SSHRunner):
+    def __init__(self, runner: SSHRunner, agent: str = "codex"):
         super().__init__()
         self._runner = runner
+        self._agent = agent
 
     def run(self):
         try:
-            rc, out = self._runner.run("codex --version 2>/dev/null", timeout=15)
+            rc, out = self._runner.run(f"{self._agent} --version 2>/dev/null", timeout=15)
             lines = [l.strip() for l in out.splitlines() if l.strip()]
             ver = lines[-1] if lines else ""
             self.done.emit(rc == 0 and bool(ver), ver)
         except Exception:
             self.done.emit(False, "")
+
+
+class _CodexCheckThread(_AgentCheckThread):
+    """Backward-compatible codex-only variant."""
+
+    def __init__(self, runner: SSHRunner):
+        super().__init__(runner, "codex")
 
 
 # Remote skill dirs scanned on the Jetson (codex is the primary target)
@@ -871,18 +883,21 @@ def _fetch_nvidia_skill_local(name: str, log) -> Path | None:
 
 
 class _NvidiaRemoteInstallThread(QThread):
-    """Install a single NVIDIA skill onto the Jetson's Codex (~/.codex/skills).
+    """Install a single NVIDIA skill onto the Jetson agent's skills dir.
 
     GitHub access from the Jetson is slow/unreliable, so the skill is fetched
     on the local PC via `npx skills add` (cached) and then pushed over SFTP.
+    Destination depends on the agent: claude → ~/.claude/skills,
+    codex → ~/.codex/skills.
     """
     log  = Signal(str)
     done = Signal(str, bool)  # name, success
 
-    def __init__(self, runner: SSHRunner, skill_name: str):
+    def __init__(self, runner: SSHRunner, skill_name: str, agent: str = "codex"):
         super().__init__()
         self._runner = runner
         self._name = skill_name
+        self._agent = agent
         self._cancelled = False
 
     def cancel(self):
@@ -904,7 +919,8 @@ class _NvidiaRemoteInstallThread(QThread):
             # Resolve remote home (SFTP does not expand "~")
             rc, home = self._runner.run("echo $HOME", timeout=10)
             home = home.strip() if rc == 0 and home.strip() else f"/home/{self._runner.username}"
-            dest = f"{home}/.codex/skills/{name}"
+            rel_dir = _remote_skills_dir(self._agent)
+            dest = f"{home}/{rel_dir}/{name}"
             self.log.emit(f"⏳ Uploading to Jetson: {dest}\n")
             rc, _ = self._runner.run(f"mkdir -p {dest}", timeout=10)
             if rc != 0:
@@ -936,7 +952,7 @@ class _NvidiaRemoteInstallThread(QThread):
 
             rc2, _ = self._runner.run(f"test -d {dest}", timeout=10)
             ok = rc2 == 0
-            status = "installed -> ~/.codex/skills" if ok else "failed"
+            status = f"installed -> ~/{rel_dir}" if ok else "failed"
             self.log.emit(f"{'✓' if ok else '✗'} {name} {status}\n")
             self.done.emit(name, ok)
         except Exception as e:
@@ -953,16 +969,22 @@ class _NvidiaSkillsDialog(QDialog):
         self._remote_installed_thread = None
         self.setWindowTitle("NVIDIA Skills")
         self.setMinimumSize(720, 600)
-        self.resize(780, 840)
+        self.resize(780, 880)
         self._list_thread = None
         self._install_threads = []
         self._installed = set()
         self._newly_installed: list[str] = []
         self._all_skills: dict[str, str] = {}
+        self._skills_items: list = []
+        # Install destination: local PC vs Jetson (Jetson needs SSH runner)
+        self._install_target = "jetson" if runner is not None else "pc"
+        self._agent = "claude"
         self._filter_target = "all"
         self._filter_cat = "all"
         self._tgt_btns: dict = {}
         self._cat_btns: dict = {}
+        self._dest_btns: dict = {}
+        self._agent_btns: dict = {}
         self._build_ui()
         self._start_fetch()
 
@@ -972,18 +994,43 @@ class _NvidiaSkillsDialog(QDialog):
         lay.setSpacing(10)
 
         # Header
-        hdr = QLabel("从 NVIDIA/skills 仓库获取技能")
+        hdr = QLabel(_t("skills.nvidia.title"))
         hdr.setStyleSheet(f"font-size:14px; font-weight:bold; color:{C_TEXT};")
         lay.addWidget(hdr)
 
-        # Hint: install location + classification meaning
-        if self._runner is not None:
-            hint = QLabel(_t("skills.nvidia.hint_jetson"))
-        else:
-            hint = QLabel("所有技能均安装到本机 PC，徽章与筛选表示建议运行目标与使用场景。")
+        # Hint: badges/filters show the recommended run target & scenario
+        hint = QLabel(_t("skills.nvidia.hint"))
         hint.setStyleSheet(f"color:{C_TEXT3}; font-size:{_pt(11)}px;")
         hint.setWordWrap(True)
         lay.addWidget(hint)
+
+        # Install destination + agent selectors
+        sel_row = QHBoxLayout()
+        sel_row.setSpacing(6)
+        sel_row.addWidget(self._flow_label(_t("skills.nvidia.install_to")))
+        for key, text in (("pc", _t("skills.nvidia.target.pc")),
+                          ("jetson", _t("skills.nvidia.target.jetson"))):
+            b = self._make_chip(text, self._install_target == key)
+            if key == "jetson" and self._runner is None:
+                b.setEnabled(False)
+                b.setToolTip(_t("skills.nvidia.target.jetson_disabled"))
+            b.clicked.connect(lambda _=False, k=key: self._on_dest_chip(k))
+            sel_row.addWidget(b)
+            self._dest_btns[key] = b
+        sep0 = QFrame()
+        sep0.setFixedSize(1, _pt(20))
+        sep0.setStyleSheet("background:rgba(255,255,255,0.10);")
+        sel_row.addWidget(sep0)
+        sel_row.addWidget(self._flow_label(_t("skills.nvidia.agent_label")))
+        for agent in ("claude", "codex"):
+            info = _AGENT_INFO[agent]
+            b = self._make_chip(f"{info['icon']} {info['name'].split()[0]}",
+                                self._agent == agent)
+            b.clicked.connect(lambda _=False, a=agent: self._on_agent_chip(a))
+            sel_row.addWidget(b)
+            self._agent_btns[agent] = b
+        sel_row.addStretch()
+        lay.addLayout(sel_row)
 
         # Search
         self._search = QLineEdit()
@@ -1107,6 +1154,37 @@ class _NvidiaSkillsDialog(QDialog):
             b.setStyleSheet(self._chip_style(k == key))
         self._filter_list()
 
+    def _on_dest_chip(self, key: str):
+        if key == "jetson" and self._runner is None:
+            return
+        self._install_target = key
+        for k, b in self._dest_btns.items():
+            b.setChecked(k == key)
+            b.setStyleSheet(self._chip_style(k == key))
+        self._refresh_installed()
+
+    def _on_agent_chip(self, agent: str):
+        self._agent = agent
+        for a, b in self._agent_btns.items():
+            b.setChecked(a == agent)
+            b.setStyleSheet(self._chip_style(a == agent))
+        self._refresh_installed()
+
+    def _refresh_installed(self):
+        """Recompute the installed set for the current target+agent and rebuild."""
+        if not self._skills_items:
+            return
+        self._btn_install.setEnabled(False)
+        if self._install_target == "jetson" and self._runner is not None:
+            self._log.append(_t("skills.nvidia.remote_checking") + "\n")
+            self._remote_installed_thread = _RemoteInstalledThread(self._runner)
+            self._remote_installed_thread.done.connect(
+                lambda installed: self._build_list(self._skills_items, installed))
+            self._remote_installed_thread.start()
+        else:
+            self._build_list(self._skills_items,
+                             _get_installed_nvidia_skills(self._agent))
+
     def _on_cat_chip(self, key: str):
         self._filter_cat = key
         for k, b in self._cat_btns.items():
@@ -1133,9 +1211,10 @@ class _NvidiaSkillsDialog(QDialog):
         self._cat_btns = {}
 
         # Run target: label + chips
-        self._cat_flow.addWidget(self._flow_label("运行目标"))
-        for key, text in (("all", "全部"), (TARGET_JETSON, "Jetson 设备"),
-                          (TARGET_PC, "PC 开发机")):
+        self._cat_flow.addWidget(self._flow_label(_t("skills.nvidia.filter.target")))
+        for key, text in (("all", _t("skills.nvidia.filter.all")),
+                          (TARGET_JETSON, _nv_tgt_label(TARGET_JETSON)),
+                          (TARGET_PC, _nv_tgt_label(TARGET_PC))):
             b = self._make_chip(text, self._filter_target == key)
             b.clicked.connect(lambda _=False, k=key: self._on_target_chip(k))
             self._cat_flow.addWidget(b)
@@ -1148,16 +1227,17 @@ class _NvidiaSkillsDialog(QDialog):
         self._cat_flow.addWidget(sep)
 
         # Scenario: label + chips with counts
-        self._cat_flow.addWidget(self._flow_label("使用场景"))
-        all_btn = self._make_chip(f"全部 · {sum(counts.values())}", prev == "all")
+        self._cat_flow.addWidget(self._flow_label(_t("skills.nvidia.filter.scenario")))
+        all_btn = self._make_chip(
+            f"{_t('skills.nvidia.filter.all')} · {sum(counts.values())}", prev == "all")
         all_btn.clicked.connect(lambda _=False: self._on_cat_chip("all"))
         self._cat_flow.addWidget(all_btn)
         self._cat_btns["all"] = all_btn
 
         cat_keys = [k for k in CATEGORIES if k in counts]
         for cat in cat_keys:
-            zh, icon = CATEGORIES[cat]
-            b = self._make_chip(f"{icon} {zh} · {counts[cat]}", prev == cat)
+            icon = CATEGORIES[cat][1]
+            b = self._make_chip(f"{icon} {_nv_cat_label(cat)} · {counts[cat]}", prev == cat)
             b.clicked.connect(lambda _=False, c=cat: self._on_cat_chip(c))
             self._cat_flow.addWidget(b)
             self._cat_btns[cat] = b
@@ -1166,15 +1246,8 @@ class _NvidiaSkillsDialog(QDialog):
     def _on_list_done(self, skills: list):
         _save_skills_cache(skills)
         self._all_skills = {name: desc for name, desc in skills}
-        if self._runner is not None:
-            # Jetson mode: check installed skills on the remote device
-            self._log.append(_t("skills.nvidia.remote_checking") + "\n")
-            self._remote_installed_thread = _RemoteInstalledThread(self._runner)
-            self._remote_installed_thread.done.connect(
-                lambda installed: self._build_list(skills, installed))
-            self._remote_installed_thread.start()
-        else:
-            self._build_list(skills, _get_installed_nvidia_skills())
+        self._skills_items = list(skills)
+        self._refresh_installed()
 
     def _build_list(self, skills: list, installed: set):
         # Scenario chips with counts
@@ -1223,7 +1296,7 @@ class _NvidiaSkillsDialog(QDialog):
             top_row.addWidget(lbl_name)
             tgt_color = C_GREEN if target == TARGET_JETSON else (
                 C_BLUE if target == TARGET_PC else C_ORANGE)
-            top_row.addWidget(self._badge(target_label(target), tgt_color))
+            top_row.addWidget(self._badge(_nv_tgt_label(target), tgt_color))
             top_row.addStretch()
             info.addLayout(top_row)
             info.addWidget(lbl_desc)
@@ -1270,6 +1343,44 @@ class _NvidiaSkillsDialog(QDialog):
         if not selected:
             self._log.append(_rt("没有选中新技能。", _gcl()) + "\n")
             return
+        self._pending_selection = selected
+        # Jetson target: make sure the chosen agent CLI exists on the device.
+        if self._install_target == "jetson" and self._runner is not None:
+            self._btn_install.setEnabled(False)
+            self._log.append(_t("skills.nvidia.remote_checking") + "\n")
+            self._agent_check_thread = _AgentCheckThread(self._runner, self._agent)
+            self._agent_check_thread.done.connect(self._on_remote_agent_checked)
+            self._agent_check_thread.start()
+            return
+        # PC target: skills are plain files — install works without the CLI,
+        # but hint when the selected agent CLI is missing locally.
+        from seeed_jetson_develop.modules.agent.cli_tools import find_cli
+        if not find_cli(self._agent):
+            self._log.append(_t("skills.nvidia.local_agent_hint",
+                                name=_AGENT_INFO[self._agent]["name"]) + "\n")
+        self._start_install_queue(selected)
+
+    def _on_remote_agent_checked(self, installed: bool, _version: str):
+        self._btn_install.setEnabled(True)
+        if not installed:
+            yes = _ask_question_message(
+                self,
+                _t("skills.nvidia.agent_missing_title"),
+                _t("skills.nvidia.agent_missing_msg",
+                   name=_AGENT_INFO[self._agent]["name"]),
+            )
+            if yes:
+                from seeed_jetson_develop.modules.remote.agent_install_dialog import (
+                    AgentInstallDialog,
+                )
+                dlg = AgentInstallDialog(self._runner, parent=self,
+                                         only_agents=[self._agent])
+                dlg.exec_()
+        self._start_install_queue(getattr(self, "_pending_selection", []))
+
+    def _start_install_queue(self, selected: list):
+        if not selected:
+            return
         self._btn_install.setEnabled(False)
         self._btn_install.setText(f"安装中 (0/{len(selected)})")
         self._newly_installed = []
@@ -1287,10 +1398,10 @@ class _NvidiaSkillsDialog(QDialog):
             return
         name = self._install_queue[self._install_idx]
         self._btn_install.setText(f"安装中 ({self._install_idx}/{len(self._install_queue)})")
-        if self._runner is not None:
-            t = _NvidiaRemoteInstallThread(self._runner, name)
+        if self._install_target == "jetson" and self._runner is not None:
+            t = _NvidiaRemoteInstallThread(self._runner, name, agent=self._agent)
         else:
-            t = _NvidiaInstallThread(name)
+            t = _NvidiaInstallThread(name, agent=self._agent)
         t.log.connect(self._log.append)
         t.done.connect(self._on_install_done)
         self._install_threads.append(t)
@@ -1368,11 +1479,22 @@ _CAT_TO_KEY = {
     "vision_yolo": "skills.category.vision_yolo",
     "driver_repair": "skills.category.driver_repair",
     "nvidia_skills": "skills.category.nvidia_skills",
+    "robotics": "skills.category.robotics",
 }
 
 
 def _t(key: str, **kwargs) -> str:
     return t(key, lang=get_language(), **kwargs)
+
+
+def _nv_cat_label(cat: str) -> str:
+    """i18n label for a NVIDIA skill scenario category."""
+    return _t(f"skills.nvidia.cat.{cat}")
+
+
+def _nv_tgt_label(target: str) -> str:
+    """i18n label for a NVIDIA skill run target."""
+    return _t(f"skills.nvidia.tgt.{target}")
 
 
 def _cat_text(cat: str) -> str:
@@ -1612,64 +1734,18 @@ class SkillsPage(PageBase):
     def _open_nvidia_skills(self):
         """Open dialog to browse and install NVIDIA skills from GitHub.
 
-        When connected to a Jetson via SSH, skills are installed into Codex
-        on the Jetson (requires Codex CLI there). Otherwise fall back to the
-        legacy local PC install flow.
+        The dialog itself lets the user pick the install target (local PC or
+        Jetson, when SSH is connected) and the agent (Claude / Codex), and
+        handles the remote agent-CLI prerequisite check.
         """
         runner = get_runner()
-        if isinstance(runner, SSHRunner):
-            self._nvidia_btn.setEnabled(False)
-            self._nvidia_btn.setText(_t("skills.nvidia.codex_checking"))
-            self._codex_check_thread = _CodexCheckThread(runner)
-            self._codex_check_thread.done.connect(
-                lambda ok, ver: self._on_codex_checked(runner, ok, ver))
-            self._codex_check_thread.start()
-            return
-        dlg = _NvidiaSkillsDialog(parent=self)
+        dlg = _NvidiaSkillsDialog(
+            parent=self,
+            runner=runner if isinstance(runner, SSHRunner) else None,
+        )
         _apply_dlg_lang(dlg, self)
         dlg.exec_()
         # Reload skills after install
-        self._start_load()
-
-    def _on_codex_checked(self, runner: SSHRunner, installed: bool, _version: str):
-        self._nvidia_btn.setEnabled(True)
-        self._nvidia_btn.setText(_t("skills.banner.get_nvidia"))
-        if not installed:
-            yes = _ask_question_message(
-                self,
-                _t("skills.nvidia.codex_missing_title"),
-                _t("skills.nvidia.codex_missing_msg"),
-            )
-            if not yes:
-                return
-            from seeed_jetson_develop.modules.remote.agent_install_dialog import (
-                AgentInstallDialog,
-            )
-            dlg = AgentInstallDialog(runner, parent=self, only_agents=["codex"])
-            dlg.exec_()
-            # Re-check after the install dialog closes (non-blocking)
-            self._codex_recheck_thread = _CodexCheckThread(runner)
-            self._codex_recheck_thread.done.connect(
-                lambda ok, _v: self._on_codex_rechecked(runner, ok))
-            self._codex_recheck_thread.start()
-            return
-        dlg = _NvidiaSkillsDialog(parent=self, runner=runner)
-        _apply_dlg_lang(dlg, self)
-        dlg.exec_()
-        # Reload skills after install
-        self._start_load()
-
-    def _on_codex_rechecked(self, runner: SSHRunner, installed: bool):
-        if not installed:
-            _show_warning_message(
-                self,
-                _t("skills.nvidia.codex_missing_title"),
-                _t("skills.nvidia.codex_required"),
-            )
-            return
-        dlg = _NvidiaSkillsDialog(parent=self, runner=runner)
-        _apply_dlg_lang(dlg, self)
-        dlg.exec_()
         self._start_load()
 
 

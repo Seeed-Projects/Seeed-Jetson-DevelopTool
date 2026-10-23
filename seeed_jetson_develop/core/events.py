@@ -22,6 +22,7 @@ class EventBus(QObject):
 
     # 导航
     navigate_to         = Signal(int)    # page index
+    network_share_requested = Signal(str)  # target IP; handled by Remote Dev
 
     # 状态栏
     status_busy         = Signal(str)    # message

@@ -6,7 +6,7 @@ FocusRippleLineEdit — 带焦点波纹效果的输入框
 不涉及 QGraphicsEffect / Layout，100% 安全。
 """
 from qtpy.QtCore import Qt, QTimer
-from qtpy.QtGui import QColor, QPainter, QLinearGradient
+from qtpy.QtGui import QColor, QPainter, QLinearGradient, QPen
 from qtpy.QtWidgets import QLineEdit
 
 

@@ -88,6 +88,9 @@ _CATEGORY_RULES: tuple[tuple[str, str], ...] = (
     ("i4h-", CATEGORY_ROBOTICS),
     ("physical-ai-", CATEGORY_ROBOTICS),
     ("paidf-", CATEGORY_ROBOTICS),
+    ("soarm", CATEGORY_ROBOTICS),
+    ("lerobot", CATEGORY_ROBOTICS),
+    ("isaac", CATEGORY_ROBOTICS),
 )
 
 # Prefixes of skills that also run on Jetson (edge video / sensor stack)
