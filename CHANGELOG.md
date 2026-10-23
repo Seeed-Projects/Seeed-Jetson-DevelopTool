@@ -8,6 +8,7 @@
   - `python run_v2.py` 缺 PyQt6、qtpy 及其他运行依赖时自动用当前解释器的 pip 安装；没有 pip 时先 `ensurepip`，Ubuntu 上再回退安装 `python3-pip`。
   - 系统 Python 受 PEP 668 限制时，自动改用 `--break-system-packages`。
   - Linux 上默认补齐 Qt xcb / OpenGL 运行库和 Xvfb，不再只打印 apt 命令后退出。`SEEED_AUTO_INSTALL_SYSTEM=0` 可关闭系统包自动安装。
+  - 启动入口导入 `core` 时不再提前加载 `qtpy`。干净环境原先在依赖检查前就报 `No module named qtpy`，自动安装没有机会执行。
 
 - **feat(agent): 预设任务、已配置 SSH 复用与上位机可视化**
   - 增加连接设备、网络共享、摄像头、机械臂读数/动作等 7 个紧凑预设；按明确任务路由只检查对应技能文件，双语提示词每轮携带当前设备与技能路径。

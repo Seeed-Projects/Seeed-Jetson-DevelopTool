@@ -92,3 +92,19 @@ def test_key_gui_modules_import_under_qtpy() -> None:
 
     assert theme is not None
     assert main_window_v2 is not None
+
+
+def test_core_package_import_does_not_require_qt() -> None:
+    """启动入口导入 core.win_subprocess 时，不能先把 qtpy 拉进来。"""
+    source = (REPO_ROOT / "seeed_jetson_develop" / "core" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    tree = ast.parse(source)
+    imported = []
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module:
+            imported.append(node.module)
+        elif isinstance(node, ast.Import):
+            imported.extend(alias.name for alias in node.names)
+    assert "events" not in imported
+    assert not any(name.startswith("qtpy") for name in imported)
