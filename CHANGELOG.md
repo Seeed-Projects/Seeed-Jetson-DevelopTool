@@ -1,6 +1,6 @@
 # 更新日志
 
-## Unreleased
+## Unreleased（最新）
 
 ### 新功能
 
@@ -35,9 +35,53 @@
   - Jetson 目标安装前自动检测所选 agent CLI，缺失时可选调起 `AgentInstallDialog` 补装；本机缺 CLI 时仅提示不阻断（skills 为纯文件）。
   - 场景/目标标签全部改为 i18n key（`skills.nvidia.*`，双语），分类新增 soarm/lerobot/isaac → 机器人与物理 AI。
 
+- **feat(flash): 支持 reComputer Rugged J4012 / J3011 系列**
+  - `l4t_data.json` 新增 `j4012rugged` / `j3011rugged`（L4T 35.5.0, JetPack 5.1.3）;`mainlink`/`sha256` 已按 wiki（recomputer_rugged_j401 getting_started）填写,BSP 文件名对齐 wiki 发布的 `mfi_recomputer-rugged-orin-*-j401-5.1-35.5.0-2026-04-01.tar.gz`。
+  - `product_images.json` 新增两条:配 `assets/devices/rugged.jpg`（用户提供实物图）,Getting Started / Hardware 链接指向官方 wiki（`/jetson/recomputer_rugged_j401/`）。
+  - Flash 页产品显示名映射支持 `rugged` 后缀（`reComputer J4012 Rugged — Orin NX 16GB`）,模块提示复用既有前缀。
+  - `recovery_guides.py` / `recovery_guides.json` 新增 `rugged` 恢复指南（REC 按钮 + DEVICE 口流程,中英双语,USB ID 0955:7323 / 0955:7523）,配本地示意图 `rugged_rec_1.jpg`（下载自官方 wiki,离线可用）。
+
 - **test**: 新增 `tests/test_agent_backend.py`（命令构造 / Claude 与 Codex 事件解析 / ANSI 清洗 / 目录约定 / 安装线程签名）；扩展 NVIDIA 安装线程 agent 参数用例。
 
-## 0.2.0.post2（最新）
+### 改进
+
+- **chore(docs/metadata): 仓库文档与包元数据同步**
+  - 删除 `tests/test_installer_build.py` 中引用已移除 API（`build_windows_exe_source`）的失效测试,测试恢复全绿。
+  - 重写 `docs/QUICKSTART.md`,对齐 `seeed-jetson-developer` 包名、安装方式与当前入口。
+  - `pyproject.toml` 描述改为「一站式 AI 开发工具」定位,关键词补充 ai/llm/yolo/robotics/gui,提升 PyPI 搜索曝光。
+
+- **docs(readme): 仓库页面优化（运营引流）**
+  - 新增「Who Is This For / 适用人群」开头钩子,明确面向 Jetson 工程师群体,说明可 pip 一键安装并落地到自身项目。
+  - 界面截图整体上移:新增 `assets/ui-preview.png` 主窗口预览并替换旧 `Reference-UI.png`,新增 3 张应用市场截图（总览 / LLM & GenAI / YOLO 搜索）,全部补充描述性 alt 文本。
+  - PyPI 下载趋势图后移至文末,优先展示面向新用户的引导内容。
+
+- **fix(ui): Wayland 下无边框窗口无法拖动**
+  - 标题栏拖动在 Wayland 平台改用 `windowHandle().startSystemMove()` 委托合成器（原 `self.move()` 被合成器静默拒绝）,非 Wayland 保持原逻辑。
+
+- **fix(backup_restore): 磁盘掉线时页面启动崩溃**
+  - `is_valid_l4t_dir` / `_is_env_ready` / 工作区 `is_dir()` 检查捕获 `OSError` 返回 False——`/media/seeed/ssd` 类 I/O 错误挂载点不再让整个 GUI 崩溃。
+
+- **fix(flash): Recovery 指南图随窗口自适应、不再截断**
+  - 图片高度上限按滚动区视口计算（扣除标题/线缆/按钮余量）,宽高比保持;窗口缩放时经 resize 链重算,内容不再被挤出卡片。
+
+- **feat(flash): 左列卡片随窗口尺寸比例缩放**
+  - 产品图/动画场景/日志区/Recovery 最小高度改为列宽函数（`col_w×系数`）,窗口拉大卡片等比放大;窄窗口自动进入紧凑模式。
+
+- **fix(flash): 左右两栏拉伸填满视口**
+  - `flash_cols_host` 垂直策略 `Preferred` → `Expanding` + 布局权重 1,两栏高度随窗口铺满,消除底部大段空白。
+
+- **feat(backup_restore): 页面内容随窗口拉伸填满**
+  - `_AdaptiveStackedWidget` 由固定高度改为 Expanding；step0/1/2 容器与主卡片去掉 `_pin_height` 改为 Expanding；底部 `addStretch` 让位——窗口拉大内容区同步铺满。
+
+- **feat(ui): 卡片 objectName 解锁**
+  - `HoverCard` 不再硬编码 `setObjectName("SeeedCard")`:新增 `card_id` 参数（调用方可传功能名）,QSS 样式钩子改用动态属性 `cardId`,样式不变——审查/断言可按 id 精确定位卡片。
+
+- **feat(flash): 关键控件补 objectName（id）**
+  - 产品/L4T 下拉、Getting Started / Hardware / Update BSP、跳过校验、Detect / Next、日志 Save / Clear 等 10 个控件 `setObjectName("flash.*")`,配合 `ui_inspect.py id` 秒级精确定位。
+
+### 说明
+
+- JSON 数据文件（l4t_data / product_images / recovery_guides）统一为 2 空格缩进,仅新增条目,无数据变更。
 
 ### 新功能
 

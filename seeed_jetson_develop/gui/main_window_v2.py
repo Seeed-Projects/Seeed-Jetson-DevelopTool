@@ -706,6 +706,14 @@ class MainWindowV2(QMainWindow):
                     self._drag_pos = ev.globalPos() - self.frameGeometry().topLeft()
                 return True
             if ev.type() == QEvent.MouseMove and self._drag:
+                # Wayland 合成器禁止客户端自移动窗口（self.move 静默失效）。
+                # 委托系统移动：合成器接管后鼠标事件不再到客户端，立即清掉 _drag。
+                if QApplication.platformName().lower().startswith("wayland"):
+                    wh = self.windowHandle()
+                    if wh is not None:
+                        if wh.startSystemMove():
+                            self._drag = False
+                    return True
                 if self.isMaximized():
                     self._restore_from_maximized_for_drag(ev.globalPos() if hasattr(ev, "globalPos") else ev.globalPosition().toPoint())
                 try:

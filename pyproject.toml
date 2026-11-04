@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "seeed-jetson-developer"
 version = "0.2.0.post2"
-description = "Seeed Jetson Developer Tool — Flash, device management, app market, skills, and remote development"
+description = "One-stop AI development tool for NVIDIA Jetson: firmware flashing, device diagnostics, remote development, app market (YOLO, LLM, robotics), AI skills, OTA. PyQt6 GUI for Linux & Windows"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
     { name = "Brian9527", email = "dayu.li@seeed.cc" },
     { name = "Lorraine", email = "shuanglian.luo@seeed.cc" },
 ]
-keywords = ["jetson", "nvidia", "embedded", "flash", "seeed", "recomputer"]
+keywords = ["jetson", "nvidia", "embedded", "flash", "seeed", "recomputer", "ai", "llm", "yolo", "robotics", "gui"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",

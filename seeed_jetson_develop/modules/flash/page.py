@@ -151,11 +151,12 @@ def _product_display_name(product: str) -> str:
         "industrial": "Industrial",
         "mini": "Mini",
         "robotics": "Robotics",
+        "rugged": "Rugged",
         "s": "Super",
     }
 
     import re
-    m = re.fullmatch(r"(j\d+)(classic|industrial|mini|robotics|reserver|s)", compact)
+    m = re.fullmatch(r"(j\d+)(classic|industrial|mini|robotics|reserver|rugged|s)", compact)
     if m:
         model, suffix = m.groups()
         if suffix == "reserver":
@@ -324,6 +325,8 @@ def build_page() -> QWidget:
         "active_status_label": None,
         "active_progress": None,
         "device_pixmap": None,
+        "guide_pixmap": None,
+        "guide_label": None,
     }
 
     # Custom QWidget for adaptive resize behavior.
@@ -496,6 +499,7 @@ def build_page() -> QWidget:
     prod_row.addWidget(prod_name_lbl)
     prod_row.addStretch()
     flash_product_combo = DropdownButton(max_popup_height=pt(320))
+    flash_product_combo.setObjectName("flash.product.combo")
     # Full remaining row width — long product names need the space (no JetPack spacer).
     flash_product_combo.setMinimumWidth(0)
     flash_product_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -509,6 +513,7 @@ def build_page() -> QWidget:
     l4t_row.addWidget(l4t_name_lbl)
     l4t_row.addStretch()
     flash_l4t_combo = DropdownButton(max_popup_height=pt(200))
+    flash_l4t_combo.setObjectName("flash.l4t.combo")
     flash_l4t_combo.setMinimumWidth(0)
     flash_l4t_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     l4t_row.addWidget(flash_l4t_combo, 1)
@@ -578,12 +583,14 @@ def build_page() -> QWidget:
     flash_docs_row.setSpacing(pt(10))
 
     flash_getting_started_btn = make_button(_ft("flash.docs.getting_started"), primary=True, small=True)
+    flash_getting_started_btn.setObjectName("flash.docs.getting_started")
     flash_getting_started_btn.clicked.connect(
         lambda: _open_flash_doc(flash_getting_started_btn)
     )
     flash_docs_row.addWidget(flash_getting_started_btn)
 
     flash_hardware_btn = make_button(_ft("flash.docs.hardware_interface"), small=True)
+    flash_hardware_btn.setObjectName("flash.docs.hardware")
     flash_hardware_btn.clicked.connect(
         lambda: _open_flash_doc(flash_hardware_btn)
     )
@@ -591,6 +598,7 @@ def build_page() -> QWidget:
     flash_docs_row.addStretch()
 
     update_src_btn = make_button("Update BSP", small=True)
+    update_src_btn.setObjectName("flash.docs.update_bsp")
     flash_docs_row.addWidget(update_src_btn)
     dev_lay.addLayout(flash_docs_row)
     left_col.addWidget(dev_card)
@@ -603,6 +611,7 @@ def build_page() -> QWidget:
     opt_title_lbl = make_label(_ft("flash.options.title"), 14, C_TEXT, bold=True)
     opt_lay.addWidget(opt_title_lbl)
     skip_verify_cb = QCheckBox(_ft("flash.options.skip_verify"))
+    skip_verify_cb.setObjectName("flash.options.skip_verify")
     skip_verify_cb.setChecked(True)
     opt_lay.addWidget(skip_verify_cb)
     left_col.addWidget(opt_card)
@@ -637,7 +646,7 @@ def build_page() -> QWidget:
     rec_guide_scroll.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
     rec_guide_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     rec_guide_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    rec_guide_scroll.setMinimumHeight(pt(120))
+    rec_guide_scroll.setMinimumHeight(pt(320))
     rec_guide_scroll.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
     rec_guide_scroll.setStyleSheet("background:transparent; border:none;")
 
@@ -656,8 +665,7 @@ def build_page() -> QWidget:
     rec_guide_outer.addWidget(rec_guide_scroll, 1)
     # Make recovery guide more noticeable with a subtle left accent border
     rec_guide_card.setStyleSheet(rec_guide_card.styleSheet() + f"; border-left: 3px solid {C_GREEN};")
-    left_col.addWidget(rec_guide_card)
-    left_col.addStretch()
+    left_col.addWidget(rec_guide_card, 0)
 
     # Left page 1: post-flash quick start
     guide_card = make_card(12)
@@ -934,6 +942,7 @@ def build_page() -> QWidget:
     rec_back_btn.clicked.connect(lambda: _flash_go_step1())
 
     rec_detect_btn = RippleButton(_ft("flash.btn.detect_device"))
+    rec_detect_btn.setObjectName("flash.detect.btn")
     rec_detect_btn.setCursor(Qt.PointingHandCursor)
     rec_detect_btn.setStyleSheet(f"""
         QPushButton {{
@@ -948,6 +957,7 @@ def build_page() -> QWidget:
     rec_detect_btn.clicked.connect(lambda: _detect_recovery())
 
     rec_flash_btn = RippleButton(_ft("flash.btn.next"))
+    rec_flash_btn.setObjectName("flash.next.btn")
     rec_flash_btn.setCursor(Qt.PointingHandCursor)
     rec_flash_btn.setEnabled(True)
     rec_flash_btn.setStyleSheet(f"""
@@ -1051,9 +1061,11 @@ def build_page() -> QWidget:
     hdr.addWidget(log_title_lbl)
     hdr.addStretch()
     save_btn = make_button(_ft("flash.log.save"), small=True)
+    save_btn.setObjectName("flash.log.save")
     save_btn.clicked.connect(lambda: _save_flash_log())
     hdr.addWidget(save_btn)
     clear_log_btn = make_button(_ft("flash.log.clear"), small=True)
+    clear_log_btn.setObjectName("flash.log.clear")
     clear_log_btn.clicked.connect(lambda: flash_log.clear())
     hdr.addWidget(clear_log_btn)
     log_lay_inner.addLayout(hdr)
@@ -1074,9 +1086,10 @@ def build_page() -> QWidget:
     flash_cols_host = QWidget()
     flash_cols_host.setStyleSheet("background:transparent;")
     flash_cols_host.setMinimumWidth(0)
-    flash_cols_host.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+    flash_cols_host.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
+    flash_cols_host.setMinimumHeight(pt(400))
     flash_cols_host.setLayout(flash_cols)
-    inner_lay.addWidget(flash_cols_host)
+    inner_lay.addWidget(flash_cols_host, 1)
     # Keep a little breathing room under the columns so bottom actions aren't
     # flush against the window edge when scrolled to the end.
     inner_lay.addSpacing(pt(12))
@@ -1191,7 +1204,9 @@ def build_page() -> QWidget:
         width = flash_cols_host.width() or page.width()
         height = page.height() or 0
         compact_visual = width < 1100
-        short_window = height > 0 and height < 780
+        # 视口实际可用高度(扣除页头/步骤条)不足以容纳左列三卡(~900px)时进入紧凑模式
+        avail_h = height - pt(220) if height > 0 else 0
+        short_window = (height > 0 and height < 780) or (avail_h > 0 and avail_h < pt(860))
         tight_width = width > 0 and width < 920
         if flash_cols.direction() != QBoxLayout.LeftToRight:
             flash_cols.setDirection(QBoxLayout.LeftToRight)
@@ -1229,11 +1244,21 @@ def build_page() -> QWidget:
             img_h = max(pt(64), int(img_w * 0.63))
             flash_device_img.setFixedSize(img_w, img_h)
         else:
-            flash_device_img.setFixedSize(pt(480), pt(300))
-            flash_prepare_scene.setFixedHeight(180)
-            flash_scene.setFixedHeight(180)
-            flash_done_scene.setFixedHeight(180)
-            flash_log.setMinimumHeight(pt(160))
+            # 正常模式：卡片元素尺寸跟随列宽比例，窗口越大卡片越大
+            img_budget = max(pt(360), col_w - pt(48) * 2 - pt(8))
+            img_w = min(int(col_w * 0.62), img_budget)
+            img_h = max(pt(140), int(img_w * 0.63))
+            # 高度也受窗口高度约束:产品卡+选项卡+Recovery卡 要在视口内装下。
+            # 预算:窗口高 - 页头/步骤条(~230) - 选项卡+间距(~140) - 产品卡文字按钮(~160) - Recovery 最小高(~330)
+            if height > 0:
+                img_h = min(img_h, max(pt(140), height - pt(230) - pt(140) - pt(160) - pt(330)))
+                img_w = int(img_h / 0.63)
+            flash_device_img.setFixedSize(img_w, img_h)
+            scene_h = max(120, int(col_w * 0.26))
+            flash_prepare_scene.setFixedHeight(scene_h)
+            flash_scene.setFixedHeight(scene_h)
+            flash_done_scene.setFixedHeight(scene_h)
+            flash_log.setMinimumHeight(max(pt(160), int(col_w * 0.24)))
             inner_lay.setContentsMargins(pt(28), pt(24), pt(28), pt(24))
             inner_lay.setSpacing(pt(24))
             flash_cols.setSpacing(pt(20))
@@ -1241,7 +1266,11 @@ def build_page() -> QWidget:
             _place_jetpack_badge(inline=True)
             flash_left_stack.setMaximumWidth(16777215)
             flash_right_panel.setMaximumWidth(16777215)
+            # Recovery 指南最小高度也按列宽比例
+            rec_guide_scroll.setMinimumHeight(max(pt(320), int(col_w * 0.55)))
         _rescale_device_image()
+        if _state.get("guide_pixmap") is not None:
+            _rescale_guide_image()
 
     def _rescale_device_image():
         pix = _state.get("device_pixmap")
@@ -1762,13 +1791,13 @@ def build_page() -> QWidget:
         if guide.get("image_url") or guide.get("local_image"):
             img_lbl = QLabel()
             img_lbl.setAlignment(Qt.AlignCenter)
-            img_lbl.setFixedHeight(280)
             img_lbl.setMinimumWidth(0)
-            img_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+            img_lbl.setMinimumHeight(pt(200))
+            img_lbl.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
             img_lbl.setText(_ft("flash.image.loading"))
             img_lbl.setStyleSheet(f"color:{C_TEXT3}; background:{C_CARD_LIGHT}; border-radius:8px; font-size:{pt(10)}pt;")
             rec_guide_layout.addWidget(img_lbl)
-            _load_guide_image(guide.get("image_url", ""), img_lbl, guide.get("local_image", ""), guide["title"])
+            _load_guide_image(guide.get("image_url", ""), img_lbl, guide.get("local_image"), guide["title"])
         rec_guide_layout.addWidget(make_label(_ft("flash.recovery.steps"), 12, C_TEXT, bold=True))
         for i, step in enumerate(guide["steps"], 1):
             row = QHBoxLayout()
@@ -1808,24 +1837,43 @@ def build_page() -> QWidget:
         rec_guide_layout.addStretch()
 
     def _set_guide_image_preview(label: QLabel, pix: QPixmap, title: str):
-        viewport_w = rec_guide_scroll.viewport().width() - rec_guide_layout.contentsMargins().right() - 16
-        label_w = label.width() - 16 if label.width() > 16 else 0
-        target_w = max(180, min(label_w or 560, viewport_w if viewport_w > 0 else 560))
-        target_h = label.height() - 8 if label.height() > 8 else 272
-        preview = pix.scaled(target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        label.setPixmap(preview)
+        _state["guide_pixmap"] = pix
+        _state["guide_label"] = label
         label.setMinimumWidth(0)
-        label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         label.setStyleSheet(f"background:{C_CARD_LIGHT}; border-radius:8px; padding:4px;")
         label.setText("")
         label.setCursor(Qt.PointingHandCursor)
         label.setToolTip(_ft("flash.image.click_view"))
         label.mousePressEvent = lambda _event, p=pix, t=title: _show_guide_image_dialog(p, t)
+        _rescale_guide_image()
+
+    def _rescale_guide_image():
+        pix = _state.get("guide_pixmap")
+        label = _state.get("guide_label")
+        viewport_w = rec_guide_scroll.viewport().width() - rec_guide_layout.contentsMargins().right() - pt(16)
+        avail_w = max(pt(180), viewport_w if viewport_w > pt(180) else pt(560))
+        target_h = max(pt(140), int(avail_w * pix.height() / max(1, pix.width())))
+        # 高度上限:视口的 70%(完整版内容含步骤/USB表,滚动查看),
+        # 防止大图溢出卡片被截断
+        viewport_h = rec_guide_scroll.viewport().height() - pt(24)
+        if viewport_h > pt(40):
+            target_h = min(target_h, max(pt(140), int(viewport_h * 0.7)))
+        scaled = pix.scaled(avail_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        label.setPixmap(scaled)
+        label.setFixedHeight(scaled.height() + pt(8))
 
     def _show_guide_image_dialog(pix: QPixmap, title: str):
-        dlg = QDialog(page.window())
+        host = page.window()
+        dlg = QDialog(host)
         dlg.setWindowTitle(title)
-        dlg.setMinimumSize(980, 760)
+        # 与刷机主窗口同尺寸（跟随宿主当前大小，居中显示）
+        if host is not None and host.isVisible():
+            geo = host.frameGeometry()
+            dlg.resize(max(980, geo.width()), max(760, geo.height()))
+        else:
+            dlg.resize(1360, 860)
+        dlg.setMinimumSize(680, 520)
         dlg.setStyleSheet(f"background:{C_BG};")
         root = QVBoxLayout(dlg)
         root.setContentsMargins(pt(20), pt(20), pt(20), pt(20))

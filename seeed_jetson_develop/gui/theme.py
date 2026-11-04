@@ -386,18 +386,24 @@ class HoverCard(QFrame):
     hover 时阴影直接切换为较大值（无动画过渡），避免 QGraphicsDropShadowEffect
     与 QTimer 快速重绘在 Windows 下触发 painter 冲突导致段错误。
     """
-    def __init__(self, radius: int = 12, with_shadow: bool = True, parent=None):
+    def __init__(self, radius: int = 12, with_shadow: bool = True, parent=None, card_id: str = ""):
         super().__init__(parent)
         self._radius = radius
-        self.setObjectName("SeeedCard")
+        # objectName 由调用方通过 card_id 指定(便于 UI 审查/断言定位);
+        # 默认留空,样式钩子改用动态属性 cardId,不再占用 objectName。
+        if card_id:
+            self.setObjectName(card_id)
+        else:
+            self.setObjectName("")
+        self.setProperty("cardId", "SeeedCard")
         self.setStyleSheet(f"""
-            QFrame#SeeedCard {{
+            QFrame[cardId="SeeedCard"] {{
                 background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                     stop:0 #1E2D40, stop:1 {C_CARD});
                 border: none;
                 border-radius: {radius}px;
             }}
-            QFrame#SeeedCard:hover {{
+            QFrame[cardId="SeeedCard"]:hover {{
                 background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
                     stop:0 #24354A, stop:1 {C_CARD_HOVER});
                 border: none;

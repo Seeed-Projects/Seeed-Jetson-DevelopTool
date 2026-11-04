@@ -156,6 +156,36 @@ GUIDES = {
         "note_en": None,
     },
 
+    # ── reComputer Rugged 系列 ────────────────────────────────────────────────
+    "rugged": {
+        "title":    "reComputer Rugged — 进入 Recovery 模式",
+        "title_en": "reComputer Rugged — Enter Force Recovery Mode",
+        "cable":    "USB Type-C 数据线",
+        "cable_en": "USB Type-C data cable",
+        "steps": [
+            "将 USB Type-C 数据线连接到 DEVICE 口与 Ubuntu 主机。",
+            "按住 REC 按钮并保持。",
+            "保持按住 REC，连接电源为设备上电开机。",
+            "松开 REC 按钮。",
+            "在主机终端执行 lsusb，确认设备已进入 Recovery 模式。",
+        ],
+        "steps_en": [
+            "Connect a USB Type-C data cable between the DEVICE port and the Ubuntu host.",
+            "Press and hold the REC button.",
+            "While holding REC, connect the power supply to turn on the device.",
+            "Release the REC button.",
+            "On the Ubuntu host, verify that the Jetson is detected with lsusb.",
+        ],
+        "usb_ids": [
+            ("Orin NX 16GB",  "0955:7323"),
+            ("Orin Nano 8GB", "0955:7523"),
+        ],
+        "image_url":   "https://files.seeedstudio.com/wiki/rugged_J401/1.jpg",
+        "local_image": "seeed_jetson_develop/assets/recovery/rugged_rec_1.jpg",
+        "note":    None,
+        "note_en": None,
+    },
+
     # ── reServer Industrial 系列 ───────────────────────────────────────────────
     "reserver": {
         "title":    "reServer Industrial — 进入 Recovery 模式",
@@ -310,6 +340,8 @@ PRODUCT_GUIDE_MAP = {
     "j4012industrial": "industrial", "j4011industrial": "industrial",
     "j3011industrial": "industrial", "j3010industrial": "industrial",
     "j2012industrial": "industrial", "j2011industrial": "industrial",
+    # rugged
+    "j4012rugged": "rugged", "j3011rugged": "rugged",
     # reserver
     "j4012reserver": "reserver", "j4011reserver": "reserver",
     "j3011reserver": "reserver", "j3010reserver": "reserver",

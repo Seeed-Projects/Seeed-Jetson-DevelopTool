@@ -1,7 +1,12 @@
 {
   "mini": {
     "name": "reComputer Mini 系列",
-    "products": ["j4012mini", "j4011mini", "j3011mini", "j3010mini"],
+    "products": [
+      "j4012mini",
+      "j4011mini",
+      "j3011mini",
+      "j3010mini"
+    ],
     "requirements": [
       "Ubuntu 主机电脑",
       "reComputer Mini J4012 / J4011 / J3010 或 J3011",
@@ -50,7 +55,12 @@
   },
   "robotics": {
     "name": "reComputer Robotics 系列",
-    "products": ["j4012robotics", "j4011robotics", "j3011robotics", "j3010robotics"],
+    "products": [
+      "j4012robotics",
+      "j4011robotics",
+      "j3011robotics",
+      "j3010robotics"
+    ],
     "requirements": [
       "Ubuntu 主机电脑",
       "reComputer Robotics J4012 / J4011 / J3010 或 J3011",
@@ -98,7 +108,12 @@
   },
   "super": {
     "name": "reComputer Super 系列",
-    "products": ["j4012s", "j4011s", "j3011s", "j3010s"],
+    "products": [
+      "j4012s",
+      "j4011s",
+      "j3011s",
+      "j3010s"
+    ],
     "requirements": [
       "Ubuntu 主机电脑",
       "reComputer Super J4012 / J4011 / J3010 或 J3011",
@@ -137,7 +152,12 @@
   },
   "classic": {
     "name": "reComputer Classic 系列",
-    "products": ["j4012classic", "j4011classic", "j3011classic", "j3010classic"],
+    "products": [
+      "j4012classic",
+      "j4011classic",
+      "j3011classic",
+      "j3010classic"
+    ],
     "requirements": [
       "Ubuntu 主机电脑",
       "reComputer J4012 / J4011 / J3010 或 J3011",
@@ -176,7 +196,14 @@
   },
   "industrial": {
     "name": "reComputer Industrial 系列",
-    "products": ["j4012industrial", "j4011industrial", "j3011industrial", "j3010industrial", "j2012industrial", "j2011industrial"],
+    "products": [
+      "j4012industrial",
+      "j4011industrial",
+      "j3011industrial",
+      "j3010industrial",
+      "j2012industrial",
+      "j2011industrial"
+    ],
     "requirements": [
       "Ubuntu 主机电脑",
       "reComputer Industrial",
@@ -221,7 +248,10 @@
   },
   "agx-orin-devkit": {
     "name": "NVIDIA Jetson AGX Orin Developer Kit",
-    "products": ["agx-orin-devkit-64g", "agx-orin-devkit-32g"],
+    "products": [
+      "agx-orin-devkit-64g",
+      "agx-orin-devkit-32g"
+    ],
     "requirements": [
       "Ubuntu host PC",
       "NVIDIA Jetson AGX Orin Developer Kit",
@@ -261,6 +291,51 @@
         "url": "https://developer.download.nvidia.com/embedded/images/jetsonAgxOrin/getting_started/jaodk_highlight_02.png",
         "description": "Force Recovery button location",
         "local_image": "seeed_jetson_develop/assets/recovery/agx_orin_devkit_recovery.png"
+      }
+    ]
+  },
+  "rugged": {
+    "name": "reComputer Rugged 系列",
+    "products": [
+      "j4012rugged",
+      "j3011rugged"
+    ],
+    "requirements": [
+      "Ubuntu 主机电脑",
+      "reComputer Rugged J4012 / J3011",
+      "USB Type-C 数据线",
+      "19-48V DC 电源"
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "description": "用 USB Type-C 数据线将 DEVICE 口与 Ubuntu 主机相连"
+      },
+      {
+        "step": 2,
+        "description": "按住 REC 按钮并保持"
+      },
+      {
+        "step": 3,
+        "description": "保持按住 REC,连接电源给设备上电开机"
+      },
+      {
+        "step": 4,
+        "description": "松开 REC 按钮"
+      }
+    ],
+    "verification": {
+      "command": "lsusb",
+      "ids": {
+        "Orin NX 16GB": "0955:7323",
+        "Orin Nano 8GB": "0955:7523"
+      }
+    },
+    "images": [
+      {
+        "url": "https://files.seeedstudio.com/wiki/rugged_J401/1.jpg",
+        "description": "REC 按钮与 DEVICE 口位置",
+        "local_image": "seeed_jetson_develop/assets/recovery/rugged_rec_1.jpg"
       }
     ]
   }

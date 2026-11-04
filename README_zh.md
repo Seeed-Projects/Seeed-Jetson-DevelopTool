@@ -1,6 +1,6 @@
 # Seeed Jetson Develop Tool
 
-Seeed Jetson Develop Tool 是面向 Seeed Jetson 开发者的桌面客户端。它把 Jetson 开发过程中最常用的步骤集中到一个 GUI 中：固件烧录、首次开机初始化、设备诊断、远程开发、应用部署、Skills 自动化、OTA 升级和社区资源入口。
+Seeed Jetson Develop Tool 是面向 Seeed Jetson 开发者的**一站式 AI 开发工具**桌面客户端。它把 Jetson 开发过程中最常用的步骤集中到一个 GUI 中：固件烧录、首次开机初始化、设备诊断、远程开发、一键部署 AI 应用（YOLO、LLM、机器人）、Skills 自动化、OTA 升级和社区资源入口。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
@@ -10,11 +10,29 @@ Seeed Jetson Develop Tool 是面向 Seeed Jetson 开发者的桌面客户端。�
 
 [English](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/README.md)
 
-### PyPI 下载趋势
+## 适用人群
 
-[![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)](https://pepy.tech/project/seeed-jetson-developer)
+- **Jetson 工程师与开发者**：正在基于 NVIDIA Jetson 开发套件或 Seeed Jetson 模组（reComputer、reServer、Orin Nano Developer Kit Super 等）做开发。
+- **需要在 Jetson 上刷机、诊断、部署 AI 应用的任何人** —— 从首次开机到跑通 YOLO / LLM / 机器人示例。
 
-![UI 预览](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
+所有操作都在桌面 GUI 中点击完成，几分钟即可安装并落地到你自己的项目：
+
+```bash
+pip install seeed-jetson-developer
+seeed-jetson-developer
+```
+
+## 界面截图
+
+一个界面覆盖 Jetson 全流程 —— 刷机、诊断、远程开发、一键部署 AI 应用。
+
+![Seeed Jetson Develop Tool 主窗口 — 烧录中心](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/ui-preview.png)
+
+![应用市场总览 — 安装并运行 Jetson 应用与示例](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/app-market-overview.png)
+
+![应用市场 LLM / GenAI 分类 — Llama、LLaVA、GPT-OSS 等](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/app-market-llm-genai.png)
+
+![应用市场搜索 — 一键部署 YOLO](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/app-market-search.png)
 
 ## 使用视频
 
@@ -245,6 +263,10 @@ seeed_jetson_develop/
   data/                BSP、产品图片和 Recovery 元数据
   skills/              内置 OpenClaw、Claude、Codex 技能库
 ```
+
+## PyPI 下载趋势
+
+[![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)](https://pepy.tech/project/seeed-jetson-developer)
 
 ## 链接
 

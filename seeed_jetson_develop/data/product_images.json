@@ -250,5 +250,19 @@
     "wiki": "",
     "getting_started": "",
     "hardware_interfaces": ""
+  },
+  "j4012rugged": {
+    "name": "reComputer Rugged J4012",
+    "local_image": "assets/devices/rugged.jpg",
+    "wiki": "https://wiki.seeedstudio.com/jetson/recomputer_rugged_j401/getting_started/",
+    "getting_started": "https://wiki.seeedstudio.com/jetson/recomputer_rugged_j401/getting_started/",
+    "hardware_interfaces": "https://wiki.seeedstudio.com/jetson/recomputer_rugged_j401/hardware_and_interface_usage/"
+  },
+  "j3011rugged": {
+    "name": "reComputer Rugged J3011",
+    "local_image": "assets/devices/rugged.jpg",
+    "wiki": "https://wiki.seeedstudio.com/jetson/recomputer_rugged_j401/getting_started/",
+    "getting_started": "https://wiki.seeedstudio.com/jetson/recomputer_rugged_j401/getting_started/",
+    "hardware_interfaces": "https://wiki.seeedstudio.com/jetson/recomputer_rugged_j401/hardware_and_interface_usage/"
   }
 }

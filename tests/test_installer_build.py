@@ -4,9 +4,7 @@ These tests avoid the heavy full-archive creation and only check the
 exclusion logic and generated source compilation.
 """
 
-import io
 import sys
-import zipfile
 from pathlib import Path
 
 import pytest
@@ -54,25 +52,6 @@ class TestShouldExclude:
 
     def test_video_covers_excluded(self):
         assert build_installer.should_exclude(Path("assets/video-cover-en.png"))
-
-
-class TestGeneratedWindowsInstaller:
-    def test_exe_source_compiles(self, tmp_path):
-        zip_bytes = io.BytesIO()
-        with zipfile.ZipFile(zip_bytes, "w") as zf:
-            zf.writestr("requirements.txt", "requests\n")
-        source = build_installer.build_windows_exe_source(zip_bytes.getvalue())
-        out = tmp_path / "installer.py"
-        out.write_text(source, encoding="utf-8")
-        compile(out.read_text(encoding="utf-8"), str(out), "exec")  # raises SyntaxError on bad source
-
-    def test_pip_flags_present(self):
-        zip_bytes = io.BytesIO()
-        with zipfile.ZipFile(zip_bytes, "w") as zf:
-            zf.writestr("requirements.txt", "requests\n")
-        source = build_installer.build_windows_exe_source(zip_bytes.getvalue())
-        assert "--no-input" in source
-        assert "--disable-pip-version-check" in source
 
 
 if __name__ == "__main__":

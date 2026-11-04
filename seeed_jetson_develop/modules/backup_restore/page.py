@@ -80,7 +80,7 @@ class _AdaptiveStackedWidget(QStackedWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
 
     def sizeHint(self):
         w = self.currentWidget()
@@ -97,10 +97,8 @@ class _AdaptiveStackedWidget(QStackedWidget):
                 continue
             # Non-current pages must not inflate QStackedLayout minimumSize.
             w.setMaximumHeight(16777215 if i == idx else 0)
-        # 高度 = 内容自适应; 卡片间的间距由固定 spacing 保证统一
-        current = self.currentWidget()
-        natural = current.sizeHint().height() if current is not None else 0
-        self.setFixedHeight(max(0, natural))
+        # 当前页最小高由 sizePolicy/sizeHint 自然决定;
+        # Expanding + stretch 会把剩余空间分配给本 stack, 铺满视口。
         self.updateGeometry()
 
     def setCurrentIndex(self, index: int):
@@ -232,7 +230,10 @@ class BackupRestorePage(PageBase):
     }
 
     def _is_env_ready(self) -> bool:
-        return bool(self._l4t_dir) and is_valid_l4t_dir(self._l4t_dir) and (Path(self._l4t_dir) / "rootfs").is_dir()
+        try:
+            return bool(self._l4t_dir) and is_valid_l4t_dir(self._l4t_dir) and (Path(self._l4t_dir) / "rootfs").is_dir()
+        except OSError:
+            return False
 
     def _set_phase(self, idx: int):
         for i, row in self._phase_rows.items():
@@ -278,18 +279,21 @@ class BackupRestorePage(PageBase):
         self._stack.setStyleSheet("background:transparent; border:none;")
 
         # ══ step0: 准备 ═════════════════════════════════════════════════
-        step0 = _pin_height(QWidget())
+        step0 = QWidget()
+        step0.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         s0_lay = _pack_top(QVBoxLayout(step0))
         s0_lay.setSpacing(_pt(12))
 
         # 主内容：左侧配置卡 + 右侧状态卡
         main_row = QWidget()
+        main_row.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         main_lay = QHBoxLayout(main_row)
         main_lay.setContentsMargins(0, 0, 0, 0)
         main_lay.setSpacing(_pt(12))
 
         # ── 左侧配置卡 ────────────────────────────────────────────────────
         left_card = _card(12)
+        left_card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         left_lay = QVBoxLayout(left_card)
         left_lay.setContentsMargins(_pt(22), _pt(18), _pt(22), _pt(18))
         left_lay.setSpacing(_pt(14))
@@ -437,6 +441,7 @@ class BackupRestorePage(PageBase):
 
         # ── 右侧状态卡 ────────────────────────────────────────────────────
         right_card = _card(12)
+        right_card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         right_lay = QVBoxLayout(right_card)
         right_lay.setContentsMargins(_pt(22), _pt(18), _pt(22), _pt(18))
         right_lay.setSpacing(_pt(12))
@@ -478,7 +483,7 @@ class BackupRestorePage(PageBase):
 
         main_lay.addWidget(right_card, 1)
 
-        s0_lay.addWidget(main_row)
+        s0_lay.addWidget(main_row, 1)
 
         # 导航
         s0_nav = QHBoxLayout()
@@ -491,8 +496,9 @@ class BackupRestorePage(PageBase):
 
         self._stack.addWidget(step0)
 
-        # ═ step1: 配置 ══════════════════════════════════════════════════
-        step1 = _pin_height(QWidget())
+# ══ step1: 配置 ══════════════════════════════════════════════════
+        step1 = QWidget()
+        step1.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         s1_lay = _pack_top(QVBoxLayout(step1))
         s1_lay.setSpacing(_pt(12))
         s1_card = _card(12)
@@ -546,7 +552,8 @@ class BackupRestorePage(PageBase):
         self._stack.addWidget(step1)
 
         # ══ step2: 执行 ══════════════════════════════════════════════════
-        step2 = _pin_height(QWidget())
+        step2 = QWidget()
+        step2.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
         s2_lay = _pack_top(QVBoxLayout(step2))
         s2_lay.setSpacing(_pt(12))
         s2_card = _card(12)
@@ -606,7 +613,7 @@ class BackupRestorePage(PageBase):
         s2_lay.addLayout(s2_nav)
         self._stack.addWidget(step2)
 
-        content.addWidget(self._stack)
+        content.addWidget(self._stack, 1)
 
         self._stack.sync_height()
 
@@ -617,8 +624,8 @@ class BackupRestorePage(PageBase):
         self._log_toggle.clicked.connect(self._toggle_log_view)
         content.addWidget(self._log_toggle)
         content.addWidget(self._log_view)
-        # 底部 stretch 吸收多余空间: 卡片全部顶对齐, 间距恒定不漂移
-        content.addStretch()
+        # 底部小留白(不再 addStretch 吞剩余空间, 剩余空间由 stack 铺满视口)
+        content.addSpacing(_pt(4))
 
         # 初始化状态
         self._populate_versions()
@@ -626,7 +633,11 @@ class BackupRestorePage(PageBase):
         # 恢复上次记住的状态: 工作区 / L4T 目录 / sudo 密码
         remembered = get_backup_state()
         workspace = (remembered.get("workspace") or "").strip()
-        if workspace and Path(workspace).is_dir():
+        try:
+            ws_dir_ok = workspace and Path(workspace).is_dir()
+        except OSError:
+            ws_dir_ok = False
+        if workspace and ws_dir_ok:
             self._workspace_path = workspace
             self._workspace_btn.setText(
                 f"{_tt('backup.prepare.workspace')}: {workspace}")

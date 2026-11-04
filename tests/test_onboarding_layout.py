@@ -4,7 +4,7 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt5.QtWidgets import QApplication
+from qtpy.QtWidgets import QApplication
 
 from seeed_jetson_develop.gui.theme import pt
 from seeed_jetson_develop.gui.widgets.onboarding_guide import OnboardingGuide, StepPage

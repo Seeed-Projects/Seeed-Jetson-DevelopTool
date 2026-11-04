@@ -77,7 +77,11 @@ def discover_l4t_dirs() -> list[str]:
 
 def is_valid_l4t_dir(l4t_dir: str | Path) -> bool:
     """True when the directory is a Linux_for_Tegra tree with the backup tool."""
-    return (Path(l4t_dir) / BACKUP_TOOL_REL).is_file()
+    try:
+        return (Path(l4t_dir) / BACKUP_TOOL_REL).is_file()
+    except OSError:
+        # 磁盘掉线/卸载/权限等 I/O 错误：视为无效目录，不要抛出崩溃 GUI。
+        return False
 
 
 def discover_boards(l4t_dir: str | Path) -> list[str]:

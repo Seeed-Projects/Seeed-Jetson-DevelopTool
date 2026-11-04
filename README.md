@@ -1,6 +1,6 @@
 # Seeed Jetson Develop Tool
 
-Seeed Jetson Develop Tool is a desktop client for Seeed Jetson developers. It brings the common bring-up and development workflow into one GUI: firmware flashing, first-boot initialization, device diagnostics, remote development, app deployment, skill-based automation, OTA updates, and community resources.
+Seeed Jetson Develop Tool is a **one-stop AI development tool**: a desktop client for Seeed Jetson developers that brings the common bring-up and development workflow into one GUI — firmware flashing, first-boot initialization, device diagnostics, remote development, one-click AI app deployment (YOLO, LLM, robotics), skill-based automation, OTA updates, and community resources.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
@@ -10,11 +10,29 @@ Seeed Jetson Develop Tool is a desktop client for Seeed Jetson developers. It br
 
 [中文文档](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/README_zh.md)
 
-### PyPI Downloads Trend
+## Who Is This For?
 
-[![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)](https://pepy.tech/project/seeed-jetson-developer)
+- **Jetson engineers and makers** building on NVIDIA Jetson dev kits or Seeed Jetson modules (reComputer, reServer, Orin Nano Developer Kit Super, and more).
+- **Anyone flashing, diagnosing, or deploying AI applications on Jetson** — from first boot to working YOLO / LLM / robotics demos.
 
-![UI Preview](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
+Everything is driven from a desktop GUI. Install it and apply it to your own project in minutes:
+
+```bash
+pip install seeed-jetson-developer
+seeed-jetson-developer
+```
+
+## Screenshots
+
+One interface for the whole Jetson workflow — flashing, diagnostics, remote development, and one-click AI app deployment.
+
+![Seeed Jetson Develop Tool main window — Flash Center](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/ui-preview.png)
+
+![App Marketplace overview — install and run Jetson apps and examples](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/app-market-overview.png)
+
+![App Marketplace LLM / GenAI category — Llama, LLaVA, GPT-OSS and more](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/app-market-llm-genai.png)
+
+![App Marketplace search — one-click YOLO deployment](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/app-market-search.png)
 
 ## Demo Video
 
@@ -245,6 +263,10 @@ seeed_jetson_develop/
   data/                BSP, product image, and Recovery metadata
   skills/              Bundled OpenClaw, Claude, and Codex skill libraries
 ```
+
+## PyPI Downloads Trend
+
+[![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)](https://pepy.tech/project/seeed-jetson-developer)
 
 ## Links
 
