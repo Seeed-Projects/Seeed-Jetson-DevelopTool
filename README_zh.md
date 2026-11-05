@@ -10,11 +10,7 @@ Seeed Jetson Develop Tool 是面向 Seeed Jetson 开发者的桌面客户端。�
 
 [English](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/README.md)
 
-### PyPI 下载趋势
 
-[![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)](https://pepy.tech/project/seeed-jetson-developer)
-
-![UI 预览](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
 ## 使用视频
 
@@ -253,6 +249,12 @@ seeed_jetson_develop/
 - Seeed GitHub: https://github.com/Seeed-Studio
 - NVIDIA NGC: https://catalog.ngc.nvidia.com/
 - Hugging Face: https://huggingface.co/
+
+### PyPI 下载趋势
+
+[![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)](https://pepy.tech/project/seeed-jetson-developer)
+
+![UI 预览](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
 ## License
 
