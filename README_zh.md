@@ -1,6 +1,6 @@
 # Seeed Jetson Develop Tool
 
-Seeed Jetson Develop Tool 是面向 Seeed Jetson 开发者的桌面客户端。它把 Jetson 开发过程中最常用的步骤集中到一个 GUI 中：固件烧录、首次开机初始化、设备诊断、远程开发、应用部署、Skills 自动化、OTA 升级和社区资源入口。
+**别再为了烧录、连接和部署 Jetson，在十几个终端命令之间来回折腾了。** Seeed Jetson Develop Tool 是一站式桌面 GUI，覆盖 NVIDIA Jetson 从上手到部署的完整工作流：一键 JetPack/L4T 固件烧录、首次开机初始化、SSH 远程开发、设备诊断、边缘 AI 应用市场（YOLO、LLM、RAG、机器人、ROS）、AI Agent Skills（Claude/Codex/OpenClaw）、OTA 升级和系统盘完整备份 —— 专为 Seeed reComputer、reServer 及 NVIDIA Jetson Orin / Xavier NX 设备打造。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
@@ -10,7 +10,7 @@ Seeed Jetson Develop Tool 是面向 Seeed Jetson 开发者的桌面客户端。�
 
 [English](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/README.md)
 
-
+![UI 预览](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
 ## 使用视频
 
@@ -253,8 +253,6 @@ seeed_jetson_develop/
 ### PyPI 下载趋势
 
 [![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)](https://pepy.tech/project/seeed-jetson-developer)
-
-![UI 预览](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
 ## License
 

@@ -1,6 +1,6 @@
 # Seeed Jetson Develop Tool
 
-Seeed Jetson Develop Tool is a desktop client for Seeed Jetson developers. It brings the common bring-up and development workflow into one GUI: firmware flashing, first-boot initialization, device diagnostics, remote development, app deployment, skill-based automation, OTA updates, and community resources.
+**Stop juggling a dozen terminal commands to flash, connect, and deploy on NVIDIA Jetson.** Seeed Jetson Develop Tool is an all-in-one desktop GUI that covers the entire Jetson bring-up and development workflow: one-click JetPack/L4T firmware flashing, first-boot setup, SSH remote development, device diagnostics, an app market for edge AI demos (YOLO, LLM, RAG, robotics, ROS), AI agent skills (Claude/Codex/OpenClaw), OTA updates, and full-disk backup — built for Seeed reComputer, reServer, and NVIDIA Jetson Orin / Xavier NX devices.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
@@ -10,7 +10,7 @@ Seeed Jetson Develop Tool is a desktop client for Seeed Jetson developers. It br
 
 [中文文档](https://github.com/Seeed-Projects/Seeed-Jetson-DevelopTool/blob/main/README_zh.md)
 
-
+![UI Preview](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
 ## Demo Video
 
@@ -253,8 +253,6 @@ seeed_jetson_develop/
 ### PyPI Downloads Trend
 
 [![PyPI Downloads Trend](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/downloads-chart.svg)](https://pepy.tech/project/seeed-jetson-developer)
-
-![UI Preview](https://raw.githubusercontent.com/Seeed-Projects/Seeed-Jetson-DevelopTool/main/assets/Reference-UI.png)
 
 ## License
 
