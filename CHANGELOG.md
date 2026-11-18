@@ -37,6 +37,13 @@
 
 - **test**: 新增 `tests/test_agent_backend.py`（命令构造 / Claude 与 Codex 事件解析 / ANSI 清洗 / 目录约定 / 安装线程签名）；扩展 NVIDIA 安装线程 agent 参数用例。
 
+### 修复
+
+- **fix(flash): Linux 原生刷机前自动检查并安装宿主机依赖（含 sshpass）**
+  - `flash.py` 新增 `ensure_linux_flash_host_deps()`：Linux 原生刷写路径在运行 `l4t_initrd_flash.sh` 前检查 `qemu-user-static / sshpass / abootimg / nfs-kernel-server / libxml2-utils / binutils`（与 WSL 刷机路径的 `FLASH_PACKAGES` 保持一致），缺失时自动 `sudo apt-get install -y` 补齐；安装失败则在日志中给出完整手动安装命令并中止刷机，避免刷到一半才因缺 sshpass 失败。
+  - 非 apt 系发行版仅探测 `sshpass` 并给出警告，不阻断刷机。新增日志 i18n key（`flash.flasher.deps_missing / deps_install_failed / deps_warn_no_apt`，双语）。
+  - 新增 `tests/test_flash_host_deps.py` 覆盖依赖齐全 / 自动安装 / 安装失败阻断 / 非 apt 警告 / 非 Linux 跳过五种场景。
+
 ## 0.2.0.post2（最新）
 
 ### 新功能

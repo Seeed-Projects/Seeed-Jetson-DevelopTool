@@ -179,5 +179,8 @@
   "flash.flasher.flash_ok": "✓ 刷写完成",
   "flash.flasher.flash_fail": "✗ 刷写失败 (exit {code})",
   "flash.flasher.rmtree_sudo": "[INFO] 普通删除失败，尝试 sudo rm -rf: {path}",
-  "flash.flasher.rmtree_sudo_fail": "sudo rm -rf 失败 (exit {code}): {error}"
+  "flash.flasher.rmtree_sudo_fail": "sudo rm -rf 失败 (exit {code}): {error}",
+  "flash.flasher.deps_missing": "[INFO] 缺少刷机所需宿主机依赖: {packages}，正在自动安装 (sudo)...",
+  "flash.flasher.deps_install_failed": "刷机依赖自动安装失败，请手动执行: sudo apt-get install -y {packages}",
+  "flash.flasher.deps_warn_no_apt": "[WARN] 未找到 '{binary}'。l4t_initrd_flash.sh 依赖该工具，如刷机失败请先安装。"
 }

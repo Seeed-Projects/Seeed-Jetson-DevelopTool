@@ -58,6 +58,60 @@ def _native_flash_command(unified_flash: bool) -> list[str]:
     return args
 
 
+# Host packages required by NVIDIA's l4t_initrd_flash.sh on a native Linux
+# host. Keep in sync with wsl_flash.FLASH_PACKAGES (WSL flash path).
+LINUX_FLASH_HOST_PACKAGES = (
+    "qemu-user-static",
+    "sshpass",
+    "abootimg",
+    "nfs-kernel-server",
+    "libxml2-utils",
+    "binutils",
+)
+
+
+def ensure_linux_flash_host_deps(
+    log: Callable[[str], None] | None = None,
+    fmt: Callable[..., str] | None = None,
+) -> bool:
+    """Ensure host packages required by l4t_initrd_flash.sh exist (Linux only).
+
+    Returns True when every dependency is present (or was installed via apt).
+    On non-apt systems only a warning is emitted; the flash is not blocked.
+    """
+    fmt = fmt or (lambda key, **kw: key)
+    if not _is_linux_host():
+        return True
+
+    def _log(line: str):
+        print(line)
+        if log:
+            try:
+                log(line)
+            except Exception:
+                pass
+
+    from seeed_jetson_develop import dependency_check
+
+    if not dependency_check._has_apt():
+        # Non-Debian host: apt package names do not apply. Probe the binary
+        # users most often miss and warn instead of blocking the flash.
+        if shutil.which("sshpass") is None:
+            _log(fmt("flash.flasher.deps_warn_no_apt", binary="sshpass"))
+        return True
+
+    missing = dependency_check.check_system_packages(list(LINUX_FLASH_HOST_PACKAGES))
+    if not missing:
+        return True
+    _log(fmt("flash.flasher.deps_missing", packages=", ".join(missing)))
+    if dependency_check.install_system_packages(missing):
+        missing = dependency_check.check_system_packages(missing)
+        if not missing:
+            return True
+    _log(fmt("flash.flasher.deps_install_failed", packages=" ".join(missing)))
+    return False
+
+
 def _hidden_startupinfo():
     if not _is_windows_host():
         return None
@@ -1032,6 +1086,9 @@ class JetsonFlasher:
         print(f"[Linux] Flash script: {flash_script}")
         if unified_flash:
             print("[Linux] NVIDIA unified flash package detected (Jetson Thor mode).")
+        if not ensure_linux_flash_host_deps(log=self._emit_log, fmt=self._fmt):
+            print("[Linux] Host flash dependencies are missing; aborting flash.")
+            return False
         print("[Linux] === Starting native Linux flash (sudo required) ===")
         print("[Linux] This step requires sudo password and takes 10-30 minutes.")
         print("[Linux] Ensure the Jetson is in Recovery mode before proceeding.")

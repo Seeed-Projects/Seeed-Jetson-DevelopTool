@@ -179,5 +179,8 @@
   "flash.flasher.flash_ok": "✓ Flash completed",
   "flash.flasher.flash_fail": "✗ Flash failed (exit {code})",
   "flash.flasher.rmtree_sudo": "[INFO] Normal delete failed, trying sudo rm -rf: {path}",
-  "flash.flasher.rmtree_sudo_fail": "sudo rm -rf failed (exit {code}): {error}"
+  "flash.flasher.rmtree_sudo_fail": "sudo rm -rf failed (exit {code}): {error}",
+  "flash.flasher.deps_missing": "[INFO] Missing host flash dependencies: {packages}. Installing automatically (sudo)...",
+  "flash.flasher.deps_install_failed": "Failed to install required host dependencies. Please run manually: sudo apt-get install -y {packages}",
+  "flash.flasher.deps_warn_no_apt": "[WARN] '{binary}' not found. l4t_initrd_flash.sh requires it; install it with your package manager if flashing fails."
 }
